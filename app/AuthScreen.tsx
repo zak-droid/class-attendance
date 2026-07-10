@@ -37,7 +37,7 @@ export function AuthScreen() {
     const { error: signInError } = await db.auth.signInWithOtp({
       email: normalizedEmail,
       options: {
-        emailRedirectTo: window.location.href,
+        emailRedirectTo: "https://zak-droid.github.io/class-attendance/",
         shouldCreateUser: true,
       },
     });
@@ -53,7 +53,7 @@ export function AuthScreen() {
     <AuthShell>
       <p className="mb-2 text-xs font-extrabold uppercase tracking-[0.16em] text-[#174A3A]">Teacher sign in</p>
       <h1 className="text-2xl font-extrabold tracking-[-0.035em]">Welcome to Class Attendance</h1>
-      <p className="mt-2 text-sm font-medium leading-6 text-[#66716B]">Enter your approved email. We’ll send you a secure sign-in link—no password needed.</p>
+      <p className="mt-2 text-sm font-medium leading-6 text-[#66716B]">Enter your approved email. Weâ€™ll send you a secure sign-in linkâ€”no password needed.</p>
       {sent ? (
         <div className="mt-6 rounded-2xl border border-[#C9E0D4] bg-[#E0EEE7] p-4 text-sm font-bold leading-6 text-[#22684D]" role="status">
           Check your email and tap the sign-in link. You can close this page after the email arrives.
@@ -65,7 +65,7 @@ export function AuthScreen() {
             <input required type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} className="mt-1.5 min-h-12 w-full rounded-2xl border border-[#DCE4DF] bg-white px-3.5 text-sm font-semibold outline-none focus:border-[#174A3A] focus:ring-2 focus:ring-[#174A3A]/15" />
           </label>
           {error && <p role="alert" className="rounded-xl bg-[#F8E2E1] px-3 py-2 text-sm font-bold text-[#A13D3D]">{error}</p>}
-          <button disabled={loading} type="submit" className="min-h-12 w-full rounded-2xl bg-[#174A3A] px-4 text-sm font-extrabold text-white hover:bg-[#103D2F] disabled:bg-[#A9B5AF]">{loading ? "Sending link…" : "Email me a sign-in link"}</button>
+          <button disabled={loading} type="submit" className="min-h-12 w-full rounded-2xl bg-[#174A3A] px-4 text-sm font-extrabold text-white hover:bg-[#103D2F] disabled:bg-[#A9B5AF]">{loading ? "Sending linkâ€¦" : "Email me a sign-in link"}</button>
         </form>
       )}
     </AuthShell>
