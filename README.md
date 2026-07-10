@@ -1,29 +1,38 @@
 # Class Attendance
 
-A mobile-first, teacher-controlled attendance app with shared courses, students, daily records, history, and CSV export.
+A mobile-first, teacher-controlled attendance app with shared courses,
+students, daily records, history, and CSV export.
 
-Hosted with GitHub Pages at `https://zak-droid.github.io/class-attendance/`.
+Live site: https://zak-droid.github.io/class-attendance/
 
-## Shared setup
+## Architecture
 
-The app uses Supabase for teacher sign-in, the shared database, row-level security, and realtime synchronization.
-
-1. Create a Supabase project.
-2. Run `supabase/schema.sql` in the Supabase SQL Editor.
-3. The approved teacher emails are already listed in `public.teacher_access`.
-4. Enable GitHub Pages with GitHub Actions as the source.
-
-The workflow in `.github/workflows/deploy-pages.yml` builds and publishes the app automatically.
+- React + TypeScript + Vite + Tailwind CSS
+- Supabase Auth Magic Links
+- Supabase Postgres with Row Level Security
+- Supabase Realtime Postgres Changes
+- GitHub Pages published from `main` -> `/docs`
 
 ## Local development
 
-Copy `.env.example` to `.env.local`, add the Supabase project values, then run:
+1. Copy `.env.example` to `.env.local` if using a different Supabase project.
+2. Run `npm ci`.
+3. Run `npm run dev`.
 
-```bash
-npm install
-npm run dev
-```
+## Build and publish
+
+1. Run `npm run build`.
+2. Replace `docs/` with the contents of `dist/`.
+3. Commit source changes and `docs/` to `main`.
+4. GitHub Pages must be set to **Deploy from a branch**: `main` / `/docs`.
+
+## Shared database
+
+Run `supabase/schema.sql` once in the Supabase SQL Editor. Configure the
+production Site URL and Redirect URL in Supabase Authentication.
 
 ## Safety
 
-Only email addresses listed in `teacher_access` can read or change data. Approved teachers sign in using a passwordless email link. The browser uses the Supabase publishable key; never put a Supabase service-role key in this project.
+Only active emails in `public.teacher_access` may use shared data. Keep Row
+Level Security enabled. Never place a Supabase service-role key, database
+password, or GitHub token in this public repository.
