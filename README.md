@@ -2,6 +2,8 @@
 
 A mobile-first, teacher-controlled attendance app with shared courses, students, daily records, history, and CSV export.
 
+Hosted with GitHub Pages at `https://zak-droid.github.io/class-attendance/`.
+
 ## Shared setup
 
 The app uses Supabase for teacher sign-in, the shared database, row-level security, and realtime synchronization.
