@@ -13,7 +13,7 @@ import {
   subscribeToSharedData,
   updateAttendanceLog,
 } from "./cloud-data";
-import { AttendanceRow, CourseCard, Layout, Modal, StatusBadge, SummaryCards } from "./components";
+import { AttendanceRow, CourseCard, Layout, Modal, StatusBadge, SummaryCards, statusLabels } from "./components";
 import { supabase } from "./supabase";
 import type { AppData, AppTab, AttendanceStatus, Course, Student } from "./types";
 import { localDateKey, localTimeKey, makeId } from "./utils";
@@ -51,7 +51,7 @@ export default function Home() {
       setDataError("");
     } catch (error) {
       console.error(error);
-      setDataError("Shared data could not be loaded. Please check your connection and try again.");
+      setDataError("לא הצלחנו לטעון את הנתונים המשותפים. בדקו את החיבור ונסו שוב.");
     } finally {
       setDataLoading(false);
     }
@@ -100,20 +100,20 @@ export default function Home() {
   const startAttendance = async (courseId: string) => {
     const eligible = data.students.filter((student) => student.courseId === courseId && student.active).length;
     if (eligible === 0) {
-      notify("No active students in this course yet");
+      notify("אין עדיין תלמידים פעילים בכיתה הזו");
       return;
     }
     try {
       const created = await createTodayAttendance(courseId, today, localTimeKey());
       await refreshData();
       notify(created === 0
-        ? "Today's attendance already exists for this course"
-        : `Attendance created for ${created} ${created === 1 ? "student" : "students"}`);
+        ? "כבר קיימת נוכחות להיום עבור הכיתה הזו"
+        : `נוצרה נוכחות עבור ${created} ${created === 1 ? "תלמיד" : "תלמידים"}`);
       setTodayCourse(courseId);
       setTab("today");
     } catch (error) {
       console.error(error);
-      notify("Attendance could not be started. Please try again.");
+      notify("לא הצלחנו להתחיל את הנוכחות. נסו שוב.");
     }
   };
 
@@ -126,7 +126,7 @@ export default function Home() {
       await updateAttendanceLog(logId, updates);
     } catch (error) {
       console.error(error);
-      notify("That change was not saved. Please try again.");
+      notify("השינוי לא נשמר. נסו שוב.");
       await refreshData();
     }
   };
@@ -139,7 +139,7 @@ export default function Home() {
       await refreshData();
     } catch (error) {
       console.error(error);
-      notify("The course could not be updated.");
+      notify("לא הצלחנו לעדכן את הכיתה.");
     }
   };
 
@@ -151,7 +151,7 @@ export default function Home() {
       await refreshData();
     } catch (error) {
       console.error(error);
-      notify("The student could not be updated.");
+      notify("לא הצלחנו לעדכן את התלמיד.");
     }
   };
 
@@ -172,25 +172,25 @@ export default function Home() {
     if (!historyLogs.length) return;
     const escape = (value: string) => `"${value.replaceAll('"', '""')}"`;
     const rows = [
-      ["date", "time", "course", "student", "email", "status", "notes"],
+      ["תאריך", "שעה", "כיתה", "תלמיד", "אימייל", "סטטוס", "הערות"],
       ...historyLogs.map((log) => {
         const course = coursesById.get(log.courseId);
         const student = studentsById.get(log.studentId);
-        return [log.date, log.time, course?.name ?? "Unknown course", student?.name ?? "Unknown student", student?.email ?? "", log.status, log.notes ?? ""];
+        return [log.date, log.time, course?.name ?? "כיתה לא ידועה", student?.name ?? "תלמיד לא ידוע", student?.email ?? "", statusLabels[log.status], log.notes ?? ""];
       }),
     ];
     const csv = `\uFEFF${rows.map((row) => row.map((value) => escape(String(value))).join(",")).join("\n")}`;
     const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
     const link = document.createElement("a");
     link.href = url;
-    link.download = `attendance-${historyDate}.csv`;
+    link.download = `נוכחות-${historyDate}.csv`;
     link.click();
     URL.revokeObjectURL(url);
-    notify(`Exported ${historyLogs.length} attendance ${historyLogs.length === 1 ? "record" : "records"}`);
+    notify(`יוצאו ${historyLogs.length} ${historyLogs.length === 1 ? "רשומת נוכחות" : "רשומות נוכחות"}`);
   };
 
   if (!authReady) {
-    return <main className="app-bg grid min-h-[100svh] place-items-center bg-[#EEF2EF] text-sm font-bold text-[#174A3A]">Opening Class Attendance…</main>;
+    return <main lang="he" dir="rtl" className="app-bg grid min-h-[100svh] place-items-center bg-[#EEF2EF] text-sm font-bold text-[#174A3A]">פותחים את ניהול הנוכחות…</main>;
   }
 
   if (!session) return <AuthScreen />;
@@ -199,22 +199,22 @@ export default function Home() {
     <Layout
       tab={tab}
       onTabChange={setTab}
-      userEmail={session.user.email ?? "Teacher"}
+      userEmail={session.user.email ?? "מורה"}
       onSignOut={() => { if (supabase) void supabase.auth.signOut(); }}
     >
       {(dataLoading || dataError) && (
         <div className={`mb-4 rounded-2xl px-4 py-3 text-sm font-bold ${dataError ? "bg-[#F8E2E1] text-[#A13D3D]" : "bg-[#DCEAE4] text-[#174A3A]"}`} role={dataError ? "alert" : "status"}>
-          {dataError || "Syncing shared attendance…"}
+          {dataError || "מסנכרנים את נתוני הנוכחות…"}
         </div>
       )}
       {tab === "courses" && (
         <section>
           <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h2 className="text-xl font-extrabold tracking-[-0.025em]">Your courses</h2>
-              <p className="mt-1 text-sm font-medium text-[#66716B]">Start a class in one tap. Everyone begins as present.</p>
+              <h2 className="text-xl font-extrabold tracking-[-0.025em]">הכיתות שלכם</h2>
+              <p className="mt-1 text-sm font-medium text-[#66716B]">התחילו נוכחות בלחיצה אחת. כל התלמידים מתחילים כנוכחים.</p>
             </div>
-            <button type="button" className={primaryButton} onClick={() => setModal({ type: "course" })}>+ Add course</button>
+            <button type="button" className={primaryButton} onClick={() => setModal({ type: "course" })}>+ הוספת כיתה</button>
           </div>
           {data.courses.length ? (
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -236,7 +236,7 @@ export default function Home() {
               })}
             </div>
           ) : (
-            <EmptyState title="No courses yet" body="Add your first course, then invite the roster by adding students." action="Add a course" onAction={() => setModal({ type: "course" })} />
+            <EmptyState title="אין עדיין כיתות" body="הוסיפו את הכיתה הראשונה, ולאחר מכן הוסיפו אליה תלמידים." action="הוספת כיתה" onAction={() => setModal({ type: "course" })} />
           )}
         </section>
       )}
@@ -245,13 +245,13 @@ export default function Home() {
         <section>
           <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
             <div>
-              <h2 className="text-xl font-extrabold tracking-[-0.025em]">Today's attendance</h2>
-              <p className="mt-1 text-sm font-medium text-[#66716B]">Tap a status to update it. Changes save automatically.</p>
+              <h2 className="text-xl font-extrabold tracking-[-0.025em]">הנוכחות של היום</h2>
+              <p className="mt-1 text-sm font-medium text-[#66716B]">לחצו על סטטוס כדי לעדכן. השינויים נשמרים אוטומטית.</p>
             </div>
             <label className="text-xs font-extrabold text-[#66716B]">
-              Course
+              כיתה
               <select value={todayCourse} onChange={(event) => setTodayCourse(event.target.value)} className={`${fieldClass} mt-1 min-w-48`}>
-                <option value="all">All courses</option>
+                <option value="all">כל הכיתות</option>
                 {data.courses.map((course) => <option value={course.id} key={course.id}>{course.name}</option>)}
               </select>
             </label>
@@ -267,10 +267,10 @@ export default function Home() {
                     <section key={course.id} className="soft-card rounded-[20px] border border-[#DCE4DF] bg-white p-4 sm:p-5" aria-labelledby={`today-${course.id}`}>
                       <div className="mb-4 flex items-end justify-between gap-3">
                         <div>
-                          <p className="text-[11px] font-extrabold uppercase tracking-[0.14em] text-[#66716B]">Course</p>
+                          <p className="text-[11px] font-extrabold uppercase tracking-[0.14em] text-[#66716B]">כיתה</p>
                           <h3 id={`today-${course.id}`} className="mt-1 text-lg font-extrabold">{course.name}</h3>
                         </div>
-                        <p className="text-xs font-bold text-[#66716B]">{courseLogs.length} students</p>
+                        <p className="text-xs font-bold text-[#66716B]">{courseLogs.length} {courseLogs.length === 1 ? "תלמיד" : "תלמידים"}</p>
                       </div>
                       <ul className="grid gap-2.5 xl:grid-cols-2">
                         {courseLogs.map((log) => {
@@ -291,7 +291,7 @@ export default function Home() {
                 })}
             </div>
           ) : (
-            <div className="mt-4"><EmptyState title="No attendance started today" body="Choose a course and start today's attendance. Active students will be marked present by default." action="Choose a course" onAction={() => setTab("courses")} /></div>
+            <div className="mt-4"><EmptyState title="לא התחילה נוכחות היום" body="בחרו כיתה והתחילו נוכחות להיום. תלמידים פעילים יסומנו כנוכחים כברירת מחדל." action="בחירת כיתה" onAction={() => setTab("courses")} /></div>
           )}
         </section>
       )}
@@ -300,18 +300,18 @@ export default function Home() {
         <section>
           <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h2 className="text-xl font-extrabold tracking-[-0.025em]">Students</h2>
-              <p className="mt-1 text-sm font-medium text-[#66716B]">Manage rosters without deleting past attendance.</p>
+              <h2 className="text-xl font-extrabold tracking-[-0.025em]">תלמידים</h2>
+              <p className="mt-1 text-sm font-medium text-[#66716B]">ניהול רשימות התלמידים בלי למחוק נוכחות מהעבר.</p>
             </div>
-            <button type="button" className={primaryButton} disabled={!data.courses.length} onClick={() => setModal({ type: "student" })}>+ Add student</button>
+            <button type="button" className={primaryButton} disabled={!data.courses.length} onClick={() => setModal({ type: "student" })}>+ הוספת תלמיד</button>
           </div>
           <div className="mb-4 grid gap-3 rounded-[20px] border border-[#DCE4DF] bg-white p-3 sm:grid-cols-[1fr_220px] sm:p-4">
-            <label className="text-xs font-extrabold text-[#66716B]">Search
-              <input value={studentSearch} onChange={(event) => setStudentSearch(event.target.value)} placeholder="Name or email" className={fieldClass} />
+            <label className="text-xs font-extrabold text-[#66716B]">חיפוש
+              <input value={studentSearch} onChange={(event) => setStudentSearch(event.target.value)} placeholder="שם או אימייל" className={fieldClass} />
             </label>
-            <label className="text-xs font-extrabold text-[#66716B]">Course
+            <label className="text-xs font-extrabold text-[#66716B]">כיתה
               <select value={studentCourse} onChange={(event) => setStudentCourse(event.target.value)} className={fieldClass}>
-                <option value="all">All courses</option>
+                <option value="all">כל הכיתות</option>
                 {data.courses.map((course) => <option key={course.id} value={course.id}>{course.name}</option>)}
               </select>
             </label>
@@ -325,20 +325,20 @@ export default function Home() {
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
                         <p className="font-extrabold">{student.name}</p>
-                        {!student.active && <span className="rounded-full bg-[#E8ECEF] px-2 py-1 text-[10px] font-extrabold text-[#56616D]">Inactive</span>}
+                        {!student.active && <span className="rounded-full bg-[#E8ECEF] px-2 py-1 text-[10px] font-extrabold text-[#56616D]">לא פעיל</span>}
                       </div>
-                      <p className="truncate text-xs font-medium text-[#66716B]">{student.email || "No email"} · {coursesById.get(student.courseId)?.name ?? "Unknown course"}</p>
+                      <p className="truncate text-xs font-medium text-[#66716B]">{student.email || "אין אימייל"} · {coursesById.get(student.courseId)?.name ?? "כיתה לא ידועה"}</p>
                     </div>
-                    <div className="ml-auto flex gap-2">
-                      <button type="button" className={secondaryButton} onClick={() => setModal({ type: "student", student })}>Edit</button>
-                      <button type="button" className={secondaryButton} onClick={() => toggleStudent(student.id)}>{student.active ? "Deactivate" : "Activate"}</button>
+                    <div className="ms-auto flex gap-2">
+                      <button type="button" className={secondaryButton} onClick={() => setModal({ type: "student", student })}>עריכה</button>
+                      <button type="button" className={secondaryButton} onClick={() => toggleStudent(student.id)}>{student.active ? "השבתה" : "הפעלה"}</button>
                     </div>
                   </li>
                 ))}
               </ul>
             </div>
           ) : (
-            <EmptyState title={data.students.length ? "No students match" : "No students yet"} body={data.students.length ? "Try another search or course filter." : "Add students to a course before starting attendance."} action={data.students.length ? undefined : "Add a student"} onAction={data.students.length ? undefined : () => setModal({ type: "student" })} />
+            <EmptyState title={data.students.length ? "אין תלמידים תואמים" : "אין עדיין תלמידים"} body={data.students.length ? "נסו חיפוש אחר או סינון לפי כיתה." : "הוסיפו תלמידים לכיתה לפני התחלת הנוכחות."} action={data.students.length ? undefined : "הוספת תלמיד"} onAction={data.students.length ? undefined : () => setModal({ type: "student" })} />
           )}
         </section>
       )}
@@ -347,18 +347,18 @@ export default function Home() {
         <section>
           <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h2 className="text-xl font-extrabold tracking-[-0.025em]">Attendance history</h2>
-              <p className="mt-1 text-sm font-medium text-[#66716B]">Review a day or export the filtered records.</p>
+              <h2 className="text-xl font-extrabold tracking-[-0.025em]">היסטוריית נוכחות</h2>
+              <p className="mt-1 text-sm font-medium text-[#66716B]">בדקו יום מסוים או ייצאו את הרשומות המסוננות.</p>
             </div>
-            <button type="button" className={primaryButton} disabled={!historyLogs.length} onClick={exportCsv}>Export CSV</button>
+            <button type="button" className={primaryButton} disabled={!historyLogs.length} onClick={exportCsv}>ייצוא CSV</button>
           </div>
           <div className="mb-4 grid gap-3 rounded-[20px] border border-[#DCE4DF] bg-white p-3 sm:grid-cols-2 sm:p-4">
-            <label className="text-xs font-extrabold text-[#66716B]">Date
+            <label className="text-xs font-extrabold text-[#66716B]">תאריך
               <input type="date" value={historyDate} onChange={(event) => setHistoryDate(event.target.value)} className={fieldClass} />
             </label>
-            <label className="text-xs font-extrabold text-[#66716B]">Course
+            <label className="text-xs font-extrabold text-[#66716B]">כיתה
               <select value={historyCourse} onChange={(event) => setHistoryCourse(event.target.value)} className={fieldClass}>
-                <option value="all">All courses</option>
+                <option value="all">כל הכיתות</option>
                 {data.courses.map((course) => <option key={course.id} value={course.id}>{course.name}</option>)}
               </select>
             </label>
@@ -367,15 +367,15 @@ export default function Home() {
           {historyLogs.length ? (
             <div className="mt-4 overflow-hidden rounded-[20px] border border-[#DCE4DF] bg-white shadow-[0_8px_24px_rgba(20,52,41,0.06)]">
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[700px] border-collapse text-left text-sm">
+                <table className="w-full min-w-[700px] border-collapse text-right text-sm">
                   <thead className="bg-[#F7F9F7] text-xs uppercase tracking-[0.08em] text-[#66716B]">
-                    <tr><th className="p-4">Student</th><th className="p-4">Course</th><th className="p-4">Time</th><th className="p-4">Status</th><th className="p-4">Notes</th></tr>
+                    <tr><th className="p-4">תלמיד</th><th className="p-4">כיתה</th><th className="p-4">שעה</th><th className="p-4">סטטוס</th><th className="p-4">הערות</th></tr>
                   </thead>
                   <tbody className="divide-y divide-[#E5EBE7]">
                     {historyLogs.map((log) => (
                       <tr key={log.id}>
-                        <td className="p-4 font-extrabold">{studentsById.get(log.studentId)?.name ?? "Unknown student"}</td>
-                        <td className="p-4 font-medium text-[#66716B]">{coursesById.get(log.courseId)?.name ?? "Unknown course"}</td>
+                        <td className="p-4 font-extrabold">{studentsById.get(log.studentId)?.name ?? "תלמיד לא ידוע"}</td>
+                        <td className="p-4 font-medium text-[#66716B]">{coursesById.get(log.courseId)?.name ?? "כיתה לא ידועה"}</td>
                         <td className="p-4 font-medium text-[#66716B]">{log.time}</td>
                         <td className="p-4"><StatusBadge status={log.status} /></td>
                         <td className="max-w-[280px] truncate p-4 font-medium text-[#66716B]">{log.notes || "—"}</td>
@@ -386,7 +386,7 @@ export default function Home() {
               </div>
             </div>
           ) : (
-            <div className="mt-4"><EmptyState title="No records for this view" body="Try another date or course, or start attendance for today." action="Go to courses" onAction={() => setTab("courses")} /></div>
+            <div className="mt-4"><EmptyState title="אין רשומות בתצוגה הזו" body="נסו תאריך או כיתה אחרים, או התחילו נוכחות להיום." action="מעבר לכיתות" onAction={() => setTab("courses")} /></div>
           )}
         </section>
       )}
@@ -399,11 +399,11 @@ export default function Home() {
             try {
               await saveCourse(course);
               await refreshData();
-              notify(modal.course ? "Course updated" : "Course added");
+              notify(modal.course ? "הכיתה עודכנה" : "הכיתה נוספה");
               setModal(null);
             } catch (error) {
               console.error(error);
-              notify("The course could not be saved.");
+              notify("לא הצלחנו לשמור את הכיתה.");
             }
           }}
         />
@@ -417,11 +417,11 @@ export default function Home() {
             try {
               await saveStudent(student);
               await refreshData();
-              notify(modal.student ? "Student updated" : "Student added");
+              notify(modal.student ? "התלמיד עודכן" : "התלמיד נוסף");
               setModal(null);
             } catch (error) {
               console.error(error);
-              notify("The student could not be saved.");
+              notify("לא הצלחנו לשמור את התלמיד.");
             }
           }}
         />
@@ -435,7 +435,7 @@ export default function Home() {
 function EmptyState({ title, body, action, onAction }: { title: string; body: string; action?: string; onAction?: () => void }) {
   return (
     <section className="rounded-[20px] border border-dashed border-[#BFCBC4] bg-white/60 px-5 py-10 text-center">
-      <div className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-full bg-[#DCEAE4] text-sm font-extrabold text-[#174A3A]">CA</div>
+      <div className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-full bg-[#DCEAE4] text-sm font-extrabold text-[#174A3A]">נכ</div>
       <h3 className="text-lg font-extrabold">{title}</h3>
       <p className="mx-auto mt-2 max-w-md text-sm font-medium leading-6 text-[#66716B]">{body}</p>
       {action && onAction && <button type="button" onClick={onAction} className={`${primaryButton} mt-5`}>{action}</button>}
@@ -452,17 +452,17 @@ function CourseForm({ course, onClose, onSave }: { course?: Course; onClose: () 
     onSave({ id: course?.id ?? makeId(), name: name.trim(), description: description.trim(), active: course?.active ?? true });
   };
   return (
-    <Modal title={course ? "Edit course" : "Add course"} onClose={onClose}>
+    <Modal title={course ? "עריכת כיתה" : "הוספת כיתה"} onClose={onClose}>
       <form onSubmit={submit} className="space-y-4">
-        <label className="block text-xs font-extrabold text-[#66716B]">Course name
-          <input autoFocus required value={name} onChange={(event) => setName(event.target.value)} placeholder="e.g. Biology 201" className={fieldClass} />
+        <label className="block text-xs font-extrabold text-[#66716B]">שם הכיתה
+          <input autoFocus required value={name} onChange={(event) => setName(event.target.value)} placeholder="למשל: מתמטיקה י׳1" className={fieldClass} />
         </label>
-        <label className="block text-xs font-extrabold text-[#66716B]">Description <span className="font-medium">(optional)</span>
-          <textarea value={description} onChange={(event) => setDescription(event.target.value)} placeholder="What is this class about?" className={`${fieldClass} min-h-24 py-3`} />
+        <label className="block text-xs font-extrabold text-[#66716B]">תיאור <span className="font-medium">(אופציונלי)</span>
+          <textarea value={description} onChange={(event) => setDescription(event.target.value)} placeholder="מה לומדים בכיתה הזו?" className={`${fieldClass} min-h-24 py-3`} />
         </label>
         <div className="flex justify-end gap-2 pt-2">
-          <button type="button" className={secondaryButton} onClick={onClose}>Cancel</button>
-          <button type="submit" className={primaryButton}>{course ? "Save changes" : "Add course"}</button>
+          <button type="button" className={secondaryButton} onClick={onClose}>ביטול</button>
+          <button type="submit" className={primaryButton}>{course ? "שמירת שינויים" : "הוספת כיתה"}</button>
         </div>
       </form>
     </Modal>
@@ -480,22 +480,22 @@ function StudentForm({ student, courses, onClose, onSave }: { student?: Student;
     onSave({ id: student?.id ?? makeId(), name: name.trim(), email: email.trim(), courseId, active: student?.active ?? true });
   };
   return (
-    <Modal title={student ? "Edit student" : "Add student"} onClose={onClose}>
+    <Modal title={student ? "עריכת תלמיד" : "הוספת תלמיד"} onClose={onClose}>
       <form onSubmit={submit} className="space-y-4">
-        <label className="block text-xs font-extrabold text-[#66716B]">Student name
-          <input autoFocus required value={name} onChange={(event) => setName(event.target.value)} placeholder="Full name" className={fieldClass} />
+        <label className="block text-xs font-extrabold text-[#66716B]">שם התלמיד
+          <input autoFocus required value={name} onChange={(event) => setName(event.target.value)} placeholder="שם מלא" className={fieldClass} />
         </label>
-        <label className="block text-xs font-extrabold text-[#66716B]">Email <span className="font-medium">(optional)</span>
-          <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="student@example.edu" className={fieldClass} />
+        <label className="block text-xs font-extrabold text-[#66716B]">אימייל <span className="font-medium">(אופציונלי)</span>
+          <input type="email" dir="ltr" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="student@example.edu" className={`${fieldClass} text-left`} />
         </label>
-        <label className="block text-xs font-extrabold text-[#66716B]">Course
+        <label className="block text-xs font-extrabold text-[#66716B]">כיתה
           <select required value={courseId} onChange={(event) => setCourseId(event.target.value)} className={fieldClass}>
             {availableCourses.map((course) => <option key={course.id} value={course.id}>{course.name}</option>)}
           </select>
         </label>
         <div className="flex justify-end gap-2 pt-2">
-          <button type="button" className={secondaryButton} onClick={onClose}>Cancel</button>
-          <button type="submit" className={primaryButton}>{student ? "Save changes" : "Add student"}</button>
+          <button type="button" className={secondaryButton} onClick={onClose}>ביטול</button>
+          <button type="submit" className={primaryButton}>{student ? "שמירת שינויים" : "הוספת תלמיד"}</button>
         </div>
       </form>
     </Modal>
