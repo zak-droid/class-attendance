@@ -419,8 +419,8 @@ export default function Home() {
                       </div>
                       <StatusBadge status={log.status} />
                     </div>
-                    <p className="mt-2 text-xs font-semibold text-[#66716B]">שעה {log.time}</p>
-                    {log.notes && <p dir="auto" className="mt-1.5 text-xs font-medium leading-5 text-[#66716B]">{log.notes}</p>}
+                    <p className="mt-2 text-xs font-semibold text-[#66716B]">{log.time}</p>
+                    {log.notes && <p dir="auto" className="mt-1.5 text-sm font-medium leading-5 text-[#66716B]">{log.notes}</p>}
                   </article>
                 ))}
               </div>

@@ -93,14 +93,14 @@ export function Layout({
         </aside>
 
         <div className="min-w-0 flex-1 pb-[calc(6.5rem+env(safe-area-inset-bottom))] lg:pb-10">
-          <header className="px-4 pb-2 pt-3 sm:px-6 sm:pt-5 lg:px-10 lg:pb-3 lg:pt-9">
+          <header className="px-4 pb-1 pt-2 sm:px-6 sm:pb-2 sm:pt-5 lg:px-10 lg:pb-3 lg:pt-9">
             <p className="mb-1 hidden text-xs font-extrabold uppercase tracking-[0.16em] text-[#174A3A] lg:block">{title}</p>
             <div className="flex items-center justify-between gap-2 lg:items-end">
               <h1 className="text-2xl font-extrabold tracking-[-0.04em] sm:text-[28px] lg:text-[32px]">{title}</h1>
               <div className="flex items-center gap-2 lg:pb-1">
                 <time className="text-xs font-semibold text-[#66716B] lg:hidden">{mobileDateLabel}</time>
                 <time className="hidden text-sm font-semibold text-[#66716B] lg:inline">{dateLabel}</time>
-                <button type="button" onClick={onSignOut} className="min-h-9 rounded-xl border border-[#DCE4DF] bg-white px-3 text-xs font-extrabold text-[#174A3A] lg:hidden">יציאה</button>
+                <button type="button" onClick={onSignOut} className="min-h-8 rounded-lg px-2 text-[11px] font-bold text-[#66716B] hover:bg-white/70 hover:text-[#174A3A] lg:hidden">יציאה</button>
               </div>
             </div>
           </header>
@@ -230,8 +230,8 @@ export function AttendanceRow({
 
   useEffect(() => setNotes(log.notes ?? ""), [log.notes]);
   return (
-    <li className="rounded-2xl border border-[#E5EBE7] bg-[#F7F9F7] p-3">
-      <div className="flex items-center gap-2.5">
+    <li className="rounded-2xl border border-[#E5EBE7] bg-[#F7F9F7] p-2.5 sm:p-3">
+      <div className="flex items-center gap-2 sm:gap-2.5">
         <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#DCEAE4] text-xs font-extrabold text-[#174A3A]" aria-hidden="true">{initials}</span>
         <div className="min-w-0 flex-1">
           <p dir="auto" className="truncate text-sm font-extrabold">{student.name}</p>
@@ -239,7 +239,7 @@ export function AttendanceRow({
         </div>
         <StatusBadge status={log.status} />
       </div>
-      <fieldset className="mt-2">
+      <fieldset className="mt-1.5 sm:mt-2">
         <legend className="sr-only">סטטוס עבור {student.name}</legend>
         <div className="grid grid-cols-4 gap-1">
           {statuses.map((status) => (
@@ -273,9 +273,9 @@ export function AttendanceRow({
           />
         </label>
       ) : (
-        <div className="mt-2 flex min-w-0 items-center justify-between gap-3">
+        <div className="mt-1.5 flex min-w-0 items-center justify-between gap-3 sm:mt-2">
           {notes && <p dir="auto" className="min-w-0 flex-1 truncate text-xs font-medium text-[#66716B]">{notes}</p>}
-          <button type="button" onClick={() => setNoteOpen(true)} className="min-h-9 shrink-0 rounded-lg px-2 text-xs font-extrabold text-[#174A3A] hover:bg-white">{notes ? "עריכת הערה" : "הוספת הערה"}</button>
+          <button type="button" onClick={() => setNoteOpen(true)} className="min-h-8 shrink-0 rounded-lg px-1.5 text-[11px] font-extrabold text-[#174A3A] hover:bg-white sm:min-h-9 sm:px-2 sm:text-xs">{notes ? "עריכת הערה" : "הוספת הערה"}</button>
         </div>
       )}
     </li>
