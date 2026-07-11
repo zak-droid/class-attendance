@@ -14,6 +14,7 @@ import {
   updateAttendanceLog,
 } from "./cloud-data";
 import { AttendanceRow, CourseCard, Layout, Modal, StatusBadge, SummaryCards, statusLabels } from "./components";
+import { prepareStudentImport } from "./student-import";
 import { supabase } from "./supabase";
 import type { AppData, AppTab, AttendanceStatus, Course, Student } from "./types";
 import { localDateKey, localTimeKey, makeId } from "./utils";
@@ -21,6 +22,7 @@ import { localDateKey, localTimeKey, makeId } from "./utils";
 type ModalState =
   | { type: "course"; course?: Course }
   | { type: "student"; student?: Student }
+  | { type: "import" }
   | null;
 
 const fieldClass = "mt-1.5 min-h-12 w-full rounded-2xl border border-[#DCE4DF] bg-white px-3.5 text-sm font-semibold text-[#17211D] outline-none transition placeholder:text-[#94A09A] focus:border-[#174A3A] focus:ring-2 focus:ring-[#174A3A]/15";
@@ -194,6 +196,28 @@ export default function Home() {
     notify(`יוצאו ${historyLogs.length} ${historyLogs.length === 1 ? "רשומת נוכחות" : "רשומות נוכחות"}`);
   };
 
+  const importStudents = async (courseId: string, text: string) => {
+    const latestData = await fetchAppData();
+    const preview = prepareStudentImport(text, courseId, latestData.students);
+    try {
+      for (let index = 0; index < preview.ready.length; index += 20) {
+        await Promise.all(preview.ready.slice(index, index + 20).map((row) => saveStudent({
+          id: makeId(),
+          name: row.name,
+          email: row.email,
+          courseId,
+          active: true,
+        })));
+      }
+    } catch (error) {
+      await refreshData();
+      throw error;
+    }
+    await refreshData();
+    notify(`נוספו ${preview.ready.length} תלמידים. ${preview.duplicates.length} תלמידים כבר היו קיימים.`);
+    setModal(null);
+  };
+
   if (!authReady) {
     return <main lang="he" dir="rtl" className="app-bg grid min-h-[100svh] place-items-center bg-[#EEF2EF] text-sm font-bold text-[#174A3A]">פותחים את ניהול הנוכחות…</main>;
   }
@@ -348,7 +372,10 @@ export default function Home() {
               <h2 className="text-xl font-extrabold tracking-[-0.025em]">תלמידים</h2>
               <p className="mt-1 text-sm font-medium text-[#66716B]">ניהול רשימות התלמידים בלי למחוק נוכחות מהעבר.</p>
             </div>
-            <button type="button" className={primaryButton} disabled={!data.courses.length} onClick={() => setModal({ type: "student" })}>+ הוספת תלמיד</button>
+            <div className="flex flex-wrap gap-2">
+              <button type="button" className={primaryButton} disabled={!data.courses.length} onClick={() => setModal({ type: "student" })}>+ הוספת תלמיד</button>
+              <button type="button" className={secondaryButton} disabled={!data.courses.length} onClick={() => setModal({ type: "import" })}>ייבוא רשימה</button>
+            </div>
           </div>
           <div className="mb-4 grid gap-3 rounded-[20px] border border-[#DCE4DF] bg-white p-3 sm:grid-cols-[1fr_220px] sm:p-4">
             <label className="text-xs font-extrabold text-[#66716B]">חיפוש
@@ -486,6 +513,14 @@ export default function Home() {
           }}
         />
       )}
+      {modal?.type === "import" && (
+        <StudentImportForm
+          courses={data.courses}
+          students={data.students}
+          onClose={() => setModal(null)}
+          onImport={importStudents}
+        />
+      )}
 
       <div className={`pointer-events-none fixed inset-x-4 bottom-24 z-[60] mx-auto max-w-md rounded-2xl bg-[#17211D] px-4 py-3 text-center text-sm font-bold text-white shadow-2xl transition lg:bottom-6 ${toast ? "translate-y-0 opacity-100" : "translate-y-3 opacity-0"}`} role="status" aria-live="polite">{toast}</div>
     </Layout>
@@ -522,6 +557,115 @@ function StudentActions({ student, onEdit, onToggle }: { student: Student; onEdi
         <button type="button" className={secondaryButton} onClick={onToggle}>{student.active ? "השבתה" : "הפעלה"}</button>
       </div>
     </>
+  );
+}
+
+function StudentImportForm({
+  courses,
+  students,
+  onClose,
+  onImport,
+}: {
+  courses: Course[];
+  students: Student[];
+  onClose: () => void;
+  onImport: (courseId: string, text: string) => Promise<void>;
+}) {
+  const [courseId, setCourseId] = useState(courses.find((course) => course.active)?.id ?? courses[0]?.id ?? "");
+  const [text, setText] = useState("");
+  const [step, setStep] = useState<"input" | "preview">("input");
+  const [importing, setImporting] = useState(false);
+  const [error, setError] = useState("");
+  const preview = useMemo(() => prepareStudentImport(text, courseId, students), [courseId, students, text]);
+
+  const confirmImport = async () => {
+    if (!courseId || preview.ready.length === 0) return;
+    setImporting(true);
+    setError("");
+    try {
+      await onImport(courseId, text);
+    } catch (importError) {
+      console.error(importError);
+      setError("לא הצלחנו לייבא את התלמידים. בדקו את החיבור ונסו שוב.");
+      setImporting(false);
+    }
+  };
+
+  return (
+    <Modal title="ייבוא תלמידים" onClose={onClose}>
+      <div className="space-y-4">
+        <label className="block text-xs font-extrabold text-[#66716B]">כיתה
+          <select required value={courseId} onChange={(event) => { setCourseId(event.target.value); setStep("input"); }} className={fieldClass}>
+            {courses.map((course) => <option dir="auto" key={course.id} value={course.id}>{course.name}</option>)}
+          </select>
+        </label>
+
+        {step === "input" ? (
+          <>
+            <div className="rounded-2xl bg-[#F7F9F7] p-3 text-sm font-medium leading-6 text-[#66716B]">
+              <p>הדביקו רשימת תלמידים. כל שורה היא תלמיד. אפשר להדביק רק שם, או שם ואימייל מופרדים בפסיק או בטאב.</p>
+              <pre dir="auto" className="mt-2 overflow-x-auto whitespace-pre-wrap rounded-xl bg-white p-3 text-xs leading-5 text-[#56616D]">{"מיה כהן\nנועם לוי, noam@example.com\nדניאל פרץ\tdaniel@example.com"}</pre>
+            </div>
+            <label className="block text-xs font-extrabold text-[#66716B]">רשימת תלמידים
+              <textarea
+                autoFocus
+                dir="auto"
+                value={text}
+                onChange={(event) => setText(event.target.value)}
+                placeholder="הדביקו כאן שמות או עמודות מ-Google Sheets / Excel"
+                className={`${fieldClass} min-h-44 resize-y py-3 leading-6`}
+              />
+            </label>
+            <div className="flex flex-col-reverse gap-2 pt-1 sm:flex-row sm:justify-end">
+              <button type="button" className={secondaryButton} onClick={onClose}>ביטול</button>
+              <button type="button" className={primaryButton} disabled={!courseId || !text.trim()} onClick={() => { setError(""); setStep("preview"); }}>בדיקת הרשימה</button>
+            </div>
+          </>
+        ) : (
+          <>
+            <section aria-label="סיכום הייבוא" className="grid grid-cols-3 gap-2">
+              <div className="rounded-xl bg-[#E0EEE7] p-2.5 text-center text-[#22684D]"><strong className="block text-xl font-extrabold">{preview.ready.length}</strong><span className="text-[10px] font-bold">מוכנים לייבוא</span></div>
+              <div className="rounded-xl bg-[#FBEFD8] p-2.5 text-center text-[#8A5B13]"><strong className="block text-xl font-extrabold">{preview.duplicates.length}</strong><span className="text-[10px] font-bold">כפולים יידלגו</span></div>
+              <div className="rounded-xl bg-[#F8E2E1] p-2.5 text-center text-[#A13D3D]"><strong className="block text-xl font-extrabold">{preview.invalid.length}</strong><span className="text-[10px] font-bold">שורות לא תקינות</span></div>
+            </section>
+
+            {preview.ready.length > 0 && (
+              <section>
+                <h3 className="text-xs font-extrabold text-[#66716B]">תלמידים מוכנים לייבוא</h3>
+                <ul className="mt-2 max-h-40 divide-y divide-[#E5EBE7] overflow-y-auto rounded-2xl border border-[#E5EBE7] bg-white">
+                  {preview.ready.map((row) => (
+                    <li key={`${row.line}-${row.name}`} className="px-3 py-2">
+                      <p dir="auto" className="truncate text-sm font-bold">{row.name}</p>
+                      {row.email && <p dir="auto" className="truncate text-xs font-medium text-[#66716B]">{row.email}</p>}
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+
+            {preview.invalid.length > 0 && (
+              <section>
+                <h3 className="text-xs font-extrabold text-[#A13D3D]">שורות שדורשות תיקון</h3>
+                <ul className="mt-2 max-h-32 space-y-1.5 overflow-y-auto">
+                  {preview.invalid.map((row) => (
+                    <li key={`${row.line}-${row.input}`} className="rounded-xl bg-[#F8E2E1] px-3 py-2 text-xs text-[#A13D3D]">
+                      <span className="font-extrabold">שורה {row.line}: {row.reason}</span>
+                      <span dir="auto" className="mt-0.5 block truncate font-medium">{row.input}</span>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+
+            {error && <p role="alert" className="rounded-xl bg-[#F8E2E1] px-3 py-2 text-sm font-bold text-[#A13D3D]">{error}</p>}
+            <div className="flex flex-col-reverse gap-2 pt-1 sm:flex-row sm:justify-end">
+              <button type="button" className={secondaryButton} disabled={importing} onClick={() => setStep("input")}>חזרה לעריכה</button>
+              <button type="button" className={primaryButton} disabled={importing || preview.ready.length === 0} onClick={() => void confirmImport()}>{importing ? "מייבאים…" : `ייבוא ${preview.ready.length} תלמידים`}</button>
+            </div>
+          </>
+        )}
+      </div>
+    </Modal>
   );
 }
 

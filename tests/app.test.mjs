@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import { prepareStudentImport } from "../app/student-import.ts";
 
 const root = new URL("../", import.meta.url);
 
@@ -65,4 +66,33 @@ test("shared data uses secure sign-in, duplicate prevention, and realtime sync",
   assert.match(schema, /is_approved_teacher/);
   assert.match(schema, /enable row level security/i);
   assert.match(vite, /base:\s*["']\.\/["']/);
+});
+
+test("bulk student import parses rows, validates emails, and skips course duplicates", () => {
+  const existingStudents = [
+    { id: "1", name: "יעל כהן", courseId: "course-a", active: true },
+    { id: "2", name: "Existing Student", email: "existing@example.com", courseId: "course-a", active: true },
+    { id: "3", name: "מיה כהן", courseId: "course-b", active: true },
+  ];
+  const input = [
+    "מיה כהן",
+    "נועם לוי, noam@example.com",
+    "דניאל פרץ\tdaniel@example.com",
+    "מיה   כהן",
+    "יעל כהן",
+    "תלמיד אחר, EXISTING@example.com",
+    "שורה שגויה, not-an-email",
+    "",
+  ].join("\n");
+
+  const preview = prepareStudentImport(input, "course-a", existingStudents);
+
+  assert.deepEqual(preview.ready.map(({ name, email }) => ({ name, email })), [
+    { name: "מיה כהן", email: undefined },
+    { name: "נועם לוי", email: "noam@example.com" },
+    { name: "דניאל פרץ", email: "daniel@example.com" },
+  ]);
+  assert.equal(preview.duplicates.length, 3);
+  assert.equal(preview.invalid.length, 1);
+  assert.equal(preview.invalid[0].reason, "כתובת האימייל אינה תקינה");
 });
