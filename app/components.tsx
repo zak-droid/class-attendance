@@ -166,6 +166,8 @@ export function CourseCard({
   onToggleActive: () => void;
   onViewStudents: () => void;
 }) {
+  const [menuOpen, setMenuOpen] = useState(false);
+
   return (
     <article className={`soft-card flex h-full flex-col rounded-[20px] border bg-white p-4 sm:p-5 ${course.active ? "border-[#DCE4DF]" : "border-[#E1E5E3] opacity-70"}`}>
       <div className="mb-5 flex items-start justify-between gap-4">
@@ -176,7 +178,19 @@ export function CourseCard({
           </div>
           <p dir="auto" className="text-sm font-medium leading-6 text-[#66716B]">{course.description || "אין עדיין תיאור"}</p>
         </div>
-        <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-[#DCEAE4] text-sm font-extrabold text-[#174A3A]">{studentCount}</span>
+        <div className="flex shrink-0 items-start gap-2">
+          <span className="grid h-12 w-12 place-items-center rounded-full bg-[#DCEAE4] text-sm font-extrabold text-[#174A3A]">{studentCount}</span>
+          <div className="relative">
+            <button type="button" onClick={() => setMenuOpen((open) => !open)} aria-expanded={menuOpen} aria-label={`פעולות נוספות עבור ${course.name}`} className="grid h-10 w-10 place-items-center rounded-xl text-[#66716B] hover:bg-[#F7F9F7] hover:text-[#174A3A]">
+              <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5 fill-current"><circle cx="5" cy="12" r="1.8" /><circle cx="12" cy="12" r="1.8" /><circle cx="19" cy="12" r="1.8" /></svg>
+            </button>
+            {menuOpen && (
+              <div className="absolute end-0 top-11 z-20 min-w-28 rounded-xl border border-[#DCE4DF] bg-white p-1.5 shadow-lg">
+                <button type="button" onClick={() => { setMenuOpen(false); onToggleActive(); }} className="min-h-10 w-full rounded-lg px-3 text-right text-sm font-bold text-[#66716B] hover:bg-[#F7F9F7] hover:text-[#174A3A]">{course.active ? "השבתה" : "הפעלה"}</button>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
       <div className="mb-4 flex items-center justify-between border-t border-[#E5EBE7] pt-3 text-xs font-bold text-[#66716B]">
         <button type="button" onClick={onViewStudents} className="rounded-lg px-1 py-2 text-[#174A3A] underline-offset-4 hover:underline">{studentCount} {studentCount === 1 ? "תלמיד פעיל" : "תלמידים פעילים"}</button>
@@ -188,7 +202,6 @@ export function CourseCard({
         </button>
         <button type="button" onClick={onEdit} aria-label={`עריכת ${course.name}`} className="min-h-12 rounded-2xl border border-[#DCE4DF] px-3 text-sm font-bold text-[#174A3A] hover:bg-[#F7F9F7]">עריכה</button>
       </div>
-      <button type="button" onClick={onToggleActive} className="mt-2 min-h-9 self-end rounded-xl px-2 text-xs font-bold text-[#66716B] hover:bg-[#F7F9F7] hover:text-[#174A3A]">{course.active ? "השבתה" : "הפעלה"}</button>
     </article>
   );
 }
@@ -207,12 +220,13 @@ export function AttendanceRow({
   const statuses: AttendanceStatus[] = ["Present", "Late", "Absent", "Excused"];
   const initials = student.name.split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase();
   const [notes, setNotes] = useState(log.notes ?? "");
+  const [noteOpen, setNoteOpen] = useState(false);
 
   useEffect(() => setNotes(log.notes ?? ""), [log.notes]);
   return (
-    <li className="rounded-2xl border border-[#E5EBE7] bg-[#F7F9F7] p-3 sm:p-4">
+    <li className="rounded-2xl border border-[#E5EBE7] bg-[#F7F9F7] p-3">
       <div className="flex items-center gap-3">
-        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-[#DCEAE4] text-xs font-extrabold text-[#174A3A]" aria-hidden="true">{initials}</span>
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#DCEAE4] text-xs font-extrabold text-[#174A3A]" aria-hidden="true">{initials}</span>
         <div className="min-w-0 flex-1">
           <p dir="auto" className="truncate text-sm font-extrabold">{student.name}</p>
           <p className="mt-1 text-xs font-semibold text-[#66716B]">סומן בשעה {log.time}</p>
@@ -228,7 +242,7 @@ export function AttendanceRow({
               type="button"
               aria-pressed={log.status === status}
               onClick={() => onStatusChange(status)}
-              className={`min-h-11 min-w-0 rounded-xl border px-1 text-[10px] font-extrabold transition active:scale-[0.97] sm:text-xs ${
+              className={`min-h-10 min-w-0 rounded-xl border px-1 text-[10px] font-extrabold transition active:scale-[0.97] sm:text-xs ${
                 log.status === status ? statusStyles[status] : "border-[#DCE4DF] bg-white text-[#66716B] hover:border-[#A9C3B8]"
               }`}
             >
@@ -237,19 +251,27 @@ export function AttendanceRow({
           ))}
         </div>
       </fieldset>
-      <label className="mt-3 block text-xs font-extrabold text-[#66716B]">
-        הערה <span className="font-medium">(אופציונלי)</span>
-        <input
-          dir="auto"
-          value={notes}
-          onChange={(event) => setNotes(event.target.value)}
-          onBlur={() => {
-            if (notes !== (log.notes ?? "")) onNotesChange(notes);
-          }}
-          placeholder="הוספת הערה קצרה"
-          className="mt-1.5 min-h-11 w-full rounded-xl border border-[#DCE4DF] bg-white px-3 text-sm font-medium text-[#17211D] outline-none transition placeholder:text-[#94A09A] focus:border-[#174A3A] focus:ring-2 focus:ring-[#174A3A]/15"
-        />
-      </label>
+      {noteOpen ? (
+        <label className="mt-2 block text-xs font-extrabold text-[#66716B]">
+          הערה <span className="font-medium">(אופציונלי)</span>
+          <input
+            autoFocus
+            dir="auto"
+            value={notes}
+            onChange={(event) => setNotes(event.target.value)}
+            onBlur={() => {
+              if (notes !== (log.notes ?? "")) onNotesChange(notes);
+            }}
+            placeholder="הוספת הערה קצרה"
+            className="mt-1.5 min-h-10 w-full rounded-xl border border-[#DCE4DF] bg-white px-3 text-sm font-medium text-[#17211D] outline-none transition placeholder:text-[#94A09A] focus:border-[#174A3A] focus:ring-2 focus:ring-[#174A3A]/15"
+          />
+        </label>
+      ) : (
+        <div className="mt-2 flex min-w-0 items-center justify-between gap-3">
+          {notes && <p dir="auto" className="min-w-0 flex-1 truncate text-xs font-medium text-[#66716B]">{notes}</p>}
+          <button type="button" onClick={() => setNoteOpen(true)} className="min-h-9 shrink-0 rounded-lg px-2 text-xs font-extrabold text-[#174A3A] hover:bg-white">{notes ? "עריכת הערה" : "הוספת הערה"}</button>
+        </div>
+      )}
     </li>
   );
 }

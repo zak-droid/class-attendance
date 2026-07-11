@@ -40,6 +40,13 @@ test("shared data uses secure sign-in, duplicate prevention, and realtime sync",
   assert.doesNotMatch(components, /short:\s*"(?:כי|הי|תל|הס)"/);
   assert.match(components, /"פתיחת נוכחות"\s*:\s*"התחלת נוכחות"/);
   assert.doesNotMatch(components, /פתיחת הנוכחות של היום|התחלת נוכחות להיום/);
+  assert.match(components, /const \[menuOpen, setMenuOpen\] = useState\(false\)/);
+  assert.match(components, /const \[noteOpen, setNoteOpen\] = useState\(false\)/);
+  assert.match(components, /הוספת הערה/);
+  assert.match(page, /useState<AppTab>\("today"\)/);
+  assert.match(page, /מה מתחילים עכשיו\?/);
+  assert.match(page, /חריגים בלבד/);
+  assert.match(page, /log\.status !== "Present"/);
   assert.match(page, /dir="auto"/);
   assert.doesNotMatch(page, />נכ<\/div>/);
   assert.match(schema, /check \(status in \('Present', 'Late', 'Absent', 'Excused'\)\)/i);

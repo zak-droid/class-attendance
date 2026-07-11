@@ -34,11 +34,12 @@ export default function Home() {
   const [authReady, setAuthReady] = useState(false);
   const [dataLoading, setDataLoading] = useState(false);
   const [dataError, setDataError] = useState("");
-  const [tab, setTab] = useState<AppTab>("courses");
+  const [tab, setTab] = useState<AppTab>("today");
   const [modal, setModal] = useState<ModalState>(null);
   const [toast, setToast] = useState("");
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [todayCourse, setTodayCourse] = useState("all");
+  const [todayFilter, setTodayFilter] = useState<"all" | "exceptions">("all");
   const [studentCourse, setStudentCourse] = useState("all");
   const [studentSearch, setStudentSearch] = useState("");
   const [historyDate, setHistoryDate] = useState(today);
@@ -92,9 +93,13 @@ export default function Home() {
   const coursesById = useMemo(() => new Map(data.courses.map((course) => [course.id, course])), [data.courses]);
   const studentsById = useMemo(() => new Map(data.students.map((student) => [student.id, student])), [data.students]);
   const todayLogs = useMemo(() => data.attendance.filter((log) => log.date === today), [data.attendance, today]);
-  const visibleTodayLogs = useMemo(
+  const courseTodayLogs = useMemo(
     () => todayLogs.filter((log) => todayCourse === "all" || log.courseId === todayCourse),
     [todayCourse, todayLogs],
+  );
+  const visibleTodayLogs = useMemo(
+    () => courseTodayLogs.filter((log) => todayFilter === "all" || log.status !== "Present"),
+    [courseTodayLogs, todayFilter],
   );
 
   const startAttendance = async (courseId: string) => {
@@ -248,50 +253,90 @@ export default function Home() {
               <h2 className="text-xl font-extrabold tracking-[-0.025em]">הנוכחות של היום</h2>
               <p className="mt-1 text-sm font-medium text-[#66716B]">לחצו על סטטוס כדי לעדכן. השינויים נשמרים אוטומטית.</p>
             </div>
-            <label className="text-xs font-extrabold text-[#66716B]">
-              כיתה
-              <select value={todayCourse} onChange={(event) => setTodayCourse(event.target.value)} className={`${fieldClass} mt-1 min-w-48`}>
-                <option value="all">כל הכיתות</option>
-                {data.courses.map((course) => <option dir="auto" value={course.id} key={course.id}>{course.name}</option>)}
-              </select>
-            </label>
+            {todayLogs.length > 0 && (
+              <label className="text-xs font-extrabold text-[#66716B]">
+                כיתה
+                <select value={todayCourse} onChange={(event) => setTodayCourse(event.target.value)} className={`${fieldClass} mt-1 min-w-48`}>
+                  <option value="all">כל הכיתות</option>
+                  {data.courses.map((course) => <option dir="auto" value={course.id} key={course.id}>{course.name}</option>)}
+                </select>
+              </label>
+            )}
           </div>
-          <SummaryCards logs={visibleTodayLogs} />
-          {visibleTodayLogs.length ? (
-            <div className="mt-4 space-y-4">
-              {data.courses
-                .filter((course) => visibleTodayLogs.some((log) => log.courseId === course.id))
-                .map((course) => {
-                  const courseLogs = visibleTodayLogs.filter((log) => log.courseId === course.id);
-                  return (
-                    <section key={course.id} className="soft-card rounded-[20px] border border-[#DCE4DF] bg-white p-4 sm:p-5" aria-labelledby={`today-${course.id}`}>
-                      <div className="mb-4 flex items-end justify-between gap-3">
-                        <div>
-                          <p className="text-[11px] font-extrabold uppercase tracking-[0.14em] text-[#66716B]">כיתה</p>
-                          <h3 dir="auto" id={`today-${course.id}`} className="mt-1 text-lg font-extrabold">{course.name}</h3>
+          {todayLogs.length === 0 ? (
+            <section className="soft-card rounded-[20px] border border-[#DCE4DF] bg-white p-4 sm:p-5">
+              <h3 className="text-lg font-extrabold">מה מתחילים עכשיו?</h3>
+              <p className="mt-1 text-sm font-medium leading-6 text-[#66716B]">בחרו כיתה כדי להתחיל נוכחות. כל התלמידים יסומנו כנוכחים כברירת מחדל.</p>
+              {data.courses.some((course) => course.active) ? (
+                <div className="mt-4 divide-y divide-[#E5EBE7] rounded-2xl border border-[#E5EBE7]">
+                  {data.courses.filter((course) => course.active).map((course) => {
+                    const studentCount = data.students.filter((student) => student.courseId === course.id && student.active).length;
+                    const startedToday = todayLogs.some((log) => log.courseId === course.id);
+                    return (
+                      <article key={course.id} className="flex flex-wrap items-center gap-3 p-3 sm:flex-nowrap">
+                        <div className="min-w-0 flex-1">
+                          <h4 dir="auto" className="truncate text-sm font-extrabold">{course.name}</h4>
+                          <p className="mt-1 text-xs font-semibold text-[#66716B]">{studentCount} {studentCount === 1 ? "תלמיד פעיל" : "תלמידים פעילים"} · {startedToday ? "התחילה היום" : "לא התחילה"}</p>
                         </div>
-                        <p className="text-xs font-bold text-[#66716B]">{courseLogs.length} {courseLogs.length === 1 ? "תלמיד" : "תלמידים"}</p>
-                      </div>
-                      <ul className="grid gap-2.5 xl:grid-cols-2">
-                        {courseLogs.map((log) => {
-                          const student = studentsById.get(log.studentId);
-                          return student ? (
-                            <AttendanceRow
-                              key={log.id}
-                              log={log}
-                              student={student}
-                              onStatusChange={(status) => updateAttendance(log.id, { status })}
-                              onNotesChange={(notes) => updateAttendance(log.id, { notes })}
-                            />
-                          ) : null;
-                        })}
-                      </ul>
-                    </section>
-                  );
-                })}
-            </div>
+                        <button type="button" disabled={studentCount === 0} onClick={() => startedToday ? setTodayCourse(course.id) : void startAttendance(course.id)} className={`${primaryButton} w-full whitespace-nowrap sm:w-auto`}>{startedToday ? "פתיחת נוכחות" : "התחלת נוכחות"}</button>
+                      </article>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="mt-4 rounded-2xl bg-[#F7F9F7] p-4 text-sm font-semibold text-[#66716B]">
+                  אין כרגע כיתות פעילות.
+                  <button type="button" onClick={() => setTab("courses")} className="mt-3 block min-h-10 rounded-xl px-3 font-extrabold text-[#174A3A] hover:bg-white">מעבר לכיתות</button>
+                </div>
+              )}
+            </section>
           ) : (
-            <div className="mt-4"><EmptyState title="לא התחילה נוכחות היום" body="בחרו כיתה והתחילו נוכחות להיום. תלמידים פעילים יסומנו כנוכחים כברירת מחדל." action="בחירת כיתה" onAction={() => setTab("courses")} /></div>
+            <>
+              <div className="mb-3 inline-flex rounded-xl border border-[#DCE4DF] bg-white p-1" role="group" aria-label="סינון רשימת הנוכחות">
+                <button type="button" aria-pressed={todayFilter === "all"} onClick={() => setTodayFilter("all")} className={`min-h-9 rounded-lg px-3 text-xs font-extrabold ${todayFilter === "all" ? "bg-[#DCEAE4] text-[#174A3A]" : "text-[#66716B] hover:bg-[#F7F9F7]"}`}>הכל</button>
+                <button type="button" aria-pressed={todayFilter === "exceptions"} onClick={() => setTodayFilter("exceptions")} className={`min-h-9 rounded-lg px-3 text-xs font-extrabold ${todayFilter === "exceptions" ? "bg-[#DCEAE4] text-[#174A3A]" : "text-[#66716B] hover:bg-[#F7F9F7]"}`}>חריגים בלבד</button>
+              </div>
+              <SummaryCards logs={courseTodayLogs} />
+              {visibleTodayLogs.length ? (
+                <div className="mt-4 space-y-4">
+                  {data.courses
+                    .filter((course) => visibleTodayLogs.some((log) => log.courseId === course.id))
+                    .map((course) => {
+                      const courseLogs = visibleTodayLogs.filter((log) => log.courseId === course.id);
+                      return (
+                        <section key={course.id} className="soft-card rounded-[20px] border border-[#DCE4DF] bg-white p-4" aria-labelledby={`today-${course.id}`}>
+                          <div className="mb-3 flex items-end justify-between gap-3">
+                            <div>
+                              <p className="text-[11px] font-extrabold uppercase tracking-[0.14em] text-[#66716B]">כיתה</p>
+                              <h3 dir="auto" id={`today-${course.id}`} className="mt-1 text-lg font-extrabold">{course.name}</h3>
+                            </div>
+                            <p className="text-xs font-bold text-[#66716B]">{courseLogs.length} {courseLogs.length === 1 ? "תלמיד" : "תלמידים"}</p>
+                          </div>
+                          <ul className="grid gap-2 xl:grid-cols-2">
+                            {courseLogs.map((log) => {
+                              const student = studentsById.get(log.studentId);
+                              return student ? (
+                                <AttendanceRow
+                                  key={log.id}
+                                  log={log}
+                                  student={student}
+                                  onStatusChange={(status) => updateAttendance(log.id, { status })}
+                                  onNotesChange={(notes) => updateAttendance(log.id, { notes })}
+                                />
+                              ) : null;
+                            })}
+                          </ul>
+                        </section>
+                      );
+                    })}
+                </div>
+              ) : (
+                <section className="mt-4 rounded-[20px] border border-dashed border-[#BFCBC4] bg-white/60 px-5 py-8 text-center">
+                  <h3 className="text-base font-extrabold">{todayFilter === "exceptions" ? "אין חריגים בתצוגה הזו" : "אין רשומות לכיתה הזו"}</h3>
+                  <p className="mt-1 text-sm font-medium text-[#66716B]">{todayFilter === "exceptions" ? "כל התלמידים המסוננים מסומנים כנוכחים." : "בחרו כיתה אחרת כדי להציג את הנוכחות שלה."}</p>
+                </section>
+              )}
+            </>
           )}
         </section>
       )}
