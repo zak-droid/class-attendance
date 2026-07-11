@@ -12,11 +12,11 @@ test("production build contains the phone-accessible app", async () => {
   ]);
   assert.match(html, /<html lang="he" dir="rtl">/i);
   assert.match(html, /<title>ניהול נוכחות<\/title>/i);
-  assert.match(html, /<meta name="theme-color" content="#f8f3ea"/i);
+  assert.match(html, /<meta name="theme-color" content="#eaf3f6"/i);
   assert.match(html, /fonts\.googleapis\.com\/css2\?family=Heebo:wght@400;500;600;700;800&display=swap/i);
   assert.match(globalCss, /font-family:\s*Heebo,\s*"Noto Sans Hebrew",\s*"Segoe UI",\s*Arial,\s*sans-serif/);
-  assert.match(globalCss, /--background:\s*#f8f3ea/);
-  assert.match(globalCss, /rgba\(69, 52, 33, 0\.08\)/);
+  assert.match(globalCss, /--background:\s*#eaf3f6/);
+  assert.match(globalCss, /rgba\(19, 69, 84, 0\.1\)/);
   assert.match(html, /assets\/index-/);
 });
 
@@ -38,10 +38,10 @@ test("shared data uses secure sign-in, duplicate prevention, and realtime sync",
   assert.match(components, /Late:\s*"איחר"/);
   assert.match(components, /Absent:\s*"נעדר"/);
   assert.match(components, /Excused:\s*"מוצדק"/);
-  assert.match(components, /Present:\s*"bg-\[#E6F0DF\] text-\[#265F3C\] border-\[#D1E2C8\]"/);
-  assert.match(components, /bg-\[#FFFDF8\]\/95/);
-  assert.match(page, /bg-\[#0F3D2E\]/);
-  assert.match(page, /border-\[#E5DDD0\] bg-\[#FFFDF8\]/);
+  assert.match(components, /Present:\s*"bg-\[#E7F2E9\] text-\[#276749\] border-\[#CBE3D0\]"/);
+  assert.match(components, /bg-\[#FFFFFF\]\/95/);
+  assert.match(page, /bg-\[#0F4C5C\]/);
+  assert.match(page, /border-\[#D5E4EA\] bg-\[#FFFFFF\]/);
   assert.match(components, /new Intl\.DateTimeFormat\("he-IL"/);
   assert.match(components, /<h1[^>]*>\{title\}<\/h1>/);
   assert.match(components, /function NavIcon/);

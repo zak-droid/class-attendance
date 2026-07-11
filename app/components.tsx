@@ -21,10 +21,10 @@ function NavIcon({ tab, className = "h-4 w-4" }: { tab: AppTab; className?: stri
 }
 
 export const statusStyles: Record<AttendanceStatus, string> = {
-  Present: "bg-[#E6F0DF] text-[#265F3C] border-[#D1E2C8]",
-  Late: "bg-[#FBEDD2] text-[#8A5A12] border-[#EFD8A9]",
-  Absent: "bg-[#F8E3DE] text-[#A5483D] border-[#EBCBC4]",
-  Excused: "bg-[#ECEBE7] text-[#59635F] border-[#DCD9D2]",
+  Present: "bg-[#E7F2E9] text-[#276749] border-[#CBE3D0]",
+  Late: "bg-[#FFF1D6] text-[#9A6415] border-[#F1D9A6]",
+  Absent: "bg-[#FBE7E5] text-[#B5544B] border-[#F0CDCA]",
+  Excused: "bg-[#EAF0F4] text-[#4D6470] border-[#D7E1E6]",
 };
 
 export const statusLabels: Record<AttendanceStatus, string> = {
@@ -60,14 +60,14 @@ export function Layout({
   }).format(new Date());
 
   return (
-    <div lang="he" dir="rtl" className="app-bg min-h-[100svh] bg-[#F8F3EA] text-right text-[#17201C]">
+    <div lang="he" dir="rtl" className="app-bg min-h-[100svh] bg-[#EAF3F6] text-right text-[#102A34]">
       <div className="mx-auto flex min-h-[100svh] w-full max-w-[1180px]">
-        <aside className="hidden w-[226px] shrink-0 border-e border-[#E5DDD0] px-5 py-7 lg:block">
+        <aside className="hidden w-[226px] shrink-0 border-e border-[#0B3B49] bg-[#0F4C5C] px-5 py-7 text-white lg:block">
           <div className="mb-8 flex items-center gap-3">
-            <span className="grid h-11 w-11 place-items-center rounded-2xl bg-[#0F3D2E] text-sm font-extrabold text-white">נכ</span>
+            <span className="grid h-11 w-11 place-items-center rounded-2xl bg-white/15 text-sm font-extrabold text-white ring-1 ring-white/20">נכ</span>
             <div>
               <p className="font-extrabold tracking-[-0.02em]">ניהול נוכחות</p>
-              <p className="text-xs font-medium text-[#6F766F]">סביבת עבודה למורים</p>
+              <p className="text-xs font-medium text-[#DDEFF2]">סביבת עבודה למורים</p>
             </div>
           </div>
           <nav aria-label="ניווט ראשי" className="space-y-2">
@@ -78,7 +78,7 @@ export function Layout({
                 onClick={() => onTabChange(item.id)}
                 aria-current={tab === item.id ? "page" : undefined}
                 className={`flex min-h-12 w-full items-center gap-3 rounded-2xl px-3 text-right text-sm font-bold transition ${
-                  tab === item.id ? "bg-[#E4EEDF] text-[#0F3D2E]" : "text-[#6F766F] hover:bg-[#FFFDF8]/75 hover:text-[#17201C]"
+                  tab === item.id ? "bg-white/15 text-white ring-1 ring-white/15" : "text-[#DDEFF2] hover:bg-white/10 hover:text-white"
                 }`}
               >
                 <span className="grid h-8 w-8 place-items-center rounded-xl border border-current/15"><NavIcon tab={item.id} /></span>
@@ -86,21 +86,21 @@ export function Layout({
               </button>
             ))}
           </nav>
-          <div className="mt-8 border-t border-[#E5DDD0] pt-4">
-            <p dir="ltr" className="truncate text-left text-xs font-bold text-[#6F766F]">{userEmail}</p>
-            <button type="button" onClick={onSignOut} className="mt-2 min-h-10 w-full rounded-xl border border-[#E5DDD0] bg-[#FFFDF8] px-3 text-sm font-bold text-[#0F3D2E] hover:bg-[#F7F1E8]">התנתקות</button>
+          <div className="mt-8 border-t border-white/15 pt-4">
+            <p dir="ltr" className="truncate text-left text-xs font-bold text-[#DDEFF2]">{userEmail}</p>
+            <button type="button" onClick={onSignOut} className="mt-2 min-h-10 w-full rounded-xl border border-white/20 bg-white/10 px-3 text-sm font-bold text-white hover:bg-white/20">התנתקות</button>
           </div>
         </aside>
 
         <div className="min-w-0 flex-1 pb-[calc(6.5rem+env(safe-area-inset-bottom))] lg:pb-10">
           <header className="px-4 pb-1 pt-2 sm:px-6 sm:pb-2 sm:pt-5 lg:px-10 lg:pb-3 lg:pt-9">
-            <p className="mb-1 hidden text-xs font-extrabold uppercase tracking-[0.16em] text-[#0F3D2E] lg:block">{title}</p>
+            <p className="mb-1 hidden text-xs font-extrabold uppercase tracking-[0.16em] text-[#0F4C5C] lg:block">{title}</p>
             <div className="flex items-center justify-between gap-2 lg:items-end">
               <h1 className="text-2xl font-extrabold tracking-[-0.04em] sm:text-[28px] lg:text-[32px]">{title}</h1>
               <div className="flex items-center gap-2 lg:pb-1">
-                <time className="text-xs font-semibold text-[#6F766F] lg:hidden">{mobileDateLabel}</time>
-                <time className="hidden text-sm font-semibold text-[#6F766F] lg:inline">{dateLabel}</time>
-                <button type="button" onClick={onSignOut} className="min-h-8 rounded-lg px-2 text-[11px] font-bold text-[#6F766F] hover:bg-[#FFFDF8]/75 hover:text-[#0F3D2E] lg:hidden">יציאה</button>
+                <time className="text-xs font-semibold text-[#5B7180] lg:hidden">{mobileDateLabel}</time>
+                <time className="hidden text-sm font-semibold text-[#5B7180] lg:inline">{dateLabel}</time>
+                <button type="button" onClick={onSignOut} className="min-h-8 rounded-lg px-2 text-[11px] font-bold text-[#5B7180] hover:bg-[#FFFFFF]/75 hover:text-[#0F4C5C] lg:hidden">יציאה</button>
               </div>
             </div>
           </header>
@@ -116,7 +116,7 @@ export function BottomNav({ tab, onTabChange }: { tab: AppTab; onTabChange: (tab
   return (
     <nav
       aria-label="ניווט ראשי"
-      className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-4 border-t border-[#E3DACD] bg-[#FFFDF8]/95 px-2 pb-[calc(8px+env(safe-area-inset-bottom))] pt-2 shadow-[0_-8px_28px_rgba(69,52,33,0.08)] backdrop-blur-xl lg:hidden"
+      className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-4 border-t border-[#D5E4EA] bg-[#FFFFFF]/95 px-2 pb-[calc(8px+env(safe-area-inset-bottom))] pt-2 shadow-[0_-8px_28px_rgba(19,69,84,0.08)] backdrop-blur-xl lg:hidden"
     >
       {navItems.map((item) => (
         <button
@@ -125,7 +125,7 @@ export function BottomNav({ tab, onTabChange }: { tab: AppTab; onTabChange: (tab
           onClick={() => onTabChange(item.id)}
           aria-current={tab === item.id ? "page" : undefined}
           className={`mx-1 flex min-h-14 flex-col items-center justify-center rounded-2xl text-[11px] font-extrabold transition active:scale-[0.97] ${
-            tab === item.id ? "bg-[#E4EEDF] text-[#0F3D2E]" : "text-[#6F766F]"
+            tab === item.id ? "bg-[#DDEFF2] text-[#0F4C5C]" : "text-[#5B7180]"
           }`}
         >
           <NavIcon tab={item.id} className="mb-1 h-4 w-4" />
@@ -143,10 +143,10 @@ export function StatusBadge({ status }: { status: AttendanceStatus }) {
 export function SummaryCards({ logs }: { logs: AttendanceLog[] }) {
   const statuses: AttendanceStatus[] = ["Present", "Late", "Absent", "Excused"];
   return (
-    <section aria-label="סיכום נוכחות" className="grid grid-cols-4 gap-1.5 rounded-[16px] border border-[#E5DDD0] bg-[#FFFDF8]/85 p-1.5 shadow-[0_8px_24px_rgba(69,52,33,0.08)] sm:gap-2 sm:rounded-[20px] sm:p-2">
+    <section aria-label="סיכום נוכחות" className="grid grid-cols-4 gap-1.5 rounded-[16px] border border-[#D5E4EA] bg-[#FFFFFF]/85 p-1.5 shadow-[0_8px_24px_rgba(19,69,84,0.08)] sm:gap-2 sm:rounded-[20px] sm:p-2">
       {statuses.map((status) => (
         <article key={status} className={`rounded-xl border px-1 py-1.5 text-center sm:rounded-2xl sm:p-3 ${statusStyles[status]}`}>
-          <strong className="block text-lg font-extrabold tracking-[-0.04em] text-[#17201C] sm:text-2xl">{logs.filter((log) => log.status === status).length}</strong>
+          <strong className="block text-lg font-extrabold tracking-[-0.04em] text-[#102A34] sm:text-2xl">{logs.filter((log) => log.status === status).length}</strong>
           <span className="mt-0.5 block text-[10px] font-extrabold sm:mt-1 sm:text-[11px]">{statusLabels[status]}</span>
         </article>
       ))}
@@ -174,39 +174,39 @@ export function CourseCard({
   const [menuOpen, setMenuOpen] = useState(false);
 
   return (
-    <article className={`soft-card flex h-full flex-col rounded-[18px] border bg-[#FFFDF8] p-3 sm:rounded-[20px] sm:p-5 ${course.active ? "border-[#E5DDD0]" : "border-[#E8DFD3] opacity-70"}`}>
+    <article className={`soft-card flex h-full flex-col rounded-[18px] border bg-[#FFFFFF] p-3 sm:rounded-[20px] sm:p-5 ${course.active ? "border-[#D5E4EA]" : "border-[#DCE9EE] opacity-70"}`}>
       <div className="mb-3 flex items-start justify-between gap-3 sm:mb-5 sm:gap-4">
         <div>
           <div className="mb-2 flex flex-wrap items-center gap-2">
             <h3 dir="auto" className="text-lg font-extrabold tracking-[-0.025em] sm:text-xl">{course.name}</h3>
-            {!course.active && <span className="rounded-full bg-[#ECEBE7] px-2 py-1 text-[10px] font-extrabold text-[#59635F]">לא פעיל</span>}
+            {!course.active && <span className="rounded-full bg-[#EAF0F4] px-2 py-1 text-[10px] font-extrabold text-[#4D6470]">לא פעיל</span>}
           </div>
-          <p dir="auto" className="line-clamp-2 text-sm font-medium leading-5 text-[#6F766F] sm:leading-6">{course.description || "אין עדיין תיאור"}</p>
+          <p dir="auto" className="line-clamp-2 text-sm font-medium leading-5 text-[#5B7180] sm:leading-6">{course.description || "אין עדיין תיאור"}</p>
         </div>
         <div className="flex shrink-0 items-start gap-2">
-          <span className="grid h-10 w-10 place-items-center rounded-full bg-[#E4EEDF] text-xs font-extrabold text-[#0F3D2E] sm:h-12 sm:w-12 sm:text-sm">{studentCount}</span>
+          <span className="grid h-10 w-10 place-items-center rounded-full bg-[#DDEFF2] text-xs font-extrabold text-[#0F4C5C] sm:h-12 sm:w-12 sm:text-sm">{studentCount}</span>
           <div className="relative">
-            <button type="button" onClick={() => setMenuOpen((open) => !open)} aria-expanded={menuOpen} aria-label={`פעולות נוספות עבור ${course.name}`} className="grid h-10 w-10 place-items-center rounded-xl text-[#6F766F] hover:bg-[#F7F1E8] hover:text-[#0F3D2E]">
+            <button type="button" onClick={() => setMenuOpen((open) => !open)} aria-expanded={menuOpen} aria-label={`פעולות נוספות עבור ${course.name}`} className="grid h-10 w-10 place-items-center rounded-xl text-[#5B7180] hover:bg-[#F4FAFC] hover:text-[#0F4C5C]">
               <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5 fill-current"><circle cx="5" cy="12" r="1.8" /><circle cx="12" cy="12" r="1.8" /><circle cx="19" cy="12" r="1.8" /></svg>
             </button>
             {menuOpen && (
-              <div className="absolute end-0 top-11 z-20 min-w-28 rounded-xl border border-[#E5DDD0] bg-[#FFFDF8] p-1.5 shadow-[0_12px_30px_rgba(69,52,33,0.12)]">
-                <button type="button" onClick={() => { setMenuOpen(false); onEdit(); }} className="min-h-10 w-full rounded-lg px-3 text-right text-sm font-bold text-[#0F3D2E] hover:bg-[#F7F1E8] sm:hidden">עריכה</button>
-                <button type="button" onClick={() => { setMenuOpen(false); onToggleActive(); }} className="min-h-10 w-full rounded-lg px-3 text-right text-sm font-bold text-[#6F766F] hover:bg-[#F7F1E8] hover:text-[#0F3D2E]">{course.active ? "השבתה" : "הפעלה"}</button>
+              <div className="absolute end-0 top-11 z-20 min-w-28 rounded-xl border border-[#D5E4EA] bg-[#FFFFFF] p-1.5 shadow-[0_12px_30px_rgba(19,69,84,0.12)]">
+                <button type="button" onClick={() => { setMenuOpen(false); onEdit(); }} className="min-h-10 w-full rounded-lg px-3 text-right text-sm font-bold text-[#0F4C5C] hover:bg-[#F4FAFC] sm:hidden">עריכה</button>
+                <button type="button" onClick={() => { setMenuOpen(false); onToggleActive(); }} className="min-h-10 w-full rounded-lg px-3 text-right text-sm font-bold text-[#5B7180] hover:bg-[#F4FAFC] hover:text-[#0F4C5C]">{course.active ? "השבתה" : "הפעלה"}</button>
               </div>
             )}
           </div>
         </div>
       </div>
-      <div className="mb-3 flex items-center justify-between border-t border-[#EEE6DA] pt-2 text-xs font-bold text-[#6F766F] sm:mb-4 sm:pt-3">
-        <button type="button" onClick={onViewStudents} className="rounded-lg px-1 py-2 text-[#0F3D2E] underline-offset-4 hover:underline">{studentCount} {studentCount === 1 ? "תלמיד פעיל" : "תלמידים פעילים"}</button>
-        <span className={startedToday ? "text-[#265F3C]" : "text-[#6F766F]"}>{startedToday ? "התחילה היום" : "לא התחילה"}</span>
+      <div className="mb-3 flex items-center justify-between border-t border-[#DCE9EE] pt-2 text-xs font-bold text-[#5B7180] sm:mb-4 sm:pt-3">
+        <button type="button" onClick={onViewStudents} className="rounded-lg px-1 py-2 text-[#0F4C5C] underline-offset-4 hover:underline">{studentCount} {studentCount === 1 ? "תלמיד פעיל" : "תלמידים פעילים"}</button>
+        <span className={startedToday ? "text-[#276749]" : "text-[#5B7180]"}>{startedToday ? "התחילה היום" : "לא התחילה"}</span>
       </div>
       <div className="mt-auto grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
-        <button type="button" disabled={!course.active} onClick={onStart} className="min-h-11 whitespace-nowrap rounded-xl bg-[#0F3D2E] px-3 text-sm font-extrabold text-white transition hover:bg-[#0B3025] disabled:cursor-not-allowed disabled:bg-[#ADB3AD] sm:min-h-12 sm:rounded-2xl">
+        <button type="button" disabled={!course.active} onClick={onStart} className="min-h-11 whitespace-nowrap rounded-xl bg-[#0F4C5C] px-3 text-sm font-extrabold text-white transition hover:bg-[#0B3B49] disabled:cursor-not-allowed disabled:bg-[#9FB6BF] sm:min-h-12 sm:rounded-2xl">
           {startedToday ? "פתיחת נוכחות" : "התחלת נוכחות"}
         </button>
-        <button type="button" onClick={onEdit} aria-label={`עריכת ${course.name}`} className="hidden min-h-12 rounded-2xl border border-[#E5DDD0] px-3 text-sm font-bold text-[#0F3D2E] hover:bg-[#F7F1E8] sm:block">עריכה</button>
+        <button type="button" onClick={onEdit} aria-label={`עריכת ${course.name}`} className="hidden min-h-12 rounded-2xl border border-[#D5E4EA] px-3 text-sm font-bold text-[#0F4C5C] hover:bg-[#F4FAFC] sm:block">עריכה</button>
       </div>
     </article>
   );
@@ -230,12 +230,12 @@ export function AttendanceRow({
 
   useEffect(() => setNotes(log.notes ?? ""), [log.notes]);
   return (
-    <li className="rounded-2xl border border-[#EEE6DA] bg-[#F7F1E8] p-2.5 sm:p-3">
+    <li className="rounded-2xl border border-[#DCE9EE] bg-[#F4FAFC] p-2.5 sm:p-3">
       <div className="flex items-center gap-2 sm:gap-2.5">
-        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#E4EEDF] text-xs font-extrabold text-[#0F3D2E]" aria-hidden="true">{initials}</span>
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#DDEFF2] text-xs font-extrabold text-[#0F4C5C]" aria-hidden="true">{initials}</span>
         <div className="min-w-0 flex-1">
           <p dir="auto" className="truncate text-sm font-extrabold">{student.name}</p>
-          <p className="mt-0.5 text-[11px] font-semibold text-[#6F766F] sm:text-xs">סומן בשעה {log.time}</p>
+          <p className="mt-0.5 text-[11px] font-semibold text-[#5B7180] sm:text-xs">סומן בשעה {log.time}</p>
         </div>
         <StatusBadge status={log.status} />
       </div>
@@ -249,7 +249,7 @@ export function AttendanceRow({
               aria-pressed={log.status === status}
               onClick={() => onStatusChange(status)}
               className={`min-h-10 min-w-0 rounded-xl border px-1 text-[10px] font-extrabold transition active:scale-[0.97] sm:text-xs ${
-                log.status === status ? statusStyles[status] : "border-[#E5DDD0] bg-[#FFFDF8] text-[#6F766F] hover:border-[#B9C9BC]"
+                log.status === status ? statusStyles[status] : "border-[#D5E4EA] bg-[#FFFFFF] text-[#5B7180] hover:border-[#AFCBD4]"
               }`}
             >
               {statusLabels[status]}
@@ -258,7 +258,7 @@ export function AttendanceRow({
         </div>
       </fieldset>
       {noteOpen ? (
-        <label className="mt-2 block text-xs font-extrabold text-[#6F766F]">
+        <label className="mt-2 block text-xs font-extrabold text-[#5B7180]">
           הערה <span className="font-medium">(אופציונלי)</span>
           <input
             autoFocus
@@ -269,13 +269,13 @@ export function AttendanceRow({
               if (notes !== (log.notes ?? "")) onNotesChange(notes);
             }}
             placeholder="הוספת הערה קצרה"
-            className="mt-1.5 min-h-10 w-full rounded-xl border border-[#E5DDD0] bg-[#FFFDF8] px-3 text-sm font-medium text-[#17201C] outline-none transition placeholder:text-[#9A9B95] focus:border-[#0F3D2E] focus:ring-2 focus:ring-[#0F3D2E]/15"
+            className="mt-1.5 min-h-10 w-full rounded-xl border border-[#D5E4EA] bg-[#FFFFFF] px-3 text-sm font-medium text-[#102A34] outline-none transition placeholder:text-[#8A9DA5] focus:border-[#0F4C5C] focus:ring-2 focus:ring-[#0F4C5C]/15"
           />
         </label>
       ) : (
         <div className="mt-1.5 flex min-w-0 items-center justify-between gap-3 sm:mt-2">
-          {notes && <p dir="auto" className="min-w-0 flex-1 truncate text-xs font-medium text-[#6F766F]">{notes}</p>}
-          <button type="button" onClick={() => setNoteOpen(true)} className="min-h-8 shrink-0 rounded-lg px-1.5 text-[11px] font-extrabold text-[#0F3D2E] hover:bg-[#FFFDF8] sm:min-h-9 sm:px-2 sm:text-xs">{notes ? "עריכת הערה" : "הוספת הערה"}</button>
+          {notes && <p dir="auto" className="min-w-0 flex-1 truncate text-xs font-medium text-[#5B7180]">{notes}</p>}
+          <button type="button" onClick={() => setNoteOpen(true)} className="min-h-8 shrink-0 rounded-lg px-1.5 text-[11px] font-extrabold text-[#0F4C5C] hover:bg-[#FFFFFF] sm:min-h-9 sm:px-2 sm:text-xs">{notes ? "עריכת הערה" : "הוספת הערה"}</button>
         </div>
       )}
     </li>
@@ -292,11 +292,11 @@ export function Modal({ title, onClose, children }: { title: string; onClose: ()
   }, [onClose]);
 
   return (
-    <div className="fixed inset-0 z-50 grid items-end bg-[#1C241F]/45 p-0 backdrop-blur-[2px] sm:place-items-center sm:p-5" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose(); }}>
-      <section role="dialog" aria-modal="true" aria-labelledby="modal-title" className="max-h-[92svh] w-full overflow-y-auto rounded-t-[24px] bg-[#FFFDF8] p-5 shadow-[0_20px_60px_rgba(69,52,33,0.16)] sm:max-w-lg sm:rounded-[24px] sm:p-6">
+    <div className="fixed inset-0 z-50 grid items-end bg-[#102A34]/45 p-0 backdrop-blur-[2px] sm:place-items-center sm:p-5" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose(); }}>
+      <section role="dialog" aria-modal="true" aria-labelledby="modal-title" className="max-h-[92svh] w-full overflow-y-auto rounded-t-[24px] bg-[#FFFFFF] p-5 shadow-[0_20px_60px_rgba(19,69,84,0.16)] sm:max-w-lg sm:rounded-[24px] sm:p-6">
         <div className="mb-5 flex items-center justify-between gap-4">
           <h2 id="modal-title" className="text-xl font-extrabold tracking-[-0.025em]">{title}</h2>
-          <button type="button" onClick={onClose} aria-label="סגירת החלון" className="grid h-11 w-11 place-items-center rounded-full border border-[#E5DDD0] text-lg font-bold text-[#6F766F] hover:bg-[#F7F1E8]">×</button>
+          <button type="button" onClick={onClose} aria-label="סגירת החלון" className="grid h-11 w-11 place-items-center rounded-full border border-[#D5E4EA] text-lg font-bold text-[#5B7180] hover:bg-[#F4FAFC]">×</button>
         </div>
         {children}
       </section>
