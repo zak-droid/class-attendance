@@ -20,7 +20,7 @@ body {
   background: var(--background);
   color: var(--foreground);
   text-align: right;
-  font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: Heebo, "Noto Sans Hebrew", "Segoe UI", Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -29,6 +29,7 @@ input,
 select,
 textarea {
   font: inherit;
+  font-family: Heebo, "Noto Sans Hebrew", "Segoe UI", Arial, sans-serif;
 }
 
 button {

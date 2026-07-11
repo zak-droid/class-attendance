@@ -5,9 +5,14 @@ import test from "node:test";
 const root = new URL("../", import.meta.url);
 
 test("production build contains the phone-accessible app", async () => {
-  const html = await readFile(new URL("dist/index.html", root), "utf8");
+  const [html, globalCss] = await Promise.all([
+    readFile(new URL("dist/index.html", root), "utf8"),
+    readFile(new URL("app/globals.css", root), "utf8"),
+  ]);
   assert.match(html, /<html lang="he" dir="rtl">/i);
   assert.match(html, /<title>ניהול נוכחות<\/title>/i);
+  assert.match(html, /fonts\.googleapis\.com\/css2\?family=Heebo:wght@400;500;600;700;800&display=swap/i);
+  assert.match(globalCss, /font-family:\s*Heebo,\s*"Noto Sans Hebrew",\s*"Segoe UI",\s*Arial,\s*sans-serif/);
   assert.match(html, /assets\/index-/);
 });
 
