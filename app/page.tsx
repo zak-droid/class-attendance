@@ -25,9 +25,9 @@ type ModalState =
   | { type: "import" }
   | null;
 
-const fieldClass = "mt-1.5 min-h-12 w-full rounded-2xl border border-[#DCE4DF] bg-white px-3.5 text-sm font-semibold text-[#17211D] outline-none transition placeholder:text-[#94A09A] focus:border-[#174A3A] focus:ring-2 focus:ring-[#174A3A]/15";
-const secondaryButton = "min-h-12 rounded-2xl border border-[#DCE4DF] bg-white px-4 text-sm font-extrabold text-[#174A3A] transition hover:bg-[#F7F9F7]";
-const primaryButton = "min-h-12 rounded-2xl bg-[#174A3A] px-4 text-sm font-extrabold text-white transition hover:bg-[#103D2F] disabled:cursor-not-allowed disabled:bg-[#A9B5AF]";
+const fieldClass = "mt-1.5 min-h-12 w-full rounded-2xl border border-[#E5DDD0] bg-[#FFFDF8] px-3.5 text-sm font-semibold text-[#17201C] outline-none transition placeholder:text-[#9A9B95] focus:border-[#0F3D2E] focus:ring-2 focus:ring-[#0F3D2E]/15";
+const secondaryButton = "min-h-12 rounded-2xl border border-[#E5DDD0] bg-[#FFFDF8] px-4 text-sm font-extrabold text-[#0F3D2E] transition hover:bg-[#F7F1E8]";
+const primaryButton = "min-h-12 rounded-2xl bg-[#0F3D2E] px-4 text-sm font-extrabold text-white transition hover:bg-[#0B3025] disabled:cursor-not-allowed disabled:bg-[#ADB3AD]";
 
 export default function Home() {
   const today = localDateKey();
@@ -219,7 +219,7 @@ export default function Home() {
   };
 
   if (!authReady) {
-    return <main lang="he" dir="rtl" className="app-bg grid min-h-[100svh] place-items-center bg-[#EEF2EF] text-sm font-bold text-[#174A3A]">פותחים את ניהול הנוכחות…</main>;
+    return <main lang="he" dir="rtl" className="app-bg grid min-h-[100svh] place-items-center bg-[#F8F3EA] text-sm font-bold text-[#0F3D2E]">פותחים את ניהול הנוכחות…</main>;
   }
 
   if (!session) return <AuthScreen />;
@@ -232,7 +232,7 @@ export default function Home() {
       onSignOut={() => { if (supabase) void supabase.auth.signOut(); }}
     >
       {(dataLoading || dataError) && (
-        <div className={`mb-4 rounded-2xl px-4 py-3 text-sm font-bold ${dataError ? "bg-[#F8E2E1] text-[#A13D3D]" : "bg-[#DCEAE4] text-[#174A3A]"}`} role={dataError ? "alert" : "status"}>
+        <div className={`mb-4 rounded-2xl px-4 py-3 text-sm font-bold ${dataError ? "bg-[#F8E3DE] text-[#A5483D]" : "bg-[#E4EEDF] text-[#0F3D2E]"}`} role={dataError ? "alert" : "status"}>
           {dataError || "מסנכרנים את נתוני הנוכחות…"}
         </div>
       )}
@@ -241,7 +241,7 @@ export default function Home() {
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3 sm:mb-5">
             <div>
               <h2 className="text-xl font-extrabold tracking-[-0.025em]">הכיתות שלכם</h2>
-              <p className="mt-1 text-sm font-medium text-[#66716B]">התחילו נוכחות בלחיצה אחת. כל התלמידים מתחילים כנוכחים.</p>
+              <p className="mt-1 text-sm font-medium text-[#6F766F]">התחילו נוכחות בלחיצה אחת. כל התלמידים מתחילים כנוכחים.</p>
             </div>
             <button type="button" className={primaryButton} onClick={() => setModal({ type: "course" })}>+ הוספת כיתה</button>
           </div>
@@ -275,10 +275,10 @@ export default function Home() {
           <div className="mb-2 flex flex-wrap items-end justify-between gap-2 sm:mb-4 sm:gap-3">
             <div>
               <h2 className="text-lg font-extrabold tracking-[-0.025em] sm:text-xl">הנוכחות של היום</h2>
-              <p className="mt-0.5 text-xs font-medium text-[#66716B] sm:mt-1 sm:text-sm">לחצו על סטטוס כדי לעדכן. השינויים נשמרים אוטומטית.</p>
+              <p className="mt-0.5 text-xs font-medium text-[#6F766F] sm:mt-1 sm:text-sm">לחצו על סטטוס כדי לעדכן. השינויים נשמרים אוטומטית.</p>
             </div>
             {todayLogs.length > 0 && (
-              <label className="w-full text-xs font-extrabold text-[#66716B] sm:w-auto">
+              <label className="w-full text-xs font-extrabold text-[#6F766F] sm:w-auto">
                 כיתה
                 <select value={todayCourse} onChange={(event) => setTodayCourse(event.target.value)} className={`${fieldClass} mt-1 w-full sm:min-w-48`}>
                   <option value="all">כל הכיתות</option>
@@ -288,11 +288,11 @@ export default function Home() {
             )}
           </div>
           {todayLogs.length === 0 ? (
-            <section className="soft-card rounded-[18px] border border-[#DCE4DF] bg-white p-3 sm:rounded-[20px] sm:p-5">
+            <section className="soft-card rounded-[18px] border border-[#E5DDD0] bg-[#FFFDF8] p-3 sm:rounded-[20px] sm:p-5">
               <h3 className="text-lg font-extrabold">מה מתחילים עכשיו?</h3>
-              <p className="mt-1 text-sm font-medium leading-6 text-[#66716B]">בחרו כיתה כדי להתחיל נוכחות. כל התלמידים יסומנו כנוכחים כברירת מחדל.</p>
+              <p className="mt-1 text-sm font-medium leading-6 text-[#6F766F]">בחרו כיתה כדי להתחיל נוכחות. כל התלמידים יסומנו כנוכחים כברירת מחדל.</p>
               {data.courses.some((course) => course.active) ? (
-                <div className="mt-3 divide-y divide-[#E5EBE7] rounded-2xl border border-[#E5EBE7] sm:mt-4">
+                <div className="mt-3 divide-y divide-[#EEE6DA] rounded-2xl border border-[#EEE6DA] sm:mt-4">
                   {data.courses.filter((course) => course.active).map((course) => {
                     const studentCount = data.students.filter((student) => student.courseId === course.id && student.active).length;
                     const startedToday = todayLogs.some((log) => log.courseId === course.id);
@@ -300,7 +300,7 @@ export default function Home() {
                       <article key={course.id} className="flex flex-wrap items-center gap-2.5 p-2.5 sm:flex-nowrap sm:gap-3 sm:p-3">
                         <div className="min-w-0 flex-1">
                           <h4 dir="auto" className="truncate text-sm font-extrabold">{course.name}</h4>
-                          <p className="mt-1 text-xs font-semibold text-[#66716B]">{studentCount} {studentCount === 1 ? "תלמיד פעיל" : "תלמידים פעילים"} · {startedToday ? "התחילה היום" : "לא התחילה"}</p>
+                          <p className="mt-1 text-xs font-semibold text-[#6F766F]">{studentCount} {studentCount === 1 ? "תלמיד פעיל" : "תלמידים פעילים"} · {startedToday ? "התחילה היום" : "לא התחילה"}</p>
                         </div>
                         <button type="button" disabled={studentCount === 0} onClick={() => startedToday ? setTodayCourse(course.id) : void startAttendance(course.id)} className={`${primaryButton} w-full whitespace-nowrap sm:w-auto`}>{startedToday ? "פתיחת נוכחות" : "התחלת נוכחות"}</button>
                       </article>
@@ -308,17 +308,17 @@ export default function Home() {
                   })}
                 </div>
               ) : (
-                <div className="mt-4 rounded-2xl bg-[#F7F9F7] p-4 text-sm font-semibold text-[#66716B]">
+                <div className="mt-4 rounded-2xl bg-[#F7F1E8] p-4 text-sm font-semibold text-[#6F766F]">
                   אין כרגע כיתות פעילות.
-                  <button type="button" onClick={() => setTab("courses")} className="mt-3 block min-h-10 rounded-xl px-3 font-extrabold text-[#174A3A] hover:bg-white">מעבר לכיתות</button>
+                  <button type="button" onClick={() => setTab("courses")} className="mt-3 block min-h-10 rounded-xl px-3 font-extrabold text-[#0F3D2E] hover:bg-[#FFFDF8]">מעבר לכיתות</button>
                 </div>
               )}
             </section>
           ) : (
             <>
-              <div className="mb-2 inline-flex rounded-xl border border-[#DCE4DF] bg-white p-1 sm:mb-3" role="group" aria-label="סינון רשימת הנוכחות">
-                <button type="button" aria-pressed={todayFilter === "all"} onClick={() => setTodayFilter("all")} className={`min-h-9 rounded-lg px-3 text-xs font-extrabold ${todayFilter === "all" ? "bg-[#DCEAE4] text-[#174A3A]" : "text-[#66716B] hover:bg-[#F7F9F7]"}`}>הכל</button>
-                <button type="button" aria-pressed={todayFilter === "exceptions"} onClick={() => setTodayFilter("exceptions")} className={`min-h-9 rounded-lg px-3 text-xs font-extrabold ${todayFilter === "exceptions" ? "bg-[#DCEAE4] text-[#174A3A]" : "text-[#66716B] hover:bg-[#F7F9F7]"}`}>חריגים בלבד</button>
+              <div className="mb-2 inline-flex rounded-xl border border-[#E5DDD0] bg-[#FFFDF8] p-1 sm:mb-3" role="group" aria-label="סינון רשימת הנוכחות">
+                <button type="button" aria-pressed={todayFilter === "all"} onClick={() => setTodayFilter("all")} className={`min-h-9 rounded-lg px-3 text-xs font-extrabold ${todayFilter === "all" ? "bg-[#E4EEDF] text-[#0F3D2E]" : "text-[#6F766F] hover:bg-[#F7F1E8]"}`}>הכל</button>
+                <button type="button" aria-pressed={todayFilter === "exceptions"} onClick={() => setTodayFilter("exceptions")} className={`min-h-9 rounded-lg px-3 text-xs font-extrabold ${todayFilter === "exceptions" ? "bg-[#E4EEDF] text-[#0F3D2E]" : "text-[#6F766F] hover:bg-[#F7F1E8]"}`}>חריגים בלבד</button>
               </div>
               <SummaryCards logs={courseTodayLogs} />
               {visibleTodayLogs.length ? (
@@ -328,13 +328,13 @@ export default function Home() {
                     .map((course) => {
                       const courseLogs = visibleTodayLogs.filter((log) => log.courseId === course.id);
                       return (
-                        <section key={course.id} className="soft-card rounded-[18px] border border-[#DCE4DF] bg-white p-3 sm:rounded-[20px] sm:p-4" aria-labelledby={`today-${course.id}`}>
+                        <section key={course.id} className="soft-card rounded-[18px] border border-[#E5DDD0] bg-[#FFFDF8] p-3 sm:rounded-[20px] sm:p-4" aria-labelledby={`today-${course.id}`}>
                           <div className="mb-2 flex items-end justify-between gap-3 sm:mb-3">
                             <div>
-                              <p className="text-[11px] font-extrabold uppercase tracking-[0.14em] text-[#66716B]">כיתה</p>
+                              <p className="text-[11px] font-extrabold uppercase tracking-[0.14em] text-[#6F766F]">כיתה</p>
                               <h3 dir="auto" id={`today-${course.id}`} className="mt-1 text-lg font-extrabold">{course.name}</h3>
                             </div>
-                            <p className="text-xs font-bold text-[#66716B]">{courseLogs.length} {courseLogs.length === 1 ? "תלמיד" : "תלמידים"}</p>
+                            <p className="text-xs font-bold text-[#6F766F]">{courseLogs.length} {courseLogs.length === 1 ? "תלמיד" : "תלמידים"}</p>
                           </div>
                           <ul className="grid gap-2 xl:grid-cols-2">
                             {courseLogs.map((log) => {
@@ -355,9 +355,9 @@ export default function Home() {
                     })}
                 </div>
               ) : (
-                <section className="mt-4 rounded-[20px] border border-dashed border-[#BFCBC4] bg-white/60 px-5 py-8 text-center">
+                <section className="mt-4 rounded-[20px] border border-dashed border-[#D8CCBC] bg-[#FFFDF8]/75 px-5 py-8 text-center">
                   <h3 className="text-base font-extrabold">{todayFilter === "exceptions" ? "אין חריגים בתצוגה הזו" : "אין רשומות לכיתה הזו"}</h3>
-                  <p className="mt-1 text-sm font-medium text-[#66716B]">{todayFilter === "exceptions" ? "כל התלמידים המסוננים מסומנים כנוכחים." : "בחרו כיתה אחרת כדי להציג את הנוכחות שלה."}</p>
+                  <p className="mt-1 text-sm font-medium text-[#6F766F]">{todayFilter === "exceptions" ? "כל התלמידים המסוננים מסומנים כנוכחים." : "בחרו כיתה אחרת כדי להציג את הנוכחות שלה."}</p>
                 </section>
               )}
             </>
@@ -370,18 +370,18 @@ export default function Home() {
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3 sm:mb-5">
             <div>
               <h2 className="text-xl font-extrabold tracking-[-0.025em]">תלמידים</h2>
-              <p className="mt-1 text-sm font-medium text-[#66716B]">ניהול רשימות התלמידים בלי למחוק נוכחות מהעבר.</p>
+              <p className="mt-1 text-sm font-medium text-[#6F766F]">ניהול רשימות התלמידים בלי למחוק נוכחות מהעבר.</p>
             </div>
             <div className="flex flex-wrap gap-2">
               <button type="button" className={primaryButton} disabled={!data.courses.length} onClick={() => setModal({ type: "student" })}>+ הוספת תלמיד</button>
               <button type="button" className={secondaryButton} disabled={!data.courses.length} onClick={() => setModal({ type: "import" })}>ייבוא רשימה</button>
             </div>
           </div>
-          <div className="mb-4 grid gap-3 rounded-[20px] border border-[#DCE4DF] bg-white p-3 sm:grid-cols-[1fr_220px] sm:p-4">
-            <label className="text-xs font-extrabold text-[#66716B]">חיפוש
+          <div className="mb-4 grid gap-3 rounded-[20px] border border-[#E5DDD0] bg-[#FFFDF8] p-3 sm:grid-cols-[1fr_220px] sm:p-4">
+            <label className="text-xs font-extrabold text-[#6F766F]">חיפוש
               <input value={studentSearch} onChange={(event) => setStudentSearch(event.target.value)} placeholder="שם או אימייל" className={fieldClass} />
             </label>
-            <label className="text-xs font-extrabold text-[#66716B]">כיתה
+            <label className="text-xs font-extrabold text-[#6F766F]">כיתה
               <select value={studentCourse} onChange={(event) => setStudentCourse(event.target.value)} className={fieldClass}>
                 <option value="all">כל הכיתות</option>
                 {data.courses.map((course) => <option dir="auto" key={course.id} value={course.id}>{course.name}</option>)}
@@ -389,18 +389,18 @@ export default function Home() {
             </label>
           </div>
           {filteredStudents.length ? (
-            <div className="overflow-hidden rounded-[20px] border border-[#DCE4DF] bg-white shadow-[0_8px_24px_rgba(20,52,41,0.06)]">
-              <ul className="divide-y divide-[#E5EBE7]">
+            <div className="overflow-hidden rounded-[20px] border border-[#E5DDD0] bg-[#FFFDF8] shadow-[0_8px_24px_rgba(69,52,33,0.07)]">
+              <ul className="divide-y divide-[#EEE6DA]">
                 {filteredStudents.map((student) => (
                   <li key={student.id} className="flex items-center gap-2.5 p-3 sm:gap-3 sm:p-4">
-                    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#DCEAE4] text-xs font-extrabold text-[#174A3A] sm:h-11 sm:w-11" aria-hidden="true">{student.name.split(/\s+/).map((part) => part[0]).join("").slice(0, 2)}</span>
+                    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#E4EEDF] text-xs font-extrabold text-[#0F3D2E] sm:h-11 sm:w-11" aria-hidden="true">{student.name.split(/\s+/).map((part) => part[0]).join("").slice(0, 2)}</span>
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
                         <p dir="auto" className="min-w-0 truncate font-extrabold">{student.name}</p>
-                        {!student.active && <span className="rounded-full bg-[#E8ECEF] px-2 py-1 text-[10px] font-extrabold text-[#56616D]">לא פעיל</span>}
+                        {!student.active && <span className="rounded-full bg-[#ECEBE7] px-2 py-1 text-[10px] font-extrabold text-[#59635F]">לא פעיל</span>}
                       </div>
-                      <p dir="auto" className="mt-0.5 truncate text-xs font-semibold text-[#66716B]">{coursesById.get(student.courseId)?.name ?? "כיתה לא ידועה"}</p>
-                      <p dir="auto" className="truncate text-[11px] font-medium text-[#7B8580]">{student.email || "אין אימייל"}</p>
+                      <p dir="auto" className="mt-0.5 truncate text-xs font-semibold text-[#6F766F]">{coursesById.get(student.courseId)?.name ?? "כיתה לא ידועה"}</p>
+                      <p dir="auto" className="truncate text-[11px] font-medium text-[#858780]">{student.email || "אין אימייל"}</p>
                     </div>
                     <StudentActions student={student} onEdit={() => setModal({ type: "student", student })} onToggle={() => toggleStudent(student.id)} />
                   </li>
@@ -418,15 +418,15 @@ export default function Home() {
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3 sm:mb-5">
             <div>
               <h2 className="text-xl font-extrabold tracking-[-0.025em]">היסטוריית נוכחות</h2>
-              <p className="mt-1 text-sm font-medium text-[#66716B]">בדקו יום מסוים או ייצאו את הרשומות המסוננות.</p>
+              <p className="mt-1 text-sm font-medium text-[#6F766F]">בדקו יום מסוים או ייצאו את הרשומות המסוננות.</p>
             </div>
             <button type="button" className={primaryButton} disabled={!historyLogs.length} onClick={exportCsv}>ייצוא CSV</button>
           </div>
-          <div className="mb-4 grid gap-3 rounded-[20px] border border-[#DCE4DF] bg-white p-3 sm:grid-cols-2 sm:p-4">
-            <label className="text-xs font-extrabold text-[#66716B]">תאריך
+          <div className="mb-4 grid gap-3 rounded-[20px] border border-[#E5DDD0] bg-[#FFFDF8] p-3 sm:grid-cols-2 sm:p-4">
+            <label className="text-xs font-extrabold text-[#6F766F]">תאריך
               <input type="date" value={historyDate} onChange={(event) => setHistoryDate(event.target.value)} className={fieldClass} />
             </label>
-            <label className="text-xs font-extrabold text-[#66716B]">כיתה
+            <label className="text-xs font-extrabold text-[#6F766F]">כיתה
               <select value={historyCourse} onChange={(event) => setHistoryCourse(event.target.value)} className={fieldClass}>
                 <option value="all">כל הכיתות</option>
                 {data.courses.map((course) => <option dir="auto" key={course.id} value={course.id}>{course.name}</option>)}
@@ -438,33 +438,33 @@ export default function Home() {
             <>
               <div className="mt-3 grid gap-2 md:hidden">
                 {historyLogs.map((log) => (
-                  <article key={log.id} className="rounded-2xl border border-[#DCE4DF] bg-white p-3 shadow-[0_6px_18px_rgba(20,52,41,0.05)]">
+                  <article key={log.id} className="rounded-2xl border border-[#E5DDD0] bg-[#FFFDF8] p-3 shadow-[0_6px_18px_rgba(69,52,33,0.06)]">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0 flex-1">
                         <h3 dir="auto" className="truncate text-sm font-extrabold">{studentsById.get(log.studentId)?.name ?? "תלמיד לא ידוע"}</h3>
-                        <p dir="auto" className="mt-0.5 truncate text-xs font-semibold text-[#66716B]">{coursesById.get(log.courseId)?.name ?? "כיתה לא ידועה"}</p>
+                        <p dir="auto" className="mt-0.5 truncate text-xs font-semibold text-[#6F766F]">{coursesById.get(log.courseId)?.name ?? "כיתה לא ידועה"}</p>
                       </div>
                       <StatusBadge status={log.status} />
                     </div>
-                    <p className="mt-2 text-xs font-semibold text-[#66716B]">{log.time}</p>
-                    {log.notes && <p dir="auto" className="mt-1.5 text-sm font-medium leading-5 text-[#66716B]">{log.notes}</p>}
+                    <p className="mt-2 text-xs font-semibold text-[#6F766F]">{log.time}</p>
+                    {log.notes && <p dir="auto" className="mt-1.5 text-sm font-medium leading-5 text-[#6F766F]">{log.notes}</p>}
                   </article>
                 ))}
               </div>
-              <div className="mt-4 hidden overflow-hidden rounded-[20px] border border-[#DCE4DF] bg-white shadow-[0_8px_24px_rgba(20,52,41,0.06)] md:block">
+              <div className="mt-4 hidden overflow-hidden rounded-[20px] border border-[#E5DDD0] bg-[#FFFDF8] shadow-[0_8px_24px_rgba(69,52,33,0.07)] md:block">
                 <div className="overflow-x-auto">
                   <table className="w-full min-w-[700px] border-collapse text-right text-sm">
-                    <thead className="bg-[#F7F9F7] text-xs uppercase tracking-[0.08em] text-[#66716B]">
+                    <thead className="bg-[#F7F1E8] text-xs uppercase tracking-[0.08em] text-[#6F766F]">
                       <tr><th className="p-4">תלמיד</th><th className="p-4">כיתה</th><th className="p-4">שעה</th><th className="p-4">סטטוס</th><th className="p-4">הערות</th></tr>
                     </thead>
-                    <tbody className="divide-y divide-[#E5EBE7]">
+                    <tbody className="divide-y divide-[#EEE6DA]">
                       {historyLogs.map((log) => (
                         <tr key={log.id}>
                           <td dir="auto" className="p-4 font-extrabold">{studentsById.get(log.studentId)?.name ?? "תלמיד לא ידוע"}</td>
-                          <td dir="auto" className="p-4 font-medium text-[#66716B]">{coursesById.get(log.courseId)?.name ?? "כיתה לא ידועה"}</td>
-                          <td className="p-4 font-medium text-[#66716B]">{log.time}</td>
+                          <td dir="auto" className="p-4 font-medium text-[#6F766F]">{coursesById.get(log.courseId)?.name ?? "כיתה לא ידועה"}</td>
+                          <td className="p-4 font-medium text-[#6F766F]">{log.time}</td>
                           <td className="p-4"><StatusBadge status={log.status} /></td>
-                          <td dir="auto" className="max-w-[280px] truncate p-4 font-medium text-[#66716B]">{log.notes || "—"}</td>
+                          <td dir="auto" className="max-w-[280px] truncate p-4 font-medium text-[#6F766F]">{log.notes || "—"}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -522,16 +522,16 @@ export default function Home() {
         />
       )}
 
-      <div className={`pointer-events-none fixed inset-x-4 bottom-24 z-[60] mx-auto max-w-md rounded-2xl bg-[#17211D] px-4 py-3 text-center text-sm font-bold text-white shadow-2xl transition lg:bottom-6 ${toast ? "translate-y-0 opacity-100" : "translate-y-3 opacity-0"}`} role="status" aria-live="polite">{toast}</div>
+      <div className={`pointer-events-none fixed inset-x-4 bottom-24 z-[60] mx-auto max-w-md rounded-2xl bg-[#17201C] px-4 py-3 text-center text-sm font-bold text-white shadow-[0_16px_36px_rgba(33,27,20,0.20)] transition lg:bottom-6 ${toast ? "translate-y-0 opacity-100" : "translate-y-3 opacity-0"}`} role="status" aria-live="polite">{toast}</div>
     </Layout>
   );
 }
 
 function EmptyState({ title, body, action, onAction }: { title: string; body: string; action?: string; onAction?: () => void }) {
   return (
-    <section className="rounded-[20px] border border-dashed border-[#BFCBC4] bg-white/60 px-5 py-10 text-center">
+    <section className="rounded-[20px] border border-dashed border-[#D8CCBC] bg-[#FFFDF8]/75 px-5 py-10 text-center">
       <h3 className="text-lg font-extrabold">{title}</h3>
-      <p className="mx-auto mt-2 max-w-md text-sm font-medium leading-6 text-[#66716B]">{body}</p>
+      <p className="mx-auto mt-2 max-w-md text-sm font-medium leading-6 text-[#6F766F]">{body}</p>
       {action && onAction && <button type="button" onClick={onAction} className={`${primaryButton} mt-5`}>{action}</button>}
     </section>
   );
@@ -542,13 +542,13 @@ function StudentActions({ student, onEdit, onToggle }: { student: Student; onEdi
   return (
     <>
       <div className="relative sm:hidden">
-        <button type="button" onClick={() => setOpen((current) => !current)} aria-expanded={open} aria-label={`פעולות נוספות עבור ${student.name}`} className="grid h-10 w-10 place-items-center rounded-xl text-[#66716B] hover:bg-[#F7F9F7] hover:text-[#174A3A]">
+        <button type="button" onClick={() => setOpen((current) => !current)} aria-expanded={open} aria-label={`פעולות נוספות עבור ${student.name}`} className="grid h-10 w-10 place-items-center rounded-xl text-[#6F766F] hover:bg-[#F7F1E8] hover:text-[#0F3D2E]">
           <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5 fill-current"><circle cx="5" cy="12" r="1.8" /><circle cx="12" cy="12" r="1.8" /><circle cx="19" cy="12" r="1.8" /></svg>
         </button>
         {open && (
-          <div className="absolute end-0 top-11 z-20 min-w-28 rounded-xl border border-[#DCE4DF] bg-white p-1.5 shadow-lg">
-            <button type="button" onClick={() => { setOpen(false); onEdit(); }} className="min-h-10 w-full rounded-lg px-3 text-right text-sm font-bold text-[#174A3A] hover:bg-[#F7F9F7]">עריכה</button>
-            <button type="button" onClick={() => { setOpen(false); onToggle(); }} className="min-h-10 w-full rounded-lg px-3 text-right text-sm font-bold text-[#66716B] hover:bg-[#F7F9F7]">{student.active ? "השבתה" : "הפעלה"}</button>
+          <div className="absolute end-0 top-11 z-20 min-w-28 rounded-xl border border-[#E5DDD0] bg-[#FFFDF8] p-1.5 shadow-[0_12px_30px_rgba(69,52,33,0.12)]">
+            <button type="button" onClick={() => { setOpen(false); onEdit(); }} className="min-h-10 w-full rounded-lg px-3 text-right text-sm font-bold text-[#0F3D2E] hover:bg-[#F7F1E8]">עריכה</button>
+            <button type="button" onClick={() => { setOpen(false); onToggle(); }} className="min-h-10 w-full rounded-lg px-3 text-right text-sm font-bold text-[#6F766F] hover:bg-[#F7F1E8]">{student.active ? "השבתה" : "הפעלה"}</button>
           </div>
         )}
       </div>
@@ -594,7 +594,7 @@ function StudentImportForm({
   return (
     <Modal title="ייבוא תלמידים" onClose={onClose}>
       <div className="space-y-4">
-        <label className="block text-xs font-extrabold text-[#66716B]">כיתה
+        <label className="block text-xs font-extrabold text-[#6F766F]">כיתה
           <select required value={courseId} onChange={(event) => { setCourseId(event.target.value); setStep("input"); }} className={fieldClass}>
             {courses.map((course) => <option dir="auto" key={course.id} value={course.id}>{course.name}</option>)}
           </select>
@@ -602,11 +602,11 @@ function StudentImportForm({
 
         {step === "input" ? (
           <>
-            <div className="rounded-2xl bg-[#F7F9F7] p-3 text-sm font-medium leading-6 text-[#66716B]">
+            <div className="rounded-2xl bg-[#F7F1E8] p-3 text-sm font-medium leading-6 text-[#6F766F]">
               <p>הדביקו רשימת תלמידים. כל שורה היא תלמיד. אפשר להדביק רק שם, או שם ואימייל מופרדים בפסיק או בטאב.</p>
-              <pre dir="auto" className="mt-2 overflow-x-auto whitespace-pre-wrap rounded-xl bg-white p-3 text-xs leading-5 text-[#56616D]">{"מיה כהן\nנועם לוי, noam@example.com\nדניאל פרץ\tdaniel@example.com"}</pre>
+              <pre dir="auto" className="mt-2 overflow-x-auto whitespace-pre-wrap rounded-xl bg-[#FFFDF8] p-3 text-xs leading-5 text-[#59635F]">{"מיה כהן\nנועם לוי, noam@example.com\nדניאל פרץ\tdaniel@example.com"}</pre>
             </div>
-            <label className="block text-xs font-extrabold text-[#66716B]">רשימת תלמידים
+            <label className="block text-xs font-extrabold text-[#6F766F]">רשימת תלמידים
               <textarea
                 autoFocus
                 dir="auto"
@@ -624,19 +624,19 @@ function StudentImportForm({
         ) : (
           <>
             <section aria-label="סיכום הייבוא" className="grid grid-cols-3 gap-2">
-              <div className="rounded-xl bg-[#E0EEE7] p-2.5 text-center text-[#22684D]"><strong className="block text-xl font-extrabold">{preview.ready.length}</strong><span className="text-[10px] font-bold">מוכנים לייבוא</span></div>
-              <div className="rounded-xl bg-[#FBEFD8] p-2.5 text-center text-[#8A5B13]"><strong className="block text-xl font-extrabold">{preview.duplicates.length}</strong><span className="text-[10px] font-bold">כפולים יידלגו</span></div>
-              <div className="rounded-xl bg-[#F8E2E1] p-2.5 text-center text-[#A13D3D]"><strong className="block text-xl font-extrabold">{preview.invalid.length}</strong><span className="text-[10px] font-bold">שורות לא תקינות</span></div>
+              <div className="rounded-xl bg-[#E6F0DF] p-2.5 text-center text-[#265F3C]"><strong className="block text-xl font-extrabold">{preview.ready.length}</strong><span className="text-[10px] font-bold">מוכנים לייבוא</span></div>
+              <div className="rounded-xl bg-[#FBEDD2] p-2.5 text-center text-[#8A5A12]"><strong className="block text-xl font-extrabold">{preview.duplicates.length}</strong><span className="text-[10px] font-bold">כפולים יידלגו</span></div>
+              <div className="rounded-xl bg-[#F8E3DE] p-2.5 text-center text-[#A5483D]"><strong className="block text-xl font-extrabold">{preview.invalid.length}</strong><span className="text-[10px] font-bold">שורות לא תקינות</span></div>
             </section>
 
             {preview.ready.length > 0 && (
               <section>
-                <h3 className="text-xs font-extrabold text-[#66716B]">תלמידים מוכנים לייבוא</h3>
-                <ul className="mt-2 max-h-40 divide-y divide-[#E5EBE7] overflow-y-auto rounded-2xl border border-[#E5EBE7] bg-white">
+                <h3 className="text-xs font-extrabold text-[#6F766F]">תלמידים מוכנים לייבוא</h3>
+                <ul className="mt-2 max-h-40 divide-y divide-[#EEE6DA] overflow-y-auto rounded-2xl border border-[#EEE6DA] bg-[#FFFDF8]">
                   {preview.ready.map((row) => (
                     <li key={`${row.line}-${row.name}`} className="px-3 py-2">
                       <p dir="auto" className="truncate text-sm font-bold">{row.name}</p>
-                      {row.email && <p dir="auto" className="truncate text-xs font-medium text-[#66716B]">{row.email}</p>}
+                      {row.email && <p dir="auto" className="truncate text-xs font-medium text-[#6F766F]">{row.email}</p>}
                     </li>
                   ))}
                 </ul>
@@ -645,10 +645,10 @@ function StudentImportForm({
 
             {preview.invalid.length > 0 && (
               <section>
-                <h3 className="text-xs font-extrabold text-[#A13D3D]">שורות שדורשות תיקון</h3>
+                <h3 className="text-xs font-extrabold text-[#A5483D]">שורות שדורשות תיקון</h3>
                 <ul className="mt-2 max-h-32 space-y-1.5 overflow-y-auto">
                   {preview.invalid.map((row) => (
-                    <li key={`${row.line}-${row.input}`} className="rounded-xl bg-[#F8E2E1] px-3 py-2 text-xs text-[#A13D3D]">
+                    <li key={`${row.line}-${row.input}`} className="rounded-xl bg-[#F8E3DE] px-3 py-2 text-xs text-[#A5483D]">
                       <span className="font-extrabold">שורה {row.line}: {row.reason}</span>
                       <span dir="auto" className="mt-0.5 block truncate font-medium">{row.input}</span>
                     </li>
@@ -657,7 +657,7 @@ function StudentImportForm({
               </section>
             )}
 
-            {error && <p role="alert" className="rounded-xl bg-[#F8E2E1] px-3 py-2 text-sm font-bold text-[#A13D3D]">{error}</p>}
+            {error && <p role="alert" className="rounded-xl bg-[#F8E3DE] px-3 py-2 text-sm font-bold text-[#A5483D]">{error}</p>}
             <div className="flex flex-col-reverse gap-2 pt-1 sm:flex-row sm:justify-end">
               <button type="button" className={secondaryButton} disabled={importing} onClick={() => setStep("input")}>חזרה לעריכה</button>
               <button type="button" className={primaryButton} disabled={importing || preview.ready.length === 0} onClick={() => void confirmImport()}>{importing ? "מייבאים…" : `ייבוא ${preview.ready.length} תלמידים`}</button>
@@ -680,10 +680,10 @@ function CourseForm({ course, onClose, onSave }: { course?: Course; onClose: () 
   return (
     <Modal title={course ? "עריכת כיתה" : "הוספת כיתה"} onClose={onClose}>
       <form onSubmit={submit} className="space-y-4">
-        <label className="block text-xs font-extrabold text-[#66716B]">שם הכיתה
+        <label className="block text-xs font-extrabold text-[#6F766F]">שם הכיתה
           <input autoFocus required dir="auto" value={name} onChange={(event) => setName(event.target.value)} placeholder="למשל: מתמטיקה י׳1" className={fieldClass} />
         </label>
-        <label className="block text-xs font-extrabold text-[#66716B]">תיאור <span className="font-medium">(אופציונלי)</span>
+        <label className="block text-xs font-extrabold text-[#6F766F]">תיאור <span className="font-medium">(אופציונלי)</span>
           <textarea dir="auto" value={description} onChange={(event) => setDescription(event.target.value)} placeholder="מה לומדים בכיתה הזו?" className={`${fieldClass} min-h-24 py-3`} />
         </label>
         <div className="flex justify-end gap-2 pt-2">
@@ -708,13 +708,13 @@ function StudentForm({ student, courses, onClose, onSave }: { student?: Student;
   return (
     <Modal title={student ? "עריכת תלמיד" : "הוספת תלמיד"} onClose={onClose}>
       <form onSubmit={submit} className="space-y-4">
-        <label className="block text-xs font-extrabold text-[#66716B]">שם התלמיד
+        <label className="block text-xs font-extrabold text-[#6F766F]">שם התלמיד
           <input autoFocus required dir="auto" value={name} onChange={(event) => setName(event.target.value)} placeholder="שם מלא" className={fieldClass} />
         </label>
-        <label className="block text-xs font-extrabold text-[#66716B]">אימייל <span className="font-medium">(אופציונלי)</span>
+        <label className="block text-xs font-extrabold text-[#6F766F]">אימייל <span className="font-medium">(אופציונלי)</span>
           <input type="email" dir="ltr" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="student@example.edu" className={`${fieldClass} text-left`} />
         </label>
-        <label className="block text-xs font-extrabold text-[#66716B]">כיתה
+        <label className="block text-xs font-extrabold text-[#6F766F]">כיתה
           <select required value={courseId} onChange={(event) => setCourseId(event.target.value)} className={fieldClass}>
             {availableCourses.map((course) => <option dir="auto" key={course.id} value={course.id}>{course.name}</option>)}
           </select>

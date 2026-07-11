@@ -1,8 +1,8 @@
 @import "tailwindcss";
 
 :root {
-  --background: #eef2ef;
-  --foreground: #17211d;
+  --background: #f8f3ea;
+  --foreground: #17201c;
 }
 
 * {
@@ -40,18 +40,18 @@ button:focus-visible,
 input:focus-visible,
 select:focus-visible,
 textarea:focus-visible {
-  outline: 3px solid rgba(23, 74, 58, 0.3);
+  outline: 3px solid rgba(15, 61, 46, 0.28);
   outline-offset: 2px;
 }
 
 .app-bg {
   background:
-    radial-gradient(circle at 88% 2%, rgba(194, 216, 206, 0.5), transparent 330px),
-    #eef2ef;
+    radial-gradient(circle at 88% 2%, rgba(226, 210, 184, 0.45), transparent 330px),
+    #f8f3ea;
 }
 
 .soft-card {
-  box-shadow: 0 8px 24px rgba(20, 52, 41, 0.07);
+  box-shadow: 0 8px 24px rgba(69, 52, 33, 0.08);
 }
 
 @media (prefers-reduced-motion: reduce) {
