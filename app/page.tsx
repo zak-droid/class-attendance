@@ -252,7 +252,7 @@ export default function Home() {
               כיתה
               <select value={todayCourse} onChange={(event) => setTodayCourse(event.target.value)} className={`${fieldClass} mt-1 min-w-48`}>
                 <option value="all">כל הכיתות</option>
-                {data.courses.map((course) => <option value={course.id} key={course.id}>{course.name}</option>)}
+                {data.courses.map((course) => <option dir="auto" value={course.id} key={course.id}>{course.name}</option>)}
               </select>
             </label>
           </div>
@@ -268,7 +268,7 @@ export default function Home() {
                       <div className="mb-4 flex items-end justify-between gap-3">
                         <div>
                           <p className="text-[11px] font-extrabold uppercase tracking-[0.14em] text-[#66716B]">כיתה</p>
-                          <h3 id={`today-${course.id}`} className="mt-1 text-lg font-extrabold">{course.name}</h3>
+                          <h3 dir="auto" id={`today-${course.id}`} className="mt-1 text-lg font-extrabold">{course.name}</h3>
                         </div>
                         <p className="text-xs font-bold text-[#66716B]">{courseLogs.length} {courseLogs.length === 1 ? "תלמיד" : "תלמידים"}</p>
                       </div>
@@ -312,7 +312,7 @@ export default function Home() {
             <label className="text-xs font-extrabold text-[#66716B]">כיתה
               <select value={studentCourse} onChange={(event) => setStudentCourse(event.target.value)} className={fieldClass}>
                 <option value="all">כל הכיתות</option>
-                {data.courses.map((course) => <option key={course.id} value={course.id}>{course.name}</option>)}
+                {data.courses.map((course) => <option dir="auto" key={course.id} value={course.id}>{course.name}</option>)}
               </select>
             </label>
           </div>
@@ -324,10 +324,10 @@ export default function Home() {
                     <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-[#DCEAE4] text-xs font-extrabold text-[#174A3A]" aria-hidden="true">{student.name.split(/\s+/).map((part) => part[0]).join("").slice(0, 2)}</span>
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
-                        <p className="font-extrabold">{student.name}</p>
+                        <p dir="auto" className="font-extrabold">{student.name}</p>
                         {!student.active && <span className="rounded-full bg-[#E8ECEF] px-2 py-1 text-[10px] font-extrabold text-[#56616D]">לא פעיל</span>}
                       </div>
-                      <p className="truncate text-xs font-medium text-[#66716B]">{student.email || "אין אימייל"} · {coursesById.get(student.courseId)?.name ?? "כיתה לא ידועה"}</p>
+                      <p className="truncate text-xs font-medium text-[#66716B]"><span dir="auto">{student.email || "אין אימייל"}</span><span aria-hidden="true"> · </span><span dir="auto">{coursesById.get(student.courseId)?.name ?? "כיתה לא ידועה"}</span></p>
                     </div>
                     <div className="ms-auto flex gap-2">
                       <button type="button" className={secondaryButton} onClick={() => setModal({ type: "student", student })}>עריכה</button>
@@ -359,7 +359,7 @@ export default function Home() {
             <label className="text-xs font-extrabold text-[#66716B]">כיתה
               <select value={historyCourse} onChange={(event) => setHistoryCourse(event.target.value)} className={fieldClass}>
                 <option value="all">כל הכיתות</option>
-                {data.courses.map((course) => <option key={course.id} value={course.id}>{course.name}</option>)}
+                {data.courses.map((course) => <option dir="auto" key={course.id} value={course.id}>{course.name}</option>)}
               </select>
             </label>
           </div>
@@ -374,11 +374,11 @@ export default function Home() {
                   <tbody className="divide-y divide-[#E5EBE7]">
                     {historyLogs.map((log) => (
                       <tr key={log.id}>
-                        <td className="p-4 font-extrabold">{studentsById.get(log.studentId)?.name ?? "תלמיד לא ידוע"}</td>
-                        <td className="p-4 font-medium text-[#66716B]">{coursesById.get(log.courseId)?.name ?? "כיתה לא ידועה"}</td>
+                        <td dir="auto" className="p-4 font-extrabold">{studentsById.get(log.studentId)?.name ?? "תלמיד לא ידוע"}</td>
+                        <td dir="auto" className="p-4 font-medium text-[#66716B]">{coursesById.get(log.courseId)?.name ?? "כיתה לא ידועה"}</td>
                         <td className="p-4 font-medium text-[#66716B]">{log.time}</td>
                         <td className="p-4"><StatusBadge status={log.status} /></td>
-                        <td className="max-w-[280px] truncate p-4 font-medium text-[#66716B]">{log.notes || "—"}</td>
+                        <td dir="auto" className="max-w-[280px] truncate p-4 font-medium text-[#66716B]">{log.notes || "—"}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -435,7 +435,6 @@ export default function Home() {
 function EmptyState({ title, body, action, onAction }: { title: string; body: string; action?: string; onAction?: () => void }) {
   return (
     <section className="rounded-[20px] border border-dashed border-[#BFCBC4] bg-white/60 px-5 py-10 text-center">
-      <div className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-full bg-[#DCEAE4] text-sm font-extrabold text-[#174A3A]">נכ</div>
       <h3 className="text-lg font-extrabold">{title}</h3>
       <p className="mx-auto mt-2 max-w-md text-sm font-medium leading-6 text-[#66716B]">{body}</p>
       {action && onAction && <button type="button" onClick={onAction} className={`${primaryButton} mt-5`}>{action}</button>}
@@ -455,10 +454,10 @@ function CourseForm({ course, onClose, onSave }: { course?: Course; onClose: () 
     <Modal title={course ? "עריכת כיתה" : "הוספת כיתה"} onClose={onClose}>
       <form onSubmit={submit} className="space-y-4">
         <label className="block text-xs font-extrabold text-[#66716B]">שם הכיתה
-          <input autoFocus required value={name} onChange={(event) => setName(event.target.value)} placeholder="למשל: מתמטיקה י׳1" className={fieldClass} />
+          <input autoFocus required dir="auto" value={name} onChange={(event) => setName(event.target.value)} placeholder="למשל: מתמטיקה י׳1" className={fieldClass} />
         </label>
         <label className="block text-xs font-extrabold text-[#66716B]">תיאור <span className="font-medium">(אופציונלי)</span>
-          <textarea value={description} onChange={(event) => setDescription(event.target.value)} placeholder="מה לומדים בכיתה הזו?" className={`${fieldClass} min-h-24 py-3`} />
+          <textarea dir="auto" value={description} onChange={(event) => setDescription(event.target.value)} placeholder="מה לומדים בכיתה הזו?" className={`${fieldClass} min-h-24 py-3`} />
         </label>
         <div className="flex justify-end gap-2 pt-2">
           <button type="button" className={secondaryButton} onClick={onClose}>ביטול</button>
@@ -483,14 +482,14 @@ function StudentForm({ student, courses, onClose, onSave }: { student?: Student;
     <Modal title={student ? "עריכת תלמיד" : "הוספת תלמיד"} onClose={onClose}>
       <form onSubmit={submit} className="space-y-4">
         <label className="block text-xs font-extrabold text-[#66716B]">שם התלמיד
-          <input autoFocus required value={name} onChange={(event) => setName(event.target.value)} placeholder="שם מלא" className={fieldClass} />
+          <input autoFocus required dir="auto" value={name} onChange={(event) => setName(event.target.value)} placeholder="שם מלא" className={fieldClass} />
         </label>
         <label className="block text-xs font-extrabold text-[#66716B]">אימייל <span className="font-medium">(אופציונלי)</span>
           <input type="email" dir="ltr" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="student@example.edu" className={`${fieldClass} text-left`} />
         </label>
         <label className="block text-xs font-extrabold text-[#66716B]">כיתה
           <select required value={courseId} onChange={(event) => setCourseId(event.target.value)} className={fieldClass}>
-            {availableCourses.map((course) => <option key={course.id} value={course.id}>{course.name}</option>)}
+            {availableCourses.map((course) => <option dir="auto" key={course.id} value={course.id}>{course.name}</option>)}
           </select>
         </label>
         <div className="flex justify-end gap-2 pt-2">

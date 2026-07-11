@@ -35,6 +35,13 @@ test("shared data uses secure sign-in, duplicate prevention, and realtime sync",
   assert.match(components, /Absent:\s*"נעדר"/);
   assert.match(components, /Excused:\s*"מוצדק"/);
   assert.match(components, /new Intl\.DateTimeFormat\("he-IL"/);
+  assert.match(components, /<h1[^>]*>\{title\}<\/h1>/);
+  assert.match(components, /function NavIcon/);
+  assert.doesNotMatch(components, /short:\s*"(?:כי|הי|תל|הס)"/);
+  assert.match(components, /"פתיחת נוכחות"\s*:\s*"התחלת נוכחות"/);
+  assert.doesNotMatch(components, /פתיחת הנוכחות של היום|התחלת נוכחות להיום/);
+  assert.match(page, /dir="auto"/);
+  assert.doesNotMatch(page, />נכ<\/div>/);
   assert.match(schema, /check \(status in \('Present', 'Late', 'Absent', 'Excused'\)\)/i);
   assert.match(cloudData, /rpc\("start_attendance"/);
   assert.match(cloudData, /postgres_changes/);

@@ -3,12 +3,22 @@
 import { useEffect, useState, type ReactNode } from "react";
 import type { AppTab, AttendanceLog, AttendanceStatus, Course, Student } from "./types";
 
-const navItems: { id: AppTab; label: string; short: string }[] = [
-  { id: "courses", label: "כיתות", short: "כי" },
-  { id: "today", label: "היום", short: "הי" },
-  { id: "students", label: "תלמידים", short: "תל" },
-  { id: "history", label: "היסטוריה", short: "הס" },
+const navItems: { id: AppTab; label: string }[] = [
+  { id: "courses", label: "כיתות" },
+  { id: "today", label: "היום" },
+  { id: "students", label: "תלמידים" },
+  { id: "history", label: "היסטוריה" },
 ];
+
+function NavIcon({ tab, className = "h-4 w-4" }: { tab: AppTab; className?: string }) {
+  const icon: Record<AppTab, ReactNode> = {
+    courses: <><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H11v14H6.5A2.5 2.5 0 0 0 4 19.5z" /><path d="M20 5.5A2.5 2.5 0 0 0 17.5 3H13v14h4.5a2.5 2.5 0 0 1 2.5 2.5z" /></>,
+    today: <><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M16 3v4M8 3v4M3 10h18M8 15l2 2 5-5" /></>,
+    students: <><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" /></>,
+    history: <><path d="M3 12a9 9 0 1 0 3-6.7L3 8" /><path d="M3 3v5h5M12 7v5l3 2" /></>,
+  };
+  return <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={className}>{icon[tab]}</svg>;
+}
 
 export const statusStyles: Record<AttendanceStatus, string> = {
   Present: "bg-[#E0EEE7] text-[#22684D] border-[#C9E0D4]",
@@ -42,6 +52,7 @@ export function Layout({
     weekday: "long",
     month: "long",
     day: "numeric",
+    year: "numeric",
   }).format(new Date());
 
   return (
@@ -66,13 +77,13 @@ export function Layout({
                   tab === item.id ? "bg-[#DCEAE4] text-[#174A3A]" : "text-[#66716B] hover:bg-white/70 hover:text-[#17211D]"
                 }`}
               >
-                <span className="grid h-8 w-8 place-items-center rounded-xl border border-current/15 text-[10px] tracking-wider">{item.short}</span>
+                <span className="grid h-8 w-8 place-items-center rounded-xl border border-current/15"><NavIcon tab={item.id} /></span>
                 {item.label}
               </button>
             ))}
           </nav>
           <div className="mt-8 border-t border-[#DCE4DF] pt-4">
-            <p className="truncate text-xs font-bold text-[#66716B]">{userEmail}</p>
+            <p dir="ltr" className="truncate text-left text-xs font-bold text-[#66716B]">{userEmail}</p>
             <button type="button" onClick={onSignOut} className="mt-2 min-h-10 w-full rounded-xl border border-[#DCE4DF] bg-white px-3 text-sm font-bold text-[#174A3A] hover:bg-[#F7F9F7]">התנתקות</button>
           </div>
         </aside>
@@ -81,7 +92,7 @@ export function Layout({
           <header className="px-4 pb-3 pt-6 sm:px-6 lg:px-10 lg:pt-9">
             <p className="mb-1 text-xs font-extrabold uppercase tracking-[0.16em] text-[#174A3A]">{title}</p>
             <div className="flex flex-wrap items-end justify-between gap-2">
-              <h1 className="text-[28px] font-extrabold tracking-[-0.04em] sm:text-[32px]">ניהול נוכחות</h1>
+              <h1 className="text-[28px] font-extrabold tracking-[-0.04em] sm:text-[32px]">{title}</h1>
               <div className="flex items-center gap-2 pb-1">
                 <time className="text-sm font-semibold text-[#66716B]">{dateLabel}</time>
                 <button type="button" onClick={onSignOut} className="min-h-9 rounded-xl border border-[#DCE4DF] bg-white px-3 text-xs font-extrabold text-[#174A3A] lg:hidden">התנתקות</button>
@@ -112,7 +123,7 @@ export function BottomNav({ tab, onTabChange }: { tab: AppTab; onTabChange: (tab
             tab === item.id ? "bg-[#DCEAE4] text-[#174A3A]" : "text-[#66716B]"
           }`}
         >
-          <span className="mb-1 text-[9px] tracking-[0.12em]" aria-hidden="true">{item.short}</span>
+          <NavIcon tab={item.id} className="mb-1 h-4 w-4" />
           {item.label}
         </button>
       ))}
@@ -160,10 +171,10 @@ export function CourseCard({
       <div className="mb-5 flex items-start justify-between gap-4">
         <div>
           <div className="mb-2 flex flex-wrap items-center gap-2">
-            <h3 className="text-xl font-extrabold tracking-[-0.025em]">{course.name}</h3>
+            <h3 dir="auto" className="text-xl font-extrabold tracking-[-0.025em]">{course.name}</h3>
             {!course.active && <span className="rounded-full bg-[#E8ECEF] px-2 py-1 text-[10px] font-extrabold text-[#56616D]">לא פעיל</span>}
           </div>
-          <p className="text-sm font-medium leading-6 text-[#66716B]">{course.description || "אין עדיין תיאור"}</p>
+          <p dir="auto" className="text-sm font-medium leading-6 text-[#66716B]">{course.description || "אין עדיין תיאור"}</p>
         </div>
         <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-[#DCEAE4] text-sm font-extrabold text-[#174A3A]">{studentCount}</span>
       </div>
@@ -171,13 +182,13 @@ export function CourseCard({
         <button type="button" onClick={onViewStudents} className="rounded-lg px-1 py-2 text-[#174A3A] underline-offset-4 hover:underline">{studentCount} {studentCount === 1 ? "תלמיד פעיל" : "תלמידים פעילים"}</button>
         <span className={startedToday ? "text-[#22684D]" : "text-[#66716B]"}>{startedToday ? "התחילה היום" : "לא התחילה"}</span>
       </div>
-      <div className="mt-auto grid grid-cols-[1fr_auto_auto] gap-2">
-        <button type="button" disabled={!course.active} onClick={onStart} className="min-h-12 rounded-2xl bg-[#174A3A] px-3 text-sm font-extrabold text-white transition hover:bg-[#103D2F] disabled:cursor-not-allowed disabled:bg-[#A9B5AF]">
-          {startedToday ? "פתיחת הנוכחות של היום" : "התחלת נוכחות להיום"}
+      <div className="mt-auto grid grid-cols-[minmax(0,1fr)_auto] gap-2">
+        <button type="button" disabled={!course.active} onClick={onStart} className="min-h-12 whitespace-nowrap rounded-2xl bg-[#174A3A] px-3 text-sm font-extrabold text-white transition hover:bg-[#103D2F] disabled:cursor-not-allowed disabled:bg-[#A9B5AF]">
+          {startedToday ? "פתיחת נוכחות" : "התחלת נוכחות"}
         </button>
         <button type="button" onClick={onEdit} aria-label={`עריכת ${course.name}`} className="min-h-12 rounded-2xl border border-[#DCE4DF] px-3 text-sm font-bold text-[#174A3A] hover:bg-[#F7F9F7]">עריכה</button>
-        <button type="button" onClick={onToggleActive} className="min-h-12 rounded-2xl border border-[#DCE4DF] px-3 text-sm font-bold text-[#66716B] hover:bg-[#F7F9F7]">{course.active ? "השבתה" : "הפעלה"}</button>
       </div>
+      <button type="button" onClick={onToggleActive} className="mt-2 min-h-9 self-end rounded-xl px-2 text-xs font-bold text-[#66716B] hover:bg-[#F7F9F7] hover:text-[#174A3A]">{course.active ? "השבתה" : "הפעלה"}</button>
     </article>
   );
 }
@@ -203,7 +214,7 @@ export function AttendanceRow({
       <div className="flex items-center gap-3">
         <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-[#DCEAE4] text-xs font-extrabold text-[#174A3A]" aria-hidden="true">{initials}</span>
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-extrabold">{student.name}</p>
+          <p dir="auto" className="truncate text-sm font-extrabold">{student.name}</p>
           <p className="mt-1 text-xs font-semibold text-[#66716B]">סומן בשעה {log.time}</p>
         </div>
         <StatusBadge status={log.status} />
@@ -229,6 +240,7 @@ export function AttendanceRow({
       <label className="mt-3 block text-xs font-extrabold text-[#66716B]">
         הערה <span className="font-medium">(אופציונלי)</span>
         <input
+          dir="auto"
           value={notes}
           onChange={(event) => setNotes(event.target.value)}
           onBlur={() => {
