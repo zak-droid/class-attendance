@@ -43,6 +43,11 @@ test("shared data uses secure sign-in, duplicate prevention, and realtime sync",
   assert.match(components, /const \[menuOpen, setMenuOpen\] = useState\(false\)/);
   assert.match(components, /const \[noteOpen, setNoteOpen\] = useState\(false\)/);
   assert.match(components, /הוספת הערה/);
+  assert.match(components, /pb-\[calc\(6\.5rem\+env\(safe-area-inset-bottom\)\)\]/);
+  assert.match(components, /grid grid-cols-4/);
+  assert.match(page, /function StudentActions/);
+  assert.match(page, /md:hidden/);
+  assert.match(page, /hidden[^"']*md:block/);
   assert.match(page, /useState<AppTab>\("today"\)/);
   assert.match(page, /מה מתחילים עכשיו\?/);
   assert.match(page, /חריגים בלבד/);

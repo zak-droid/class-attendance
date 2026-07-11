@@ -214,7 +214,7 @@ export default function Home() {
       )}
       {tab === "courses" && (
         <section>
-          <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3 sm:mb-5">
             <div>
               <h2 className="text-xl font-extrabold tracking-[-0.025em]">הכיתות שלכם</h2>
               <p className="mt-1 text-sm font-medium text-[#66716B]">התחילו נוכחות בלחיצה אחת. כל התלמידים מתחילים כנוכחים.</p>
@@ -222,7 +222,7 @@ export default function Home() {
             <button type="button" className={primaryButton} onClick={() => setModal({ type: "course" })}>+ הוספת כיתה</button>
           </div>
           {data.courses.length ? (
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <div className="grid gap-3 sm:gap-4 md:grid-cols-2 xl:grid-cols-3">
               {data.courses.map((course) => {
                 const studentCount = data.students.filter((student) => student.courseId === course.id && student.active).length;
                 const startedToday = todayLogs.some((log) => log.courseId === course.id);
@@ -248,15 +248,15 @@ export default function Home() {
 
       {tab === "today" && (
         <section>
-          <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+          <div className="mb-2 flex flex-wrap items-end justify-between gap-2 sm:mb-4 sm:gap-3">
             <div>
-              <h2 className="text-xl font-extrabold tracking-[-0.025em]">הנוכחות של היום</h2>
-              <p className="mt-1 text-sm font-medium text-[#66716B]">לחצו על סטטוס כדי לעדכן. השינויים נשמרים אוטומטית.</p>
+              <h2 className="text-lg font-extrabold tracking-[-0.025em] sm:text-xl">הנוכחות של היום</h2>
+              <p className="mt-0.5 text-xs font-medium text-[#66716B] sm:mt-1 sm:text-sm">לחצו על סטטוס כדי לעדכן. השינויים נשמרים אוטומטית.</p>
             </div>
             {todayLogs.length > 0 && (
-              <label className="text-xs font-extrabold text-[#66716B]">
+              <label className="w-full text-xs font-extrabold text-[#66716B] sm:w-auto">
                 כיתה
-                <select value={todayCourse} onChange={(event) => setTodayCourse(event.target.value)} className={`${fieldClass} mt-1 min-w-48`}>
+                <select value={todayCourse} onChange={(event) => setTodayCourse(event.target.value)} className={`${fieldClass} mt-1 w-full sm:min-w-48`}>
                   <option value="all">כל הכיתות</option>
                   {data.courses.map((course) => <option dir="auto" value={course.id} key={course.id}>{course.name}</option>)}
                 </select>
@@ -264,16 +264,16 @@ export default function Home() {
             )}
           </div>
           {todayLogs.length === 0 ? (
-            <section className="soft-card rounded-[20px] border border-[#DCE4DF] bg-white p-4 sm:p-5">
+            <section className="soft-card rounded-[18px] border border-[#DCE4DF] bg-white p-3 sm:rounded-[20px] sm:p-5">
               <h3 className="text-lg font-extrabold">מה מתחילים עכשיו?</h3>
               <p className="mt-1 text-sm font-medium leading-6 text-[#66716B]">בחרו כיתה כדי להתחיל נוכחות. כל התלמידים יסומנו כנוכחים כברירת מחדל.</p>
               {data.courses.some((course) => course.active) ? (
-                <div className="mt-4 divide-y divide-[#E5EBE7] rounded-2xl border border-[#E5EBE7]">
+                <div className="mt-3 divide-y divide-[#E5EBE7] rounded-2xl border border-[#E5EBE7] sm:mt-4">
                   {data.courses.filter((course) => course.active).map((course) => {
                     const studentCount = data.students.filter((student) => student.courseId === course.id && student.active).length;
                     const startedToday = todayLogs.some((log) => log.courseId === course.id);
                     return (
-                      <article key={course.id} className="flex flex-wrap items-center gap-3 p-3 sm:flex-nowrap">
+                      <article key={course.id} className="flex flex-wrap items-center gap-2.5 p-2.5 sm:flex-nowrap sm:gap-3 sm:p-3">
                         <div className="min-w-0 flex-1">
                           <h4 dir="auto" className="truncate text-sm font-extrabold">{course.name}</h4>
                           <p className="mt-1 text-xs font-semibold text-[#66716B]">{studentCount} {studentCount === 1 ? "תלמיד פעיל" : "תלמידים פעילים"} · {startedToday ? "התחילה היום" : "לא התחילה"}</p>
@@ -292,20 +292,20 @@ export default function Home() {
             </section>
           ) : (
             <>
-              <div className="mb-3 inline-flex rounded-xl border border-[#DCE4DF] bg-white p-1" role="group" aria-label="סינון רשימת הנוכחות">
+              <div className="mb-2 inline-flex rounded-xl border border-[#DCE4DF] bg-white p-1 sm:mb-3" role="group" aria-label="סינון רשימת הנוכחות">
                 <button type="button" aria-pressed={todayFilter === "all"} onClick={() => setTodayFilter("all")} className={`min-h-9 rounded-lg px-3 text-xs font-extrabold ${todayFilter === "all" ? "bg-[#DCEAE4] text-[#174A3A]" : "text-[#66716B] hover:bg-[#F7F9F7]"}`}>הכל</button>
                 <button type="button" aria-pressed={todayFilter === "exceptions"} onClick={() => setTodayFilter("exceptions")} className={`min-h-9 rounded-lg px-3 text-xs font-extrabold ${todayFilter === "exceptions" ? "bg-[#DCEAE4] text-[#174A3A]" : "text-[#66716B] hover:bg-[#F7F9F7]"}`}>חריגים בלבד</button>
               </div>
               <SummaryCards logs={courseTodayLogs} />
               {visibleTodayLogs.length ? (
-                <div className="mt-4 space-y-4">
+                <div className="mt-3 space-y-3 sm:mt-4 sm:space-y-4">
                   {data.courses
                     .filter((course) => visibleTodayLogs.some((log) => log.courseId === course.id))
                     .map((course) => {
                       const courseLogs = visibleTodayLogs.filter((log) => log.courseId === course.id);
                       return (
-                        <section key={course.id} className="soft-card rounded-[20px] border border-[#DCE4DF] bg-white p-4" aria-labelledby={`today-${course.id}`}>
-                          <div className="mb-3 flex items-end justify-between gap-3">
+                        <section key={course.id} className="soft-card rounded-[18px] border border-[#DCE4DF] bg-white p-3 sm:rounded-[20px] sm:p-4" aria-labelledby={`today-${course.id}`}>
+                          <div className="mb-2 flex items-end justify-between gap-3 sm:mb-3">
                             <div>
                               <p className="text-[11px] font-extrabold uppercase tracking-[0.14em] text-[#66716B]">כיתה</p>
                               <h3 dir="auto" id={`today-${course.id}`} className="mt-1 text-lg font-extrabold">{course.name}</h3>
@@ -343,7 +343,7 @@ export default function Home() {
 
       {tab === "students" && (
         <section>
-          <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3 sm:mb-5">
             <div>
               <h2 className="text-xl font-extrabold tracking-[-0.025em]">תלמידים</h2>
               <p className="mt-1 text-sm font-medium text-[#66716B]">ניהול רשימות התלמידים בלי למחוק נוכחות מהעבר.</p>
@@ -365,19 +365,17 @@ export default function Home() {
             <div className="overflow-hidden rounded-[20px] border border-[#DCE4DF] bg-white shadow-[0_8px_24px_rgba(20,52,41,0.06)]">
               <ul className="divide-y divide-[#E5EBE7]">
                 {filteredStudents.map((student) => (
-                  <li key={student.id} className="flex flex-wrap items-center gap-3 p-4 sm:flex-nowrap">
-                    <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-[#DCEAE4] text-xs font-extrabold text-[#174A3A]" aria-hidden="true">{student.name.split(/\s+/).map((part) => part[0]).join("").slice(0, 2)}</span>
+                  <li key={student.id} className="flex items-center gap-2.5 p-3 sm:gap-3 sm:p-4">
+                    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#DCEAE4] text-xs font-extrabold text-[#174A3A] sm:h-11 sm:w-11" aria-hidden="true">{student.name.split(/\s+/).map((part) => part[0]).join("").slice(0, 2)}</span>
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
-                        <p dir="auto" className="font-extrabold">{student.name}</p>
+                        <p dir="auto" className="min-w-0 truncate font-extrabold">{student.name}</p>
                         {!student.active && <span className="rounded-full bg-[#E8ECEF] px-2 py-1 text-[10px] font-extrabold text-[#56616D]">לא פעיל</span>}
                       </div>
-                      <p className="truncate text-xs font-medium text-[#66716B]"><span dir="auto">{student.email || "אין אימייל"}</span><span aria-hidden="true"> · </span><span dir="auto">{coursesById.get(student.courseId)?.name ?? "כיתה לא ידועה"}</span></p>
+                      <p dir="auto" className="mt-0.5 truncate text-xs font-semibold text-[#66716B]">{coursesById.get(student.courseId)?.name ?? "כיתה לא ידועה"}</p>
+                      <p dir="auto" className="truncate text-[11px] font-medium text-[#7B8580]">{student.email || "אין אימייל"}</p>
                     </div>
-                    <div className="ms-auto flex gap-2">
-                      <button type="button" className={secondaryButton} onClick={() => setModal({ type: "student", student })}>עריכה</button>
-                      <button type="button" className={secondaryButton} onClick={() => toggleStudent(student.id)}>{student.active ? "השבתה" : "הפעלה"}</button>
-                    </div>
+                    <StudentActions student={student} onEdit={() => setModal({ type: "student", student })} onToggle={() => toggleStudent(student.id)} />
                   </li>
                 ))}
               </ul>
@@ -390,7 +388,7 @@ export default function Home() {
 
       {tab === "history" && (
         <section>
-          <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3 sm:mb-5">
             <div>
               <h2 className="text-xl font-extrabold tracking-[-0.025em]">היסטוריית נוכחות</h2>
               <p className="mt-1 text-sm font-medium text-[#66716B]">בדקו יום מסוים או ייצאו את הרשומות המסוננות.</p>
@@ -410,26 +408,43 @@ export default function Home() {
           </div>
           <SummaryCards logs={historyLogs} />
           {historyLogs.length ? (
-            <div className="mt-4 overflow-hidden rounded-[20px] border border-[#DCE4DF] bg-white shadow-[0_8px_24px_rgba(20,52,41,0.06)]">
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[700px] border-collapse text-right text-sm">
-                  <thead className="bg-[#F7F9F7] text-xs uppercase tracking-[0.08em] text-[#66716B]">
-                    <tr><th className="p-4">תלמיד</th><th className="p-4">כיתה</th><th className="p-4">שעה</th><th className="p-4">סטטוס</th><th className="p-4">הערות</th></tr>
-                  </thead>
-                  <tbody className="divide-y divide-[#E5EBE7]">
-                    {historyLogs.map((log) => (
-                      <tr key={log.id}>
-                        <td dir="auto" className="p-4 font-extrabold">{studentsById.get(log.studentId)?.name ?? "תלמיד לא ידוע"}</td>
-                        <td dir="auto" className="p-4 font-medium text-[#66716B]">{coursesById.get(log.courseId)?.name ?? "כיתה לא ידועה"}</td>
-                        <td className="p-4 font-medium text-[#66716B]">{log.time}</td>
-                        <td className="p-4"><StatusBadge status={log.status} /></td>
-                        <td dir="auto" className="max-w-[280px] truncate p-4 font-medium text-[#66716B]">{log.notes || "—"}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+            <>
+              <div className="mt-3 grid gap-2 md:hidden">
+                {historyLogs.map((log) => (
+                  <article key={log.id} className="rounded-2xl border border-[#DCE4DF] bg-white p-3 shadow-[0_6px_18px_rgba(20,52,41,0.05)]">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <h3 dir="auto" className="truncate text-sm font-extrabold">{studentsById.get(log.studentId)?.name ?? "תלמיד לא ידוע"}</h3>
+                        <p dir="auto" className="mt-0.5 truncate text-xs font-semibold text-[#66716B]">{coursesById.get(log.courseId)?.name ?? "כיתה לא ידועה"}</p>
+                      </div>
+                      <StatusBadge status={log.status} />
+                    </div>
+                    <p className="mt-2 text-xs font-semibold text-[#66716B]">שעה {log.time}</p>
+                    {log.notes && <p dir="auto" className="mt-1.5 text-xs font-medium leading-5 text-[#66716B]">{log.notes}</p>}
+                  </article>
+                ))}
               </div>
-            </div>
+              <div className="mt-4 hidden overflow-hidden rounded-[20px] border border-[#DCE4DF] bg-white shadow-[0_8px_24px_rgba(20,52,41,0.06)] md:block">
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[700px] border-collapse text-right text-sm">
+                    <thead className="bg-[#F7F9F7] text-xs uppercase tracking-[0.08em] text-[#66716B]">
+                      <tr><th className="p-4">תלמיד</th><th className="p-4">כיתה</th><th className="p-4">שעה</th><th className="p-4">סטטוס</th><th className="p-4">הערות</th></tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#E5EBE7]">
+                      {historyLogs.map((log) => (
+                        <tr key={log.id}>
+                          <td dir="auto" className="p-4 font-extrabold">{studentsById.get(log.studentId)?.name ?? "תלמיד לא ידוע"}</td>
+                          <td dir="auto" className="p-4 font-medium text-[#66716B]">{coursesById.get(log.courseId)?.name ?? "כיתה לא ידועה"}</td>
+                          <td className="p-4 font-medium text-[#66716B]">{log.time}</td>
+                          <td className="p-4"><StatusBadge status={log.status} /></td>
+                          <td dir="auto" className="max-w-[280px] truncate p-4 font-medium text-[#66716B]">{log.notes || "—"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </>
           ) : (
             <div className="mt-4"><EmptyState title="אין רשומות בתצוגה הזו" body="נסו תאריך או כיתה אחרים, או התחילו נוכחות להיום." action="מעבר לכיתות" onAction={() => setTab("courses")} /></div>
           )}
@@ -484,6 +499,29 @@ function EmptyState({ title, body, action, onAction }: { title: string; body: st
       <p className="mx-auto mt-2 max-w-md text-sm font-medium leading-6 text-[#66716B]">{body}</p>
       {action && onAction && <button type="button" onClick={onAction} className={`${primaryButton} mt-5`}>{action}</button>}
     </section>
+  );
+}
+
+function StudentActions({ student, onEdit, onToggle }: { student: Student; onEdit: () => void; onToggle: () => void }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <div className="relative sm:hidden">
+        <button type="button" onClick={() => setOpen((current) => !current)} aria-expanded={open} aria-label={`פעולות נוספות עבור ${student.name}`} className="grid h-10 w-10 place-items-center rounded-xl text-[#66716B] hover:bg-[#F7F9F7] hover:text-[#174A3A]">
+          <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5 fill-current"><circle cx="5" cy="12" r="1.8" /><circle cx="12" cy="12" r="1.8" /><circle cx="19" cy="12" r="1.8" /></svg>
+        </button>
+        {open && (
+          <div className="absolute end-0 top-11 z-20 min-w-28 rounded-xl border border-[#DCE4DF] bg-white p-1.5 shadow-lg">
+            <button type="button" onClick={() => { setOpen(false); onEdit(); }} className="min-h-10 w-full rounded-lg px-3 text-right text-sm font-bold text-[#174A3A] hover:bg-[#F7F9F7]">עריכה</button>
+            <button type="button" onClick={() => { setOpen(false); onToggle(); }} className="min-h-10 w-full rounded-lg px-3 text-right text-sm font-bold text-[#66716B] hover:bg-[#F7F9F7]">{student.active ? "השבתה" : "הפעלה"}</button>
+          </div>
+        )}
+      </div>
+      <div className="hidden gap-2 sm:flex">
+        <button type="button" className={secondaryButton} onClick={onEdit}>עריכה</button>
+        <button type="button" className={secondaryButton} onClick={onToggle}>{student.active ? "השבתה" : "הפעלה"}</button>
+      </div>
+    </>
   );
 }
 
