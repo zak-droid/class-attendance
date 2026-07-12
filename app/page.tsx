@@ -21,8 +21,8 @@ import { localDateKey, localTimeKey, makeId } from "./utils";
 
 type ModalState =
   | { type: "course"; course?: Course }
-  | { type: "student"; student?: Student }
-  | { type: "import" }
+  | { type: "student"; student?: Student; initialCourseId?: string }
+  | { type: "import"; initialCourseId?: string }
   | null;
 
 const fieldClass = "mt-1.5 min-h-12 w-full rounded-xl border border-[#CBD5E1] bg-white px-3.5 text-sm font-semibold text-[#0F172A] outline-none transition placeholder:text-[#475569] focus:border-[#00A6A6] focus:ring-2 focus:ring-[#00A6A6]/20";
@@ -51,6 +51,7 @@ export default function Home() {
   const [selectedAttendanceId, setSelectedAttendanceId] = useState<string | null>(null);
   const [completedCourseIds, setCompletedCourseIds] = useState<Set<string>>(() => new Set());
   const [moreView, setMoreView] = useState<"menu" | "courses">("menu");
+  const [studentAddSheetOpen, setStudentAddSheetOpen] = useState(false);
 
   const refreshData = useCallback(async () => {
     setDataLoading(true);
@@ -374,9 +375,12 @@ export default function Home() {
             </div>
           </div>
           <div className="dark-filter glass-panel mb-5 grid gap-4 rounded-[18px] p-4 sm:grid-cols-[1fr_220px]">
-            <label className="text-xs font-extrabold text-[#475569]">חיפוש
-              <input value={studentSearch} onChange={(event) => setStudentSearch(event.target.value)} placeholder="שם או אימייל" className={fieldClass} />
-            </label>
+            <div className="flex items-end gap-3">
+              <label className="min-w-0 flex-1 text-xs font-extrabold text-[#475569]">חיפוש
+                <input value={studentSearch} onChange={(event) => setStudentSearch(event.target.value)} placeholder="שם או אימייל" className={fieldClass} />
+              </label>
+              <button type="button" onClick={() => setStudentAddSheetOpen(true)} disabled={!data.courses.length} aria-label="הוספת תלמיד" className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-[#00A6A6] text-3xl font-light leading-none text-white shadow-[0_10px_24px_rgba(0,18,27,0.2)] transition hover:bg-[#00B3A4] disabled:cursor-not-allowed disabled:opacity-45">+</button>
+            </div>
             <label className="text-xs font-extrabold text-[#475569]">כיתה
               <select value={studentCourse} onChange={(event) => setStudentCourse(event.target.value)} className={fieldClass}>
                 <option value="all">כל הכיתות</option>
@@ -473,16 +477,24 @@ export default function Home() {
         <StudentForm
           student={modal.student}
           courses={data.courses}
+          initialCourseId={modal.initialCourseId}
           onClose={() => setModal(null)}
           onSave={async (student) => {
+            const duplicateCheck = prepareStudentImport(
+              `${student.name}${student.email ? `\t${student.email}` : ""}`,
+              student.courseId,
+              data.students.filter((existing) => existing.id !== student.id),
+            );
+            if (duplicateCheck.duplicates.length) throw new Error("התלמיד כבר קיים בכיתה הזו");
             try {
               await saveStudent(student);
               await refreshData();
-              notify(modal.student ? "התלמיד עודכן" : "התלמיד נוסף");
+              notify(modal.student ? "התלמיד עודכן" : "התלמיד נוסף בהצלחה");
               setModal(null);
             } catch (error) {
               console.error(error);
-              notify("לא הצלחנו לשמור את התלמיד.");
+              if (error instanceof Error && error.message === "התלמיד כבר קיים בכיתה הזו") throw error;
+              throw new Error("לא הצלחנו לשמור את התלמיד. נסו שוב.");
             }
           }}
         />
@@ -491,8 +503,22 @@ export default function Home() {
         <StudentImportForm
           courses={data.courses}
           students={data.students}
+          initialCourseId={modal.initialCourseId}
           onClose={() => setModal(null)}
           onImport={importStudents}
+        />
+      )}
+      {studentAddSheetOpen && (
+        <AddStudentBottomSheet
+          onClose={() => setStudentAddSheetOpen(false)}
+          onAddStudent={() => {
+            setStudentAddSheetOpen(false);
+            setModal({ type: "student", initialCourseId: studentCourse === "all" ? undefined : studentCourse });
+          }}
+          onImport={() => {
+            setStudentAddSheetOpen(false);
+            setModal({ type: "import", initialCourseId: studentCourse === "all" ? undefined : studentCourse });
+          }}
         />
       )}
       {selectedAttendance && selectedAttendanceStudent && (
@@ -556,6 +582,36 @@ function MoreAction({
   );
 }
 
+function AddStudentBottomSheet({ onClose, onAddStudent, onImport }: { onClose: () => void; onAddStudent: () => void; onImport: () => void }) {
+  useEffect(() => {
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [onClose]);
+
+  return (
+    <div className="fixed inset-0 z-[75] grid items-end bg-[#002B45]/75 backdrop-blur-[3px]" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+      <section role="dialog" aria-modal="true" aria-labelledby="add-student-sheet-title" className="w-full rounded-t-[26px] bg-white px-5 pb-[calc(18px+env(safe-area-inset-bottom))] pt-3 text-[#0F172A] shadow-[0_-22px_60px_rgba(0,18,27,0.34)] sm:mx-auto sm:mb-5 sm:max-w-lg sm:rounded-[26px]">
+        <span className="mx-auto block h-1 w-12 rounded-full bg-[#CBD5E1]" aria-hidden="true" />
+        <h2 id="add-student-sheet-title" className="mt-5 text-center text-xl font-extrabold">הוספת תלמיד</h2>
+        <div className="mt-5 space-y-3">
+          <button type="button" onClick={onAddStudent} className="flex min-h-[78px] w-full items-center gap-4 rounded-2xl border border-[#CBD5E1] bg-white px-4 py-3 text-right transition hover:bg-[#F4F8FA]">
+            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-[#F4F8FA] text-3xl font-light text-[#00A6A6]" aria-hidden="true">+</span>
+            <span><strong className="block text-base font-extrabold">הוספת תלמיד חדש</strong><span className="mt-0.5 block text-xs font-medium text-[#475569]">הזנת פרטי תלמיד באופן ידני</span></span>
+          </button>
+          <button type="button" onClick={onImport} className="flex min-h-[78px] w-full items-center gap-4 rounded-2xl border border-[#CBD5E1] bg-white px-4 py-3 text-right transition hover:bg-[#F4F8FA]">
+            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-[#F4F8FA] text-2xl font-bold text-[#00A6A6]" aria-hidden="true">↑</span>
+            <span><strong className="block text-base font-extrabold">ייבוא רשימת תלמידים</strong><span className="mt-0.5 block text-xs font-medium text-[#475569]">ייבוא מקובץ CSV או Excel</span></span>
+          </button>
+        </div>
+        <button type="button" onClick={onClose} className="mt-5 min-h-11 w-full rounded-xl text-sm font-extrabold text-[#00A6A6] hover:bg-[#F4F8FA]">ביטול</button>
+      </section>
+    </div>
+  );
+}
+
 function StudentActions({ student, onEdit, onToggle }: { student: Student; onEdit: () => void; onToggle: () => void }) {
   const [open, setOpen] = useState(false);
   return (
@@ -582,15 +638,21 @@ function StudentActions({ student, onEdit, onToggle }: { student: Student; onEdi
 function StudentImportForm({
   courses,
   students,
+  initialCourseId,
   onClose,
   onImport,
 }: {
   courses: Course[];
   students: Student[];
+  initialCourseId?: string;
   onClose: () => void;
   onImport: (courseId: string, text: string) => Promise<void>;
 }) {
-  const [courseId, setCourseId] = useState(courses.find((course) => course.active)?.id ?? courses[0]?.id ?? "");
+  const [courseId, setCourseId] = useState(
+    initialCourseId && courses.some((course) => course.id === initialCourseId)
+      ? initialCourseId
+      : courses.find((course) => course.active)?.id ?? courses[0]?.id ?? "",
+  );
   const [text, setText] = useState("");
   const [step, setStep] = useState<"input" | "preview">("input");
   const [importing, setImporting] = useState(false);
@@ -714,22 +776,61 @@ function CourseForm({ course, onClose, onSave }: { course?: Course; onClose: () 
   );
 }
 
-function StudentForm({ student, courses, onClose, onSave }: { student?: Student; courses: Course[]; onClose: () => void; onSave: (student: Student) => void }) {
-  const availableCourses = courses.filter((course) => course.active || course.id === student?.courseId);
-  const [name, setName] = useState(student?.name ?? "");
+function StudentForm({ student, courses, initialCourseId, onClose, onSave }: { student?: Student; courses: Course[]; initialCourseId?: string; onClose: () => void; onSave: (student: Student) => Promise<void> }) {
+  const availableCourses = courses.filter((course) => course.active || course.id === student?.courseId || course.id === initialCourseId);
+  const [fullName, setFullName] = useState(student?.name ?? "");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState(student?.email ?? "");
-  const [courseId, setCourseId] = useState(student?.courseId ?? availableCourses[0]?.id ?? "");
-  const submit = (event: FormEvent) => {
+  const [courseId, setCourseId] = useState(
+    student?.courseId
+      ?? (initialCourseId && availableCourses.some((course) => course.id === initialCourseId) ? initialCourseId : availableCourses[0]?.id ?? ""),
+  );
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+  const submit = async (event: FormEvent) => {
     event.preventDefault();
-    if (!name.trim() || !courseId) return;
-    onSave({ id: student?.id ?? makeId(), name: name.trim(), email: email.trim(), courseId, active: student?.active ?? true });
+    const name = student ? fullName.trim().replace(/\s+/g, " ") : `${firstName.trim()} ${lastName.trim()}`.trim().replace(/\s+/g, " ");
+    const cleanEmail = email.trim().toLowerCase();
+    if (student ? !name : !firstName.trim() || !lastName.trim()) {
+      setError(student ? "יש להזין שם תלמיד" : "יש להזין שם פרטי ושם משפחה");
+      return;
+    }
+    if (!courseId) {
+      setError("יש לבחור כיתה");
+      return;
+    }
+    if (cleanEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+      setError("כתובת האימייל אינה תקינה");
+      return;
+    }
+    setSaving(true);
+    setError("");
+    try {
+      await onSave({ id: student?.id ?? makeId(), name, email: cleanEmail, courseId, active: student?.active ?? true });
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : "לא הצלחנו לשמור את התלמיד. נסו שוב.");
+    } finally {
+      setSaving(false);
+    }
   };
   return (
     <Modal title={student ? "עריכת תלמיד" : "הוספת תלמיד"} onClose={onClose}>
       <form onSubmit={submit} className="space-y-4">
-        <label className="block text-xs font-extrabold text-[#475569]">שם התלמיד
-          <input autoFocus required dir="auto" value={name} onChange={(event) => setName(event.target.value)} placeholder="שם מלא" className={fieldClass} />
-        </label>
+        {student ? (
+          <label className="block text-xs font-extrabold text-[#475569]">שם התלמיד
+            <input autoFocus required dir="auto" value={fullName} onChange={(event) => setFullName(event.target.value)} placeholder="שם מלא" className={fieldClass} />
+          </label>
+        ) : (
+          <>
+            <label className="block text-xs font-extrabold text-[#475569]">שם פרטי
+              <input autoFocus required dir="auto" value={firstName} onChange={(event) => setFirstName(event.target.value)} placeholder="הזינו שם פרטי" className={fieldClass} />
+            </label>
+            <label className="block text-xs font-extrabold text-[#475569]">שם משפחה
+              <input required dir="auto" value={lastName} onChange={(event) => setLastName(event.target.value)} placeholder="הזינו שם משפחה" className={fieldClass} />
+            </label>
+          </>
+        )}
         <label className="block text-xs font-extrabold text-[#475569]">אימייל <span className="font-medium">(אופציונלי)</span>
           <input type="email" dir="ltr" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="student@example.edu" className={`${fieldClass} text-left`} />
         </label>
@@ -738,9 +839,16 @@ function StudentForm({ student, courses, onClose, onSave }: { student?: Student;
             {availableCourses.map((course) => <option dir="auto" key={course.id} value={course.id}>{course.name}</option>)}
           </select>
         </label>
-        <div className="flex justify-end gap-2 pt-2">
-          <button type="button" className={secondaryButton} onClick={onClose}>ביטול</button>
-          <button type="submit" className={primaryButton}>{student ? "שמירת שינויים" : "הוספת תלמיד"}</button>
+        {!student && (
+          <label className="block text-xs font-extrabold text-[#475569]">הערות <span className="font-medium">(אופציונלי)</span>
+            <textarea disabled aria-describedby="student-notes-help" placeholder="שמירת הערות תתאפשר בהמשך" className={`${fieldClass} min-h-20 resize-none py-3 opacity-60`} />
+            <span id="student-notes-help" className="mt-1.5 block text-[11px] font-medium text-[#475569]">המודל הקיים אינו כולל עדיין שדה הערות לתלמיד.</span>
+          </label>
+        )}
+        {error && <p role="alert" className="rounded-xl bg-[#FEE2E2] px-3 py-2 text-sm font-bold text-[#991B1B]">{error}</p>}
+        <div className="space-y-2 pt-2">
+          <button type="submit" disabled={saving} className={`${primaryButton} w-full`}>{saving ? "שומרים…" : student ? "שמירת שינויים" : "שמור תלמיד"}</button>
+          <button type="button" className="min-h-11 w-full rounded-xl text-sm font-extrabold text-[#00A6A6] hover:bg-[#F4F8FA]" onClick={onClose}>ביטול</button>
         </div>
       </form>
     </Modal>

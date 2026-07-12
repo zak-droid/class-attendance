@@ -70,6 +70,14 @@ test("shared data uses secure sign-in, duplicate prevention, and realtime sync",
   assert.match(page, /title="ניהול כיתות"/);
   assert.match(page, /title="ייבוא תלמידים"/);
   assert.match(page, /title="דוחות וייצוא"/);
+  assert.match(page, /aria-label="הוספת תלמיד"/);
+  assert.match(page, /function AddStudentBottomSheet/);
+  assert.match(page, /הוספת תלמיד חדש/);
+  assert.match(page, /ייבוא רשימת תלמידים/);
+  assert.match(page, /initialCourseId: studentCourse === "all"/);
+  assert.match(page, /prepareStudentImport\(/);
+  assert.match(page, /התלמיד נוסף בהצלחה/);
+  assert.match(page, /המודל הקיים אינו כולל עדיין שדה הערות לתלמיד/);
   assert.match(page, /חריגים בלבד/);
   assert.match(page, /log\.status !== "Present"/);
   assert.match(page, /Boolean\(log\.notes\)/);
