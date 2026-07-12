@@ -32,4 +32,5 @@ export interface AppData {
   attendance: AttendanceLog[];
 }
 
-export type AppTab = "courses" | "today" | "students" | "history";
+export type AppTab = "today" | "students" | "history" | "more";
+

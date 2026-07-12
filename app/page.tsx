@@ -13,7 +13,7 @@ import {
   subscribeToSharedData,
   updateAttendanceLog,
 } from "./cloud-data";
-import { AttendanceRow, CourseCard, Layout, Modal, StatusBadge, SummaryCards, statusLabels } from "./components";
+import { AttendanceStudentRow, CourseCard, FinishAttendanceBar, Layout, Modal, StatusBadge, StudentActionBottomSheet, SummaryCards, statusLabels } from "./components";
 import { prepareStudentImport } from "./student-import";
 import { supabase } from "./supabase";
 import type { AppData, AppTab, AttendanceStatus, Course, Student } from "./types";
@@ -25,9 +25,9 @@ type ModalState =
   | { type: "import" }
   | null;
 
-const fieldClass = "mt-1.5 min-h-12 w-full rounded-xl border border-[#D5E4EA] bg-white px-3.5 text-sm font-semibold text-[#102A34] outline-none transition placeholder:text-[#5B7180] focus:border-[#176B87] focus:ring-2 focus:ring-[#176B87]/20";
-const secondaryButton = "min-h-12 rounded-2xl border border-[#D5E4EA] bg-[#FFFFFF] px-4 text-sm font-extrabold text-[#073B4C] transition hover:bg-[#FFFFFF]";
-const primaryButton = "min-h-12 rounded-2xl bg-[#073B4C] px-4 text-sm font-extrabold text-white transition hover:bg-[#073B4C] disabled:cursor-not-allowed disabled:bg-[#D5E4EA]";
+const fieldClass = "mt-1.5 min-h-12 w-full rounded-xl border border-[#CBD5E1] bg-white px-3.5 text-sm font-semibold text-[#0F172A] outline-none transition placeholder:text-[#475569] focus:border-[#00A6A6] focus:ring-2 focus:ring-[#00A6A6]/20";
+const secondaryButton = "min-h-12 rounded-xl border border-[#CBD5E1] bg-white px-4 text-sm font-extrabold text-[#002B45] transition hover:bg-[#F4F8FA]";
+const primaryButton = "min-h-12 rounded-xl bg-[#00A6A6] px-4 text-sm font-extrabold text-white transition hover:bg-[#00B3A4] disabled:cursor-not-allowed disabled:bg-[#64748B]";
 const darkOutlineButton = "min-h-12 rounded-xl border border-white/65 bg-transparent px-4 text-sm font-extrabold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-45";
 
 export default function Home() {
@@ -41,12 +41,15 @@ export default function Home() {
   const [modal, setModal] = useState<ModalState>(null);
   const [toast, setToast] = useState("");
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [todayCourse, setTodayCourse] = useState("all");
   const [todayFilter, setTodayFilter] = useState<"all" | "exceptions">("all");
   const [studentCourse, setStudentCourse] = useState("all");
   const [studentSearch, setStudentSearch] = useState("");
   const [historyDate, setHistoryDate] = useState(today);
   const [historyCourse, setHistoryCourse] = useState("all");
+  const [activeSessionCourseId, setActiveSessionCourseId] = useState<string | null>(null);
+  const [sessionReadOnly, setSessionReadOnly] = useState(false);
+  const [selectedAttendanceId, setSelectedAttendanceId] = useState<string | null>(null);
+  const [completedCourseIds, setCompletedCourseIds] = useState<Set<string>>(() => new Set());
 
   const refreshData = useCallback(async () => {
     setDataLoading(true);
@@ -96,14 +99,10 @@ export default function Home() {
   const coursesById = useMemo(() => new Map(data.courses.map((course) => [course.id, course])), [data.courses]);
   const studentsById = useMemo(() => new Map(data.students.map((student) => [student.id, student])), [data.students]);
   const todayLogs = useMemo(() => data.attendance.filter((log) => log.date === today), [data.attendance, today]);
-  const courseTodayLogs = useMemo(
-    () => todayLogs.filter((log) => todayCourse === "all" || log.courseId === todayCourse),
-    [todayCourse, todayLogs],
-  );
-  const visibleTodayLogs = useMemo(
-    () => courseTodayLogs.filter((log) => todayFilter === "all" || log.status !== "Present"),
-    [courseTodayLogs, todayFilter],
-  );
+  const activeSessionCourse = activeSessionCourseId ? coursesById.get(activeSessionCourseId) : undefined;
+  const activeSessionLogs = activeSessionCourseId ? todayLogs.filter((log) => log.courseId === activeSessionCourseId) : [];
+  const selectedAttendance = selectedAttendanceId ? data.attendance.find((log) => log.id === selectedAttendanceId) : undefined;
+  const selectedAttendanceStudent = selectedAttendance ? studentsById.get(selectedAttendance.studentId) : undefined;
 
   const startAttendance = async (courseId: string) => {
     const eligible = data.students.filter((student) => student.courseId === courseId && student.active).length;
@@ -117,8 +116,9 @@ export default function Home() {
       notify(created === 0
         ? "כבר קיימת נוכחות להיום עבור הכיתה הזו"
         : `נוצרה נוכחות עבור ${created} ${created === 1 ? "תלמיד" : "תלמידים"}`);
-      setTodayCourse(courseId);
       setTab("today");
+      setSessionReadOnly(false);
+      setActiveSessionCourseId(courseId);
     } catch (error) {
       console.error(error);
       notify("לא הצלחנו להתחיל את הנוכחות. נסו שוב.");
@@ -220,7 +220,7 @@ export default function Home() {
   };
 
   if (!authReady) {
-    return <main lang="he" dir="rtl" className="app-bg grid min-h-[100svh] place-items-center bg-[#FFFFFF] text-sm font-bold text-[#073B4C]">פותחים את ניהול הנוכחות…</main>;
+    return <main lang="he" dir="rtl" className="app-bg grid min-h-[100svh] place-items-center text-sm font-bold text-white">פותחים את ניהול הנוכחות…</main>;
   }
 
   if (!session) return <AuthScreen />;
@@ -231,20 +231,25 @@ export default function Home() {
       onTabChange={setTab}
       userEmail={session.user.email ?? "מורה"}
       onSignOut={() => { if (supabase) void supabase.auth.signOut(); }}
+      attendanceActive={Boolean(activeSessionCourseId && !sessionReadOnly)}
     >
       {(dataLoading || dataError) && (
-        <div className={`mb-4 rounded-2xl px-4 py-3 text-sm font-bold ${dataError ? "bg-[#FBE7E5] text-[#B5544B]" : "bg-[#D5E4EA] text-[#073B4C]"}`} role={dataError ? "alert" : "status"}>
+        <div className={`mb-4 rounded-2xl px-4 py-3 text-sm font-bold ${dataError ? "bg-[#FEE2E2] text-[#991B1B]" : "border border-white/15 bg-[#005580] text-white"}`} role={dataError ? "alert" : "status"}>
           {dataError || "מסנכרנים את נתוני הנוכחות…"}
         </div>
       )}
-      {tab === "courses" && (
+      {tab === "more" && (
         <section className="min-h-[calc(100svh-10rem)] pb-4 text-white">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3 sm:mb-5">
             <div>
               <h2 className="sr-only">הכיתות שלכם</h2>
               <p className="mt-1 text-sm font-medium text-white/65">התחילו נוכחות בלחיצה אחת. כל התלמידים מתחילים כנוכחים.</p>
             </div>
-            <button type="button" className={darkOutlineButton} onClick={() => setModal({ type: "course" })}>+ הוספת כיתה</button>
+            <div className="flex flex-wrap gap-2">
+              <button type="button" className={darkOutlineButton} onClick={() => setModal({ type: "course" })}>+ הוספת כיתה</button>
+              <button type="button" className={darkOutlineButton} disabled={!data.courses.length} onClick={() => setModal({ type: "student" })}>+ הוספת תלמיד</button>
+              <button type="button" className="min-h-12 rounded-xl px-3 text-sm font-extrabold text-[#B8D8E6] hover:bg-white/10 disabled:opacity-45" disabled={!data.courses.length} onClick={() => setModal({ type: "import" })}>ייבוא תלמידים</button>
+            </div>
           </div>
           {data.courses.length ? (
             <div className="grid gap-3 sm:gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -271,137 +276,102 @@ export default function Home() {
         </section>
       )}
 
-      {tab === "today" && (
-        <section className="min-h-[calc(100svh-10rem)] pb-4 text-white">
-          <div className="mb-2 flex flex-wrap items-end justify-between gap-2 sm:mb-4 sm:gap-3">
-            <div>
-              <h2 className="sr-only">הנוכחות של היום</h2>
-              <p className="mt-0.5 text-xs font-medium text-white/65 sm:mt-1 sm:text-sm">לחצו על סטטוס כדי לעדכן. השינויים נשמרים אוטומטית.</p>
-            </div>
-            {todayLogs.length > 0 && (
-              <label className="w-full text-xs font-extrabold text-white/70 sm:w-auto">
-                כיתה
-                <select value={todayCourse} onChange={(event) => setTodayCourse(event.target.value)} className={`${fieldClass} mt-1 w-full sm:min-w-48`}>
-                  <option value="all">כל הכיתות</option>
-                  {data.courses.map((course) => <option dir="auto" value={course.id} key={course.id}>{course.name}</option>)}
-                </select>
-              </label>
-            )}
+      {tab === "today" && activeSessionCourseId && activeSessionCourse && (
+        <section className={`min-h-[calc(100svh-10rem)] text-white ${sessionReadOnly ? "pb-6" : "pb-28"}`}>
+          <button type="button" onClick={() => { setActiveSessionCourseId(null); setSessionReadOnly(false); }} className="mb-3 min-h-10 rounded-xl border border-white/20 px-3 text-sm font-bold text-[#B8D8E6]">חזרה להיום</button>
+          <div className="flex items-end justify-between gap-3">
+            <div><p className="text-xs font-semibold text-[#B8D8E6]">{sessionReadOnly ? "סיכום נוכחות" : "נוכחות בתהליך"}</p><h2 dir="auto" className="mt-1 text-2xl font-bold">{activeSessionCourse.name}</h2></div>
+            <span className="rounded-full border border-white/15 bg-[#005580] px-3 py-1.5 text-xs font-bold">{sessionReadOnly ? "הושלמה" : "בתהליך"}</span>
           </div>
-          {todayLogs.length === 0 ? (
-            <section className="rounded-[20px] border border-white/15 bg-white/[0.06] p-4 shadow-[0_18px_46px_rgba(0,18,27,0.24)] sm:p-5">
-              <h3 className="text-lg font-extrabold">מה מתחילים עכשיו?</h3>
-              <p className="mt-1 text-sm font-medium leading-6 text-white/70">בחרו כיתה כדי להתחיל נוכחות. כל התלמידים יסומנו כנוכחים כברירת מחדל.</p>
-              {data.courses.some((course) => course.active) ? (
-                <div className="mt-3 divide-y divide-white/10 overflow-hidden rounded-2xl border border-white/15 sm:mt-4">
-                  {data.courses.filter((course) => course.active).map((course) => {
-                    const studentCount = data.students.filter((student) => student.courseId === course.id && student.active).length;
-                    const startedToday = todayLogs.some((log) => log.courseId === course.id);
-                    return (
-                      <article key={course.id} className="flex flex-wrap items-center gap-2.5 p-2.5 sm:flex-nowrap sm:gap-3 sm:p-3">
-                        <div className="min-w-0 flex-1">
-                          <h4 dir="auto" className="truncate text-sm font-extrabold">{course.name}</h4>
-                          <p className="mt-1 text-xs font-semibold text-white/60">{studentCount} {studentCount === 1 ? "תלמיד פעיל" : "תלמידים פעילים"} · {startedToday ? "התחילה היום" : "לא התחילה"}</p>
-                        </div>
-                        <button type="button" disabled={studentCount === 0} onClick={() => startedToday ? setTodayCourse(course.id) : void startAttendance(course.id)} className="min-h-11 w-full whitespace-nowrap rounded-xl bg-white px-4 text-sm font-extrabold text-[#073B4C] disabled:opacity-40 sm:w-auto">{startedToday ? "פתיחת נוכחות" : "התחלת נוכחות"}</button>
-                      </article>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="mt-4 rounded-2xl bg-[#FFFFFF] p-4 text-sm font-semibold text-[#5B7180]">
-                  אין כרגע כיתות פעילות.
-                  <button type="button" onClick={() => setTab("courses")} className="mt-3 block min-h-10 rounded-xl px-3 font-extrabold text-[#073B4C] hover:bg-[#FFFFFF]">מעבר לכיתות</button>
-                </div>
-              )}
-            </section>
+          <div className="mt-4"><SummaryCards logs={activeSessionLogs} /></div>
+          {!sessionReadOnly && <p className="mt-3 rounded-xl border border-white/15 bg-[#005580] px-3 py-2.5 text-sm font-semibold text-white">כל התלמידים סומנו כנוכחים. סמנו רק חריגים.</p>}
+          <div className="mt-4 inline-flex rounded-xl border border-white/15 bg-[#005580] p-1" role="group" aria-label="סינון רשימת הנוכחות">
+            <button type="button" onClick={() => setTodayFilter("all")} className={`min-h-10 rounded-lg px-3 text-xs font-extrabold ${todayFilter === "all" ? "bg-white text-[#002B45]" : "text-[#B8D8E6]"}`}>כל התלמידים</button>
+            <button type="button" onClick={() => setTodayFilter("exceptions")} className={`min-h-10 rounded-lg px-3 text-xs font-extrabold ${todayFilter === "exceptions" ? "bg-white text-[#002B45]" : "text-[#B8D8E6]"}`}>חריגים בלבד</button>
+          </div>
+          <ul className="mt-4 overflow-hidden rounded-2xl bg-white shadow-[0_16px_40px_rgba(0,18,27,0.25)]">
+            {activeSessionLogs.filter((log) => todayFilter === "all" || log.status !== "Present" || Boolean(log.notes)).map((log) => {
+              const student = studentsById.get(log.studentId);
+              return student ? <AttendanceStudentRow key={log.id} log={log} student={student} onOpen={() => setSelectedAttendanceId(log.id)} /> : null;
+            })}
+          </ul>
+          {todayFilter === "exceptions" && !activeSessionLogs.some((log) => log.status !== "Present" || Boolean(log.notes)) && <p className="mt-4 rounded-2xl border border-white/15 bg-[#005580] p-5 text-center text-sm font-semibold text-[#B8D8E6]">אין חריגים. כל התלמידים מסומנים כנוכחים.</p>}
+          {!sessionReadOnly && <FinishAttendanceBar logs={activeSessionLogs} onFinish={() => { setCompletedCourseIds((current) => new Set(current).add(activeSessionCourseId)); setActiveSessionCourseId(null); notify("הנוכחות הושלמה"); }} />}
+        </section>
+      )}
+
+      {tab === "today" && !activeSessionCourseId && (
+        <section className="min-h-[calc(100svh-10rem)] pb-4 text-white">
+          <div className="mb-4">
+            <h2 className="text-xl font-extrabold">מה מתחילים עכשיו?</h2>
+            <p className="mt-1 text-sm font-medium leading-6 text-[#B8D8E6]">בחרו כיתה. כל התלמידים יסומנו כנוכחים כברירת מחדל.</p>
+          </div>
+          {data.courses.some((course) => course.active) ? (
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {data.courses.filter((course) => course.active).map((course) => {
+                const studentCount = data.students.filter((student) => student.courseId === course.id && student.active).length;
+                const startedToday = todayLogs.some((log) => log.courseId === course.id);
+                const completed = completedCourseIds.has(course.id);
+                const stateLabel = completed ? "הושלמה" : startedToday ? "בתהליך" : "לא התחילה";
+                const actionLabel = completed ? "צפייה בסיכום" : startedToday ? "המשך נוכחות" : "התחלת נוכחות";
+                return (
+                  <article key={course.id} className="rounded-2xl border border-white/15 bg-[#005580] p-4 shadow-[0_14px_34px_rgba(0,18,27,0.24)]">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <h3 dir="auto" className="truncate text-lg font-extrabold">{course.name}</h3>
+                        <p className="mt-1 text-xs font-semibold text-[#B8D8E6]">{studentCount} {studentCount === 1 ? "תלמיד פעיל" : "תלמידים פעילים"}</p>
+                      </div>
+                      <span className={`rounded-full px-2.5 py-1 text-[11px] font-extrabold ${completed ? "bg-[#DCFCE7] text-[#166534]" : startedToday ? "bg-[#FEF3C7] text-[#92400E]" : "bg-white/10 text-[#B8D8E6]"}`}>{stateLabel}</span>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={studentCount === 0}
+                      onClick={() => {
+                        if (!startedToday) void startAttendance(course.id);
+                        else { setTodayFilter("all"); setSessionReadOnly(completed); setActiveSessionCourseId(course.id); }
+                      }}
+                      className="mt-4 min-h-12 w-full rounded-xl bg-[#00A6A6] px-4 text-sm font-extrabold text-white transition hover:bg-[#00B3A4] disabled:cursor-not-allowed disabled:bg-white/15 disabled:text-white/50"
+                    >
+                      {studentCount === 0 ? "אין תלמידים פעילים" : actionLabel}
+                    </button>
+                  </article>
+                );
+              })}
+            </div>
           ) : (
-            <>
-              <div className="mb-2 inline-flex rounded-xl border border-white/20 bg-white/[0.06] p-1 sm:mb-3" role="group" aria-label="סינון רשימת הנוכחות">
-                <button type="button" aria-pressed={todayFilter === "all"} onClick={() => setTodayFilter("all")} className={`min-h-9 rounded-lg px-3 text-xs font-extrabold ${todayFilter === "all" ? "bg-white text-[#073B4C]" : "text-white/70 hover:bg-white/10"}`}>הכל</button>
-                <button type="button" aria-pressed={todayFilter === "exceptions"} onClick={() => setTodayFilter("exceptions")} className={`min-h-9 rounded-lg px-3 text-xs font-extrabold ${todayFilter === "exceptions" ? "bg-white text-[#073B4C]" : "text-white/70 hover:bg-white/10"}`}>חריגים בלבד</button>
-              </div>
-              <SummaryCards logs={courseTodayLogs} />
-              {visibleTodayLogs.length ? (
-                <div className="mt-3 space-y-3 sm:mt-4 sm:space-y-4">
-                  {data.courses
-                    .filter((course) => visibleTodayLogs.some((log) => log.courseId === course.id))
-                    .map((course) => {
-                      const courseLogs = visibleTodayLogs.filter((log) => log.courseId === course.id);
-                      return (
-                        <section key={course.id} className="rounded-[20px] border border-[#D5E4EA] bg-[#FFFFFF] p-3 text-[#102A34] shadow-[0_18px_42px_rgba(0,24,34,0.16)] sm:p-4" aria-labelledby={`today-${course.id}`}>
-                          <div className="mb-2 flex items-end justify-between gap-3 sm:mb-3">
-                            <div>
-                              <p className="text-[11px] font-extrabold uppercase tracking-[0.14em] text-[#5B7180]">כיתה</p>
-                              <h3 dir="auto" id={`today-${course.id}`} className="mt-1 text-lg font-extrabold">{course.name}</h3>
-                            </div>
-                            <p className="text-xs font-bold text-[#5B7180]">{courseLogs.length} {courseLogs.length === 1 ? "תלמיד" : "תלמידים"}</p>
-                          </div>
-                          <ul className="grid gap-2 xl:grid-cols-2">
-                            {courseLogs.map((log) => {
-                              const student = studentsById.get(log.studentId);
-                              return student ? (
-                                <AttendanceRow
-                                  key={log.id}
-                                  log={log}
-                                  student={student}
-                                  onStatusChange={(status) => updateAttendance(log.id, { status })}
-                                  onNotesChange={(notes) => updateAttendance(log.id, { notes })}
-                                />
-                              ) : null;
-                            })}
-                          </ul>
-                        </section>
-                      );
-                    })}
-                </div>
-              ) : (
-                <section className="mt-4 rounded-[20px] border border-dashed border-[#D5E4EA] bg-[#FFFFFF]/75 px-5 py-8 text-center">
-                  <h3 className="text-base font-extrabold">{todayFilter === "exceptions" ? "אין חריגים בתצוגה הזו" : "אין רשומות לכיתה הזו"}</h3>
-                  <p className="mt-1 text-sm font-medium text-white/65">{todayFilter === "exceptions" ? "כל התלמידים המסוננים מסומנים כנוכחים." : "בחרו כיתה אחרת כדי להציג את הנוכחות שלה."}</p>
-                </section>
-              )}
-            </>
+            <EmptyState title="אין כיתות פעילות" body="הוסיפו כיתה או הפעילו כיתה קיימת באזור הניהול." action="מעבר לניהול" onAction={() => setTab("more")} />
           )}
         </section>
       )}
 
       {tab === "students" && (
         <section className="min-h-[calc(100svh-10rem)] pb-4 text-white">
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-3 sm:mb-5">
+          <div className="mb-3 sm:mb-5">
             <div>
               <h2 className="sr-only">תלמידים</h2>
               <p className="mt-1 text-sm font-medium text-white/65">ניהול רשימות התלמידים בלי למחוק נוכחות מהעבר.</p>
             </div>
-            <div className="flex flex-wrap gap-2">
-              <button type="button" className={darkOutlineButton} disabled={!data.courses.length} onClick={() => setModal({ type: "student" })}>+ הוספת תלמיד</button>
-              <button type="button" className="min-h-12 rounded-xl px-3 text-sm font-extrabold text-white/70 hover:bg-white/10 disabled:opacity-45" disabled={!data.courses.length} onClick={() => setModal({ type: "import" })}>ייבוא רשימה</button>
-            </div>
           </div>
           <div className="dark-filter mb-4 grid gap-3 rounded-[18px] border border-white/20 bg-white/[0.05] p-3 sm:grid-cols-[1fr_220px] sm:p-4">
-            <label className="text-xs font-extrabold text-[#5B7180]">חיפוש
-              <input value={studentSearch} onChange={(event) => setStudentSearch(event.target.value)} placeholder="שם או אימייל" className={fieldClass} />
-            </label>
-            <label className="text-xs font-extrabold text-[#5B7180]">כיתה
-              <select value={studentCourse} onChange={(event) => setStudentCourse(event.target.value)} className={fieldClass}>
+      …109 tokens truncated…ue)} className={fieldClass}>
                 <option value="all">כל הכיתות</option>
                 {data.courses.map((course) => <option dir="auto" key={course.id} value={course.id}>{course.name}</option>)}
               </select>
             </label>
           </div>
           {filteredStudents.length ? (
-            <div className="overflow-hidden rounded-[20px] border border-[#D5E4EA] bg-white text-[#102A34] shadow-[0_16px_36px_rgba(0,24,34,0.16)]">
-              <ul className="divide-y divide-[#D5E4EA]">
+            <div className="overflow-hidden rounded-[20px] border border-[#CBD5E1] bg-white text-[#0F172A] shadow-[0_16px_36px_rgba(0,24,34,0.16)]">
+              <ul className="divide-y divide-[#CBD5E1]">
                 {filteredStudents.map((student) => (
                   <li key={student.id} className="flex items-center gap-2.5 p-3 sm:gap-3 sm:p-4">
-                    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#D5E4EA] text-xs font-extrabold text-[#073B4C] sm:h-11 sm:w-11" aria-hidden="true">{student.name.split(/\s+/).map((part) => part[0]).join("").slice(0, 2)}</span>
+                    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#CBD5E1] text-xs font-extrabold text-[#002B45] sm:h-11 sm:w-11" aria-hidden="true">{student.name.split(/\s+/).map((part) => part[0]).join("").slice(0, 2)}</span>
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
                         <p dir="auto" className="min-w-0 truncate font-extrabold">{student.name}</p>
-                        {!student.active && <span className="rounded-full bg-[#EAF0F4] px-2 py-1 text-[10px] font-extrabold text-[#4D6470]">לא פעיל</span>}
+                        {!student.active && <span className="rounded-full bg-[#F4F8FA] px-2 py-1 text-[10px] font-extrabold text-[#475569]">לא פעיל</span>}
                       </div>
-                      <p dir="auto" className="mt-0.5 truncate text-xs font-semibold text-[#5B7180]">{coursesById.get(student.courseId)?.name ?? "כיתה לא ידועה"}</p>
-                      <p dir="auto" className="truncate text-[11px] font-medium text-[#5B7180]">{student.email || "אין אימייל"}</p>
+                      <p dir="auto" className="mt-0.5 truncate text-xs font-semibold text-[#475569]">{coursesById.get(student.courseId)?.name ?? "כיתה לא ידועה"}</p>
+                      <p dir="auto" className="truncate text-[11px] font-medium text-[#475569]">{student.email || "אין אימייל"}</p>
                     </div>
                     <StudentActions student={student} onEdit={() => setModal({ type: "student", student })} onToggle={() => toggleStudent(student.id)} />
                   </li>
@@ -424,10 +394,10 @@ export default function Home() {
             <button type="button" className={darkOutlineButton} disabled={!historyLogs.length} onClick={exportCsv}>ייצוא CSV</button>
           </div>
           <div className="dark-filter mb-4 grid gap-3 rounded-[18px] border border-white/20 bg-white/[0.05] p-3 sm:grid-cols-2 sm:p-4">
-            <label className="text-xs font-extrabold text-[#5B7180]">תאריך
+            <label className="text-xs font-extrabold text-[#475569]">תאריך
               <input type="date" value={historyDate} onChange={(event) => setHistoryDate(event.target.value)} className={fieldClass} />
             </label>
-            <label className="text-xs font-extrabold text-[#5B7180]">כיתה
+            <label className="text-xs font-extrabold text-[#475569]">כיתה
               <select value={historyCourse} onChange={(event) => setHistoryCourse(event.target.value)} className={fieldClass}>
                 <option value="all">כל הכיתות</option>
                 {data.courses.map((course) => <option dir="auto" key={course.id} value={course.id}>{course.name}</option>)}
@@ -436,45 +406,23 @@ export default function Home() {
           </div>
           <SummaryCards logs={historyLogs} />
           {historyLogs.length ? (
-            <>
-              <div className="mt-3 grid gap-2 md:hidden">
+              <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
                 {historyLogs.map((log) => (
-                  <article key={log.id} className="rounded-2xl border border-[#D5E4EA] bg-white p-3 text-[#102A34] shadow-[0_10px_24px_rgba(0,24,34,0.14)]">
+                  <article key={log.id} className="rounded-2xl border border-[#CBD5E1] bg-white p-3 text-[#0F172A] shadow-[0_10px_24px_rgba(0,18,27,0.16)]">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0 flex-1">
                         <h3 dir="auto" className="truncate text-sm font-extrabold">{studentsById.get(log.studentId)?.name ?? "תלמיד לא ידוע"}</h3>
-                        <p dir="auto" className="mt-0.5 truncate text-xs font-semibold text-[#5B7180]">{coursesById.get(log.courseId)?.name ?? "כיתה לא ידועה"}</p>
+                        <p dir="auto" className="mt-0.5 truncate text-xs font-semibold text-[#475569]">{coursesById.get(log.courseId)?.name ?? "כיתה לא ידועה"}</p>
                       </div>
                       <StatusBadge status={log.status} />
                     </div>
-                    <p className="mt-2 text-xs font-semibold text-[#5B7180]">{log.time}</p>
-                    {log.notes && <p dir="auto" className="mt-1.5 text-sm font-medium leading-5 text-[#5B7180]">{log.notes}</p>}
+                    <p className="mt-2 text-xs font-semibold text-[#475569]">{log.time}</p>
+                    {log.notes && <p dir="auto" className="mt-1.5 text-sm font-medium leading-5 text-[#475569]">{log.notes}</p>}
                   </article>
                 ))}
               </div>
-              <div className="mt-4 hidden overflow-hidden rounded-[20px] border border-[#D5E4EA] bg-white text-[#102A34] shadow-[0_16px_36px_rgba(0,24,34,0.16)] md:block">
-                <div className="overflow-x-auto">
-                  <table className="w-full min-w-[700px] border-collapse text-right text-sm">
-                    <thead className="bg-[#FFFFFF] text-xs uppercase tracking-[0.08em] text-[#5B7180]">
-                      <tr><th className="p-4">תלמיד</th><th className="p-4">כיתה</th><th className="p-4">שעה</th><th className="p-4">סטטוס</th><th className="p-4">הערות</th></tr>
-                    </thead>
-                    <tbody className="divide-y divide-[#D5E4EA]">
-                      {historyLogs.map((log) => (
-                        <tr key={log.id}>
-                          <td dir="auto" className="p-4 font-extrabold">{studentsById.get(log.studentId)?.name ?? "תלמיד לא ידוע"}</td>
-                          <td dir="auto" className="p-4 font-medium text-[#5B7180]">{coursesById.get(log.courseId)?.name ?? "כיתה לא ידועה"}</td>
-                          <td className="p-4 font-medium text-[#5B7180]">{log.time}</td>
-                          <td className="p-4"><StatusBadge status={log.status} /></td>
-                          <td dir="auto" className="max-w-[280px] truncate p-4 font-medium text-[#5B7180]">{log.notes || "—"}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </>
           ) : (
-            <div className="mt-4"><EmptyState title="אין רשומות בתצוגה הזו" body="נסו תאריך או כיתה אחרים, או התחילו נוכחות להיום." action="מעבר לכיתות" onAction={() => setTab("courses")} /></div>
+            <div className="mt-4"><EmptyState title="אין רשומות בתצוגה הזו" body="נסו תאריך או כיתה אחרים, או התחילו נוכחות להיום." action="מעבר להיום" onAction={() => setTab("today")} /></div>
           )}
         </section>
       )}
@@ -522,17 +470,26 @@ export default function Home() {
           onImport={importStudents}
         />
       )}
+      {selectedAttendance && selectedAttendanceStudent && (
+        <StudentActionBottomSheet
+          log={selectedAttendance}
+          student={selectedAttendanceStudent}
+          onClose={() => setSelectedAttendanceId(null)}
+          onStatusChange={(status) => void updateAttendance(selectedAttendance.id, { status })}
+          onNotesChange={(notes) => void updateAttendance(selectedAttendance.id, { notes })}
+        />
+      )}
 
-      <div className={`pointer-events-none fixed inset-x-4 bottom-24 z-[60] mx-auto max-w-md rounded-2xl bg-[#102A34] px-4 py-3 text-center text-sm font-bold text-white shadow-[0_16px_36px_rgba(11,59,73,0.20)] transition lg:bottom-6 ${toast ? "translate-y-0 opacity-100" : "translate-y-3 opacity-0"}`} role="status" aria-live="polite">{toast}</div>
+      <div className={`pointer-events-none fixed inset-x-4 bottom-24 z-[60] mx-auto max-w-md rounded-2xl bg-[#0F172A] px-4 py-3 text-center text-sm font-bold text-white shadow-[0_16px_36px_rgba(11,59,73,0.20)] transition lg:bottom-6 ${toast ? "translate-y-0 opacity-100" : "translate-y-3 opacity-0"}`} role="status" aria-live="polite">{toast}</div>
     </Layout>
   );
 }
 
 function EmptyState({ title, body, action, onAction }: { title: string; body: string; action?: string; onAction?: () => void }) {
   return (
-    <section className="rounded-[20px] border border-dashed border-[#D5E4EA] bg-white/95 px-5 py-10 text-center text-[#102A34] shadow-[0_14px_34px_rgba(0,24,34,0.12)]">
+    <section className="rounded-[20px] border border-dashed border-[#CBD5E1] bg-white/95 px-5 py-10 text-center text-[#0F172A] shadow-[0_14px_34px_rgba(0,24,34,0.12)]">
       <h3 className="text-lg font-extrabold">{title}</h3>
-      <p className="mx-auto mt-2 max-w-md text-sm font-medium leading-6 text-[#5B7180]">{body}</p>
+      <p className="mx-auto mt-2 max-w-md text-sm font-medium leading-6 text-[#475569]">{body}</p>
       {action && onAction && <button type="button" onClick={onAction} className={`${primaryButton} mt-5`}>{action}</button>}
     </section>
   );
@@ -543,13 +500,13 @@ function StudentActions({ student, onEdit, onToggle }: { student: Student; onEdi
   return (
     <>
       <div className="relative sm:hidden">
-        <button type="button" onClick={() => setOpen((current) => !current)} aria-expanded={open} aria-label={`פעולות נוספות עבור ${student.name}`} className="grid h-10 w-10 place-items-center rounded-xl text-[#5B7180] hover:bg-[#FFFFFF] hover:text-[#073B4C]">
+        <button type="button" onClick={() => setOpen((current) => !current)} aria-expanded={open} aria-label={`פעולות נוספות עבור ${student.name}`} className="grid h-10 w-10 place-items-center rounded-xl text-[#475569] hover:bg-[#FFFFFF] hover:text-[#002B45]">
           <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5 fill-current"><circle cx="5" cy="12" r="1.8" /><circle cx="12" cy="12" r="1.8" /><circle cx="19" cy="12" r="1.8" /></svg>
         </button>
         {open && (
-          <div className="absolute end-0 top-11 z-20 min-w-28 rounded-xl border border-[#D5E4EA] bg-[#FFFFFF] p-1.5 shadow-[0_12px_30px_rgba(19,69,84,0.12)]">
-            <button type="button" onClick={() => { setOpen(false); onEdit(); }} className="min-h-10 w-full rounded-lg px-3 text-right text-sm font-bold text-[#073B4C] hover:bg-[#FFFFFF]">עריכה</button>
-            <button type="button" onClick={() => { setOpen(false); onToggle(); }} className="min-h-10 w-full rounded-lg px-3 text-right text-sm font-bold text-[#5B7180] hover:bg-[#FFFFFF]">{student.active ? "השבתה" : "הפעלה"}</button>
+          <div className="absolute end-0 top-11 z-20 min-w-28 rounded-xl border border-[#CBD5E1] bg-[#FFFFFF] p-1.5 shadow-[0_12px_30px_rgba(19,69,84,0.12)]">
+            <button type="button" onClick={() => { setOpen(false); onEdit(); }} className="min-h-10 w-full rounded-lg px-3 text-right text-sm font-bold text-[#002B45] hover:bg-[#FFFFFF]">עריכה</button>
+            <button type="button" onClick={() => { setOpen(false); onToggle(); }} className="min-h-10 w-full rounded-lg px-3 text-right text-sm font-bold text-[#475569] hover:bg-[#FFFFFF]">{student.active ? "השבתה" : "הפעלה"}</button>
           </div>
         )}
       </div>
@@ -595,7 +552,7 @@ function StudentImportForm({
   return (
     <Modal title="ייבוא תלמידים" onClose={onClose}>
       <div className="space-y-4">
-        <label className="block text-xs font-extrabold text-[#5B7180]">כיתה
+        <label className="block text-xs font-extrabold text-[#475569]">כיתה
           <select required value={courseId} onChange={(event) => { setCourseId(event.target.value); setStep("input"); }} className={fieldClass}>
             {courses.map((course) => <option dir="auto" key={course.id} value={course.id}>{course.name}</option>)}
           </select>
@@ -603,11 +560,11 @@ function StudentImportForm({
 
         {step === "input" ? (
           <>
-            <div className="rounded-2xl bg-[#FFFFFF] p-3 text-sm font-medium leading-6 text-[#5B7180]">
+            <div className="rounded-2xl bg-[#FFFFFF] p-3 text-sm font-medium leading-6 text-[#475569]">
               <p>הדביקו רשימת תלמידים. כל שורה היא תלמיד. אפשר להדביק רק שם, או שם ואימייל מופרדים בפסיק או בטאב.</p>
-              <pre dir="auto" className="mt-2 overflow-x-auto whitespace-pre-wrap rounded-xl bg-[#FFFFFF] p-3 text-xs leading-5 text-[#4D6470]">{"מיה כהן\nנועם לוי, noam@example.com\nדניאל פרץ\tdaniel@example.com"}</pre>
+              <pre dir="auto" className="mt-2 overflow-x-auto whitespace-pre-wrap rounded-xl bg-[#FFFFFF] p-3 text-xs leading-5 text-[#475569]">{"מיה כהן\nנועם לוי, noam@example.com\nדניאל פרץ\tdaniel@example.com"}</pre>
             </div>
-            <label className="block text-xs font-extrabold text-[#5B7180]">רשימת תלמידים
+            <label className="block text-xs font-extrabold text-[#475569]">רשימת תלמידים
               <textarea
                 autoFocus
                 dir="auto"
@@ -625,19 +582,19 @@ function StudentImportForm({
         ) : (
           <>
             <section aria-label="סיכום הייבוא" className="grid grid-cols-3 gap-2">
-              <div className="rounded-xl bg-[#E7F2E9] p-2.5 text-center text-[#276749]"><strong className="block text-xl font-extrabold">{preview.ready.length}</strong><span className="text-[10px] font-bold">מוכנים לייבוא</span></div>
-              <div className="rounded-xl bg-[#FFF1D6] p-2.5 text-center text-[#9A6415]"><strong className="block text-xl font-extrabold">{preview.duplicates.length}</strong><span className="text-[10px] font-bold">כפולים יידלגו</span></div>
-              <div className="rounded-xl bg-[#FBE7E5] p-2.5 text-center text-[#B5544B]"><strong className="block text-xl font-extrabold">{preview.invalid.length}</strong><span className="text-[10px] font-bold">שורות לא תקינות</span></div>
+              <div className="rounded-xl bg-[#DCFCE7] p-2.5 text-center text-[#166534]"><strong className="block text-xl font-extrabold">{preview.ready.length}</strong><span className="text-[10px] font-bold">מוכנים לייבוא</span></div>
+              <div className="rounded-xl bg-[#FEF3C7] p-2.5 text-center text-[#92400E]"><strong className="block text-xl font-extrabold">{preview.duplicates.length}</strong><span className="text-[10px] font-bold">כפולים יידלגו</span></div>
+              <div className="rounded-xl bg-[#FEE2E2] p-2.5 text-center text-[#991B1B]"><strong className="block text-xl font-extrabold">{preview.invalid.length}</strong><span className="text-[10px] font-bold">שורות לא תקינות</span></div>
             </section>
 
             {preview.ready.length > 0 && (
               <section>
-                <h3 className="text-xs font-extrabold text-[#5B7180]">תלמידים מוכנים לייבוא</h3>
-                <ul className="mt-2 max-h-40 divide-y divide-[#D5E4EA] overflow-y-auto rounded-2xl border border-[#D5E4EA] bg-[#FFFFFF]">
+                <h3 className="text-xs font-extrabold text-[#475569]">תלמידים מוכנים לייבוא</h3>
+                <ul className="mt-2 max-h-40 divide-y divide-[#CBD5E1] overflow-y-auto rounded-2xl border border-[#CBD5E1] bg-[#FFFFFF]">
                   {preview.ready.map((row) => (
                     <li key={`${row.line}-${row.name}`} className="px-3 py-2">
                       <p dir="auto" className="truncate text-sm font-bold">{row.name}</p>
-                      {row.email && <p dir="auto" className="truncate text-xs font-medium text-[#5B7180]">{row.email}</p>}
+                      {row.email && <p dir="auto" className="truncate text-xs font-medium text-[#475569]">{row.email}</p>}
                     </li>
                   ))}
                 </ul>
@@ -646,10 +603,10 @@ function StudentImportForm({
 
             {preview.invalid.length > 0 && (
               <section>
-                <h3 className="text-xs font-extrabold text-[#B5544B]">שורות שדורשות תיקון</h3>
+                <h3 className="text-xs font-extrabold text-[#991B1B]">שורות שדורשות תיקון</h3>
                 <ul className="mt-2 max-h-32 space-y-1.5 overflow-y-auto">
                   {preview.invalid.map((row) => (
-                    <li key={`${row.line}-${row.input}`} className="rounded-xl bg-[#FBE7E5] px-3 py-2 text-xs text-[#B5544B]">
+                    <li key={`${row.line}-${row.input}`} className="rounded-xl bg-[#FEE2E2] px-3 py-2 text-xs text-[#991B1B]">
                       <span className="font-extrabold">שורה {row.line}: {row.reason}</span>
                       <span dir="auto" className="mt-0.5 block truncate font-medium">{row.input}</span>
                     </li>
@@ -658,7 +615,7 @@ function StudentImportForm({
               </section>
             )}
 
-            {error && <p role="alert" className="rounded-xl bg-[#FBE7E5] px-3 py-2 text-sm font-bold text-[#B5544B]">{error}</p>}
+            {error && <p role="alert" className="rounded-xl bg-[#FEE2E2] px-3 py-2 text-sm font-bold text-[#991B1B]">{error}</p>}
             <div className="flex flex-col-reverse gap-2 pt-1 sm:flex-row sm:justify-end">
               <button type="button" className={secondaryButton} disabled={importing} onClick={() => setStep("input")}>חזרה לעריכה</button>
               <button type="button" className={primaryButton} disabled={importing || preview.ready.length === 0} onClick={() => void confirmImport()}>{importing ? "מייבאים…" : `ייבוא ${preview.ready.length} תלמידים`}</button>
@@ -681,10 +638,10 @@ function CourseForm({ course, onClose, onSave }: { course?: Course; onClose: () 
   return (
     <Modal title={course ? "עריכת כיתה" : "הוספת כיתה"} onClose={onClose}>
       <form onSubmit={submit} className="space-y-4">
-        <label className="block text-xs font-extrabold text-[#5B7180]">שם הכיתה
+        <label className="block text-xs font-extrabold text-[#475569]">שם הכיתה
           <input autoFocus required dir="auto" value={name} onChange={(event) => setName(event.target.value)} placeholder="למשל: מתמטיקה י׳1" className={fieldClass} />
         </label>
-        <label className="block text-xs font-extrabold text-[#5B7180]">תיאור <span className="font-medium">(אופציונלי)</span>
+        <label className="block text-xs font-extrabold text-[#475569]">תיאור <span className="font-medium">(אופציונלי)</span>
           <textarea dir="auto" value={description} onChange={(event) => setDescription(event.target.value)} placeholder="מה לומדים בכיתה הזו?" className={`${fieldClass} min-h-24 py-3`} />
         </label>
         <div className="flex justify-end gap-2 pt-2">
@@ -709,13 +666,13 @@ function StudentForm({ student, courses, onClose, onSave }: { student?: Student;
   return (
     <Modal title={student ? "עריכת תלמיד" : "הוספת תלמיד"} onClose={onClose}>
       <form onSubmit={submit} className="space-y-4">
-        <label className="block text-xs font-extrabold text-[#5B7180]">שם התלמיד
+        <label className="block text-xs font-extrabold text-[#475569]">שם התלמיד
           <input autoFocus required dir="auto" value={name} onChange={(event) => setName(event.target.value)} placeholder="שם מלא" className={fieldClass} />
         </label>
-        <label className="block text-xs font-extrabold text-[#5B7180]">אימייל <span className="font-medium">(אופציונלי)</span>
+        <label className="block text-xs font-extrabold text-[#475569]">אימייל <span className="font-medium">(אופציונלי)</span>
           <input type="email" dir="ltr" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="student@example.edu" className={`${fieldClass} text-left`} />
         </label>
-        <label className="block text-xs font-extrabold text-[#5B7180]">כיתה
+        <label className="block text-xs font-extrabold text-[#475569]">כיתה
           <select required value={courseId} onChange={(event) => setCourseId(event.target.value)} className={fieldClass}>
             {availableCourses.map((course) => <option dir="auto" key={course.id} value={course.id}>{course.name}</option>)}
           </select>
@@ -728,3 +685,4 @@ function StudentForm({ student, courses, onClose, onSave }: { student?: Student;
     </Modal>
   );
 }
+

@@ -12,11 +12,11 @@ test("production build contains the phone-accessible app", async () => {
   ]);
   assert.match(html, /<html lang="he" dir="rtl">/i);
   assert.match(html, /<title>ניהול נוכחות<\/title>/i);
-  assert.match(html, /<meta name="theme-color" content="#073b4c"/i);
+  assert.match(html, /<meta name="theme-color" content="#002b45"/i);
   assert.match(html, /fonts\.googleapis\.com\/css2\?family=Heebo:wght@400;500;600;700;800&display=swap/i);
   assert.match(globalCss, /font-family:\s*Heebo,\s*"Noto Sans Hebrew",\s*"Segoe UI",\s*Arial,\s*sans-serif/);
-  assert.match(globalCss, /--background:\s*#073b4c/);
-  assert.match(globalCss, /rgba\(19, 69, 84, 0\.1\)/);
+  assert.match(globalCss, /--background:\s*#002b45/);
+  assert.match(globalCss, /rgba\(0, 18, 27, 0\.16\)/);
   assert.match(html, /assets\/index-/);
 });
 
@@ -38,10 +38,13 @@ test("shared data uses secure sign-in, duplicate prevention, and realtime sync",
   assert.match(components, /Late:\s*"איחר"/);
   assert.match(components, /Absent:\s*"נעדר"/);
   assert.match(components, /Excused:\s*"מוצדק"/);
-  assert.match(components, /Present:\s*"bg-\[#E7F2E9\] text-\[#276749\] border-\[#CBE3D0\]"/);
+  assert.match(components, /Present:\s*"bg-\[#DCFCE7\] text-\[#166534\] border-\[#16A34A\]\/20"/);
+  assert.match(components, /Late:\s*"bg-\[#FEF3C7\] text-\[#92400E\] border-\[#F59E0B\]\/25"/);
+  assert.match(components, /Absent:\s*"bg-\[#FEE2E2\] text-\[#991B1B\] border-\[#DC2626\]\/20"/);
+  assert.match(components, /Excused:\s*"bg-\[#DBEAFE\] text-\[#1E40AF\] border-\[#2563EB\]\/20"/);
   assert.match(components, /bg-white/);
-  assert.match(page, /bg-\[#073B4C\]/);
-  assert.match(page, /border-\[#D5E4EA\] bg-\[#FFFFFF\]/);
+  assert.match(page, /bg-\[#00A6A6\]/);
+  assert.match(page, /bg-\[#005580\]/);
   assert.match(components, /new Intl\.DateTimeFormat\("he-IL"/);
   assert.match(components, /<h1[^>]*>\{title\}<\/h1>/);
   assert.match(components, /function NavIcon/);
@@ -49,21 +52,26 @@ test("shared data uses secure sign-in, duplicate prevention, and realtime sync",
   assert.match(components, /"פתיחת נוכחות"\s*:\s*"התחלת נוכחות"/);
   assert.doesNotMatch(components, /פתיחת הנוכחות של היום|התחלת נוכחות להיום/);
   assert.match(components, /const \[menuOpen, setMenuOpen\] = useState\(false\)/);
-  assert.match(components, /const \[noteOpen, setNoteOpen\] = useState\(false\)/);
+  assert.match(components, /function StudentActionBottomSheet/);
+  assert.match(components, /function AttendanceStudentRow/);
+  assert.match(components, /function FinishAttendanceBar/);
   assert.match(components, /הוספת הערה/);
   assert.match(components, /pb-\[calc\(6rem\+env\(safe-area-inset-bottom\)\)\]/);
   assert.match(components, /grid grid-cols-4/);
-  assert.match(components, /bg-\[#073B4C\]/);
+  assert.match(components, /bg-\[#002B45\]/);
   assert.match(page, /function StudentActions/);
   assert.match(page, /onEdit\(\);.*?>עריכה/s);
   assert.match(page, /student\.active \? "השבתה" : "הפעלה"/);
   assert.doesNotMatch(page, /שעה \{log\.time\}/);
-  assert.match(page, /md:hidden/);
-  assert.match(page, /hidden[^"']*md:block/);
+  assert.doesNotMatch(page, /<table/);
   assert.match(page, /useState<AppTab>\("today"\)/);
   assert.match(page, /מה מתחילים עכשיו\?/);
   assert.match(page, /חריגים בלבד/);
   assert.match(page, /log\.status !== "Present"/);
+  assert.match(page, /Boolean\(log\.notes\)/);
+  assert.match(page, /setCompletedCourseIds/);
+  assert.match(page, /setSessionReadOnly/);
+  assert.match(page, /setTab\("more"\)/);
   assert.match(page, /dir="auto"/);
   assert.doesNotMatch(page, />נכ<\/div>/);
   assert.match(schema, /check \(status in \('Present', 'Late', 'Absent', 'Excused'\)\)/i);
@@ -103,3 +111,4 @@ test("bulk student import parses rows, validates emails, and skips course duplic
   assert.equal(preview.invalid.length, 1);
   assert.equal(preview.invalid[0].reason, "כתובת האימייל אינה תקינה");
 });
+

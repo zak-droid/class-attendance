@@ -1,8 +1,8 @@
 @import "tailwindcss";
 
 :root {
-  --background: #073b4c;
-  --foreground: #102a34;
+  --background: #002b45;
+  --foreground: #0f172a;
 }
 
 * {
@@ -40,16 +40,16 @@ button:focus-visible,
 input:focus-visible,
 select:focus-visible,
 textarea:focus-visible {
-  outline: 3px solid rgba(15, 76, 92, 0.3);
+  outline: 3px solid rgba(0, 166, 166, 0.34);
   outline-offset: 2px;
 }
 
 .app-bg {
-  background: #073b4c;
+  background: #002b45;
 }
 
 .soft-card {
-  box-shadow: 0 10px 28px rgba(19, 69, 84, 0.1);
+  box-shadow: 0 10px 28px rgba(0, 18, 27, 0.16);
 }
 
 .dark-filter label {
@@ -64,3 +64,4 @@ textarea:focus-visible {
     transition-duration: 0.01ms !important;
   }
 }
+
