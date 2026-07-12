@@ -51,7 +51,7 @@ export function AuthScreen() {
 
   return (
     <AuthShell>
-      <p className="mb-2 text-xs font-extrabold uppercase tracking-[0.16em] text-[#0F4C5C]">כניסת מורים</p>
+      <p className="mb-2 text-xs font-extrabold uppercase tracking-[0.16em] text-[#073B4C]">כניסת מורים</p>
       <h1 className="text-2xl font-extrabold tracking-[-0.035em]">ברוכים הבאים לניהול נוכחות</h1>
       <p className="mt-2 text-sm font-medium leading-6 text-[#5B7180]">הזינו את כתובת האימייל המאושרת שלכם. נשלח אליכם קישור כניסה מאובטח — ללא סיסמה.</p>
       {sent ? (
@@ -62,10 +62,10 @@ export function AuthScreen() {
       ) : (
         <form onSubmit={submit} className="mt-6 space-y-4">
           <label className="block text-xs font-extrabold text-[#5B7180]">אימייל
-            <input required type="email" dir="ltr" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} className="mt-1.5 min-h-12 w-full rounded-2xl border border-[#D5E4EA] bg-[#FFFFFF] px-3.5 text-left text-sm font-semibold outline-none focus:border-[#0F4C5C] focus:ring-2 focus:ring-[#0F4C5C]/15" />
+            <input required type="email" dir="ltr" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} className="mt-1.5 min-h-12 w-full rounded-2xl border border-[#D5E4EA] bg-[#FFFFFF] px-3.5 text-left text-sm font-semibold outline-none focus:border-[#073B4C] focus:ring-2 focus:ring-[#073B4C]/15" />
           </label>
           {error && <p role="alert" className="rounded-xl bg-[#FBE7E5] px-3 py-2 text-sm font-bold text-[#B5544B]">{error}</p>}
-          <button disabled={loading} type="submit" className="min-h-12 w-full rounded-2xl bg-[#0F4C5C] px-4 text-sm font-extrabold text-white hover:bg-[#0B3B49] disabled:bg-[#9FB6BF]">{loading ? "שולחים קישור…" : "שלחו לי קישור כניסה"}</button>
+          <button disabled={loading} type="submit" className="min-h-12 w-full rounded-2xl bg-[#073B4C] px-4 text-sm font-extrabold text-white hover:bg-[#073B4C] disabled:bg-[#D5E4EA]">{loading ? "שולחים קישור…" : "שלחו לי קישור כניסה"}</button>
         </form>
       )}
     </AuthShell>

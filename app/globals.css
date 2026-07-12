@@ -45,9 +45,7 @@ textarea:focus-visible {
 }
 
 .app-bg {
-  background:
-    radial-gradient(circle at 88% 0%, rgba(35, 122, 154, 0.28), transparent 420px),
-    linear-gradient(180deg, #073b4c 0%, #052f3e 100%);
+  background: #073b4c;
 }
 
 .soft-card {

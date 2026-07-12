@@ -25,9 +25,9 @@ type ModalState =
   | { type: "import" }
   | null;
 
-const fieldClass = "mt-1.5 min-h-12 w-full rounded-xl border border-[#BFCFD6] bg-white px-3.5 text-sm font-semibold text-[#102A34] outline-none transition placeholder:text-[#8A9DA5] focus:border-[#1680A2] focus:ring-2 focus:ring-[#1680A2]/20";
-const secondaryButton = "min-h-12 rounded-2xl border border-[#D5E4EA] bg-[#FFFFFF] px-4 text-sm font-extrabold text-[#0F4C5C] transition hover:bg-[#F4FAFC]";
-const primaryButton = "min-h-12 rounded-2xl bg-[#0F4C5C] px-4 text-sm font-extrabold text-white transition hover:bg-[#0B3B49] disabled:cursor-not-allowed disabled:bg-[#9FB6BF]";
+const fieldClass = "mt-1.5 min-h-12 w-full rounded-xl border border-[#D5E4EA] bg-white px-3.5 text-sm font-semibold text-[#102A34] outline-none transition placeholder:text-[#5B7180] focus:border-[#176B87] focus:ring-2 focus:ring-[#176B87]/20";
+const secondaryButton = "min-h-12 rounded-2xl border border-[#D5E4EA] bg-[#FFFFFF] px-4 text-sm font-extrabold text-[#073B4C] transition hover:bg-[#FFFFFF]";
+const primaryButton = "min-h-12 rounded-2xl bg-[#073B4C] px-4 text-sm font-extrabold text-white transition hover:bg-[#073B4C] disabled:cursor-not-allowed disabled:bg-[#D5E4EA]";
 const darkOutlineButton = "min-h-12 rounded-xl border border-white/65 bg-transparent px-4 text-sm font-extrabold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-45";
 
 export default function Home() {
@@ -220,7 +220,7 @@ export default function Home() {
   };
 
   if (!authReady) {
-    return <main lang="he" dir="rtl" className="app-bg grid min-h-[100svh] place-items-center bg-[#EAF3F6] text-sm font-bold text-[#0F4C5C]">פותחים את ניהול הנוכחות…</main>;
+    return <main lang="he" dir="rtl" className="app-bg grid min-h-[100svh] place-items-center bg-[#FFFFFF] text-sm font-bold text-[#073B4C]">פותחים את ניהול הנוכחות…</main>;
   }
 
   if (!session) return <AuthScreen />;
@@ -233,7 +233,7 @@ export default function Home() {
       onSignOut={() => { if (supabase) void supabase.auth.signOut(); }}
     >
       {(dataLoading || dataError) && (
-        <div className={`mb-4 rounded-2xl px-4 py-3 text-sm font-bold ${dataError ? "bg-[#FBE7E5] text-[#B5544B]" : "bg-[#DDEFF2] text-[#0F4C5C]"}`} role={dataError ? "alert" : "status"}>
+        <div className={`mb-4 rounded-2xl px-4 py-3 text-sm font-bold ${dataError ? "bg-[#FBE7E5] text-[#B5544B]" : "bg-[#D5E4EA] text-[#073B4C]"}`} role={dataError ? "alert" : "status"}>
           {dataError || "מסנכרנים את נתוני הנוכחות…"}
         </div>
       )}
@@ -309,9 +309,9 @@ export default function Home() {
                   })}
                 </div>
               ) : (
-                <div className="mt-4 rounded-2xl bg-[#F4FAFC] p-4 text-sm font-semibold text-[#5B7180]">
+                <div className="mt-4 rounded-2xl bg-[#FFFFFF] p-4 text-sm font-semibold text-[#5B7180]">
                   אין כרגע כיתות פעילות.
-                  <button type="button" onClick={() => setTab("courses")} className="mt-3 block min-h-10 rounded-xl px-3 font-extrabold text-[#0F4C5C] hover:bg-[#FFFFFF]">מעבר לכיתות</button>
+                  <button type="button" onClick={() => setTab("courses")} className="mt-3 block min-h-10 rounded-xl px-3 font-extrabold text-[#073B4C] hover:bg-[#FFFFFF]">מעבר לכיתות</button>
                 </div>
               )}
             </section>
@@ -329,7 +329,7 @@ export default function Home() {
                     .map((course) => {
                       const courseLogs = visibleTodayLogs.filter((log) => log.courseId === course.id);
                       return (
-                        <section key={course.id} className="rounded-[20px] border border-[#D5E4EA] bg-[#F9FCFD] p-3 text-[#102A34] shadow-[0_18px_42px_rgba(0,24,34,0.16)] sm:p-4" aria-labelledby={`today-${course.id}`}>
+                        <section key={course.id} className="rounded-[20px] border border-[#D5E4EA] bg-[#FFFFFF] p-3 text-[#102A34] shadow-[0_18px_42px_rgba(0,24,34,0.16)] sm:p-4" aria-labelledby={`today-${course.id}`}>
                           <div className="mb-2 flex items-end justify-between gap-3 sm:mb-3">
                             <div>
                               <p className="text-[11px] font-extrabold uppercase tracking-[0.14em] text-[#5B7180]">כיתה</p>
@@ -356,7 +356,7 @@ export default function Home() {
                     })}
                 </div>
               ) : (
-                <section className="mt-4 rounded-[20px] border border-dashed border-[#C7DFE6] bg-[#FFFFFF]/75 px-5 py-8 text-center">
+                <section className="mt-4 rounded-[20px] border border-dashed border-[#D5E4EA] bg-[#FFFFFF]/75 px-5 py-8 text-center">
                   <h3 className="text-base font-extrabold">{todayFilter === "exceptions" ? "אין חריגים בתצוגה הזו" : "אין רשומות לכיתה הזו"}</h3>
                   <p className="mt-1 text-sm font-medium text-white/65">{todayFilter === "exceptions" ? "כל התלמידים המסוננים מסומנים כנוכחים." : "בחרו כיתה אחרת כדי להציג את הנוכחות שלה."}</p>
                 </section>
@@ -391,17 +391,17 @@ export default function Home() {
           </div>
           {filteredStudents.length ? (
             <div className="overflow-hidden rounded-[20px] border border-[#D5E4EA] bg-white text-[#102A34] shadow-[0_16px_36px_rgba(0,24,34,0.16)]">
-              <ul className="divide-y divide-[#DCE9EE]">
+              <ul className="divide-y divide-[#D5E4EA]">
                 {filteredStudents.map((student) => (
                   <li key={student.id} className="flex items-center gap-2.5 p-3 sm:gap-3 sm:p-4">
-                    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#DDEFF2] text-xs font-extrabold text-[#0F4C5C] sm:h-11 sm:w-11" aria-hidden="true">{student.name.split(/\s+/).map((part) => part[0]).join("").slice(0, 2)}</span>
+                    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#D5E4EA] text-xs font-extrabold text-[#073B4C] sm:h-11 sm:w-11" aria-hidden="true">{student.name.split(/\s+/).map((part) => part[0]).join("").slice(0, 2)}</span>
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
                         <p dir="auto" className="min-w-0 truncate font-extrabold">{student.name}</p>
                         {!student.active && <span className="rounded-full bg-[#EAF0F4] px-2 py-1 text-[10px] font-extrabold text-[#4D6470]">לא פעיל</span>}
                       </div>
                       <p dir="auto" className="mt-0.5 truncate text-xs font-semibold text-[#5B7180]">{coursesById.get(student.courseId)?.name ?? "כיתה לא ידועה"}</p>
-                      <p dir="auto" className="truncate text-[11px] font-medium text-[#718692]">{student.email || "אין אימייל"}</p>
+                      <p dir="auto" className="truncate text-[11px] font-medium text-[#5B7180]">{student.email || "אין אימייל"}</p>
                     </div>
                     <StudentActions student={student} onEdit={() => setModal({ type: "student", student })} onToggle={() => toggleStudent(student.id)} />
                   </li>
@@ -455,10 +455,10 @@ export default function Home() {
               <div className="mt-4 hidden overflow-hidden rounded-[20px] border border-[#D5E4EA] bg-white text-[#102A34] shadow-[0_16px_36px_rgba(0,24,34,0.16)] md:block">
                 <div className="overflow-x-auto">
                   <table className="w-full min-w-[700px] border-collapse text-right text-sm">
-                    <thead className="bg-[#F4FAFC] text-xs uppercase tracking-[0.08em] text-[#5B7180]">
+                    <thead className="bg-[#FFFFFF] text-xs uppercase tracking-[0.08em] text-[#5B7180]">
                       <tr><th className="p-4">תלמיד</th><th className="p-4">כיתה</th><th className="p-4">שעה</th><th className="p-4">סטטוס</th><th className="p-4">הערות</th></tr>
                     </thead>
-                    <tbody className="divide-y divide-[#DCE9EE]">
+                    <tbody className="divide-y divide-[#D5E4EA]">
                       {historyLogs.map((log) => (
                         <tr key={log.id}>
                           <td dir="auto" className="p-4 font-extrabold">{studentsById.get(log.studentId)?.name ?? "תלמיד לא ידוע"}</td>
@@ -530,7 +530,7 @@ export default function Home() {
 
 function EmptyState({ title, body, action, onAction }: { title: string; body: string; action?: string; onAction?: () => void }) {
   return (
-    <section className="rounded-[20px] border border-dashed border-[#C7DFE6] bg-white/95 px-5 py-10 text-center text-[#102A34] shadow-[0_14px_34px_rgba(0,24,34,0.12)]">
+    <section className="rounded-[20px] border border-dashed border-[#D5E4EA] bg-white/95 px-5 py-10 text-center text-[#102A34] shadow-[0_14px_34px_rgba(0,24,34,0.12)]">
       <h3 className="text-lg font-extrabold">{title}</h3>
       <p className="mx-auto mt-2 max-w-md text-sm font-medium leading-6 text-[#5B7180]">{body}</p>
       {action && onAction && <button type="button" onClick={onAction} className={`${primaryButton} mt-5`}>{action}</button>}
@@ -543,13 +543,13 @@ function StudentActions({ student, onEdit, onToggle }: { student: Student; onEdi
   return (
     <>
       <div className="relative sm:hidden">
-        <button type="button" onClick={() => setOpen((current) => !current)} aria-expanded={open} aria-label={`פעולות נוספות עבור ${student.name}`} className="grid h-10 w-10 place-items-center rounded-xl text-[#5B7180] hover:bg-[#F4FAFC] hover:text-[#0F4C5C]">
+        <button type="button" onClick={() => setOpen((current) => !current)} aria-expanded={open} aria-label={`פעולות נוספות עבור ${student.name}`} className="grid h-10 w-10 place-items-center rounded-xl text-[#5B7180] hover:bg-[#FFFFFF] hover:text-[#073B4C]">
           <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5 fill-current"><circle cx="5" cy="12" r="1.8" /><circle cx="12" cy="12" r="1.8" /><circle cx="19" cy="12" r="1.8" /></svg>
         </button>
         {open && (
           <div className="absolute end-0 top-11 z-20 min-w-28 rounded-xl border border-[#D5E4EA] bg-[#FFFFFF] p-1.5 shadow-[0_12px_30px_rgba(19,69,84,0.12)]">
-            <button type="button" onClick={() => { setOpen(false); onEdit(); }} className="min-h-10 w-full rounded-lg px-3 text-right text-sm font-bold text-[#0F4C5C] hover:bg-[#F4FAFC]">עריכה</button>
-            <button type="button" onClick={() => { setOpen(false); onToggle(); }} className="min-h-10 w-full rounded-lg px-3 text-right text-sm font-bold text-[#5B7180] hover:bg-[#F4FAFC]">{student.active ? "השבתה" : "הפעלה"}</button>
+            <button type="button" onClick={() => { setOpen(false); onEdit(); }} className="min-h-10 w-full rounded-lg px-3 text-right text-sm font-bold text-[#073B4C] hover:bg-[#FFFFFF]">עריכה</button>
+            <button type="button" onClick={() => { setOpen(false); onToggle(); }} className="min-h-10 w-full rounded-lg px-3 text-right text-sm font-bold text-[#5B7180] hover:bg-[#FFFFFF]">{student.active ? "השבתה" : "הפעלה"}</button>
           </div>
         )}
       </div>
@@ -603,7 +603,7 @@ function StudentImportForm({
 
         {step === "input" ? (
           <>
-            <div className="rounded-2xl bg-[#F4FAFC] p-3 text-sm font-medium leading-6 text-[#5B7180]">
+            <div className="rounded-2xl bg-[#FFFFFF] p-3 text-sm font-medium leading-6 text-[#5B7180]">
               <p>הדביקו רשימת תלמידים. כל שורה היא תלמיד. אפשר להדביק רק שם, או שם ואימייל מופרדים בפסיק או בטאב.</p>
               <pre dir="auto" className="mt-2 overflow-x-auto whitespace-pre-wrap rounded-xl bg-[#FFFFFF] p-3 text-xs leading-5 text-[#4D6470]">{"מיה כהן\nנועם לוי, noam@example.com\nדניאל פרץ\tdaniel@example.com"}</pre>
             </div>
@@ -633,7 +633,7 @@ function StudentImportForm({
             {preview.ready.length > 0 && (
               <section>
                 <h3 className="text-xs font-extrabold text-[#5B7180]">תלמידים מוכנים לייבוא</h3>
-                <ul className="mt-2 max-h-40 divide-y divide-[#DCE9EE] overflow-y-auto rounded-2xl border border-[#DCE9EE] bg-[#FFFFFF]">
+                <ul className="mt-2 max-h-40 divide-y divide-[#D5E4EA] overflow-y-auto rounded-2xl border border-[#D5E4EA] bg-[#FFFFFF]">
                   {preview.ready.map((row) => (
                     <li key={`${row.line}-${row.name}`} className="px-3 py-2">
                       <p dir="auto" className="truncate text-sm font-bold">{row.name}</p>

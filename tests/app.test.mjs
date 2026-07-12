@@ -40,7 +40,7 @@ test("shared data uses secure sign-in, duplicate prevention, and realtime sync",
   assert.match(components, /Excused:\s*"מוצדק"/);
   assert.match(components, /Present:\s*"bg-\[#E7F2E9\] text-\[#276749\] border-\[#CBE3D0\]"/);
   assert.match(components, /bg-white/);
-  assert.match(page, /bg-\[#0F4C5C\]/);
+  assert.match(page, /bg-\[#073B4C\]/);
   assert.match(page, /border-\[#D5E4EA\] bg-\[#FFFFFF\]/);
   assert.match(components, /new Intl\.DateTimeFormat\("he-IL"/);
   assert.match(components, /<h1[^>]*>\{title\}<\/h1>/);
