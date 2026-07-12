@@ -25,9 +25,10 @@ type ModalState =
   | { type: "import" }
   | null;
 
-const fieldClass = "mt-1.5 min-h-12 w-full rounded-2xl border border-[#D5E4EA] bg-[#FFFFFF] px-3.5 text-sm font-semibold text-[#102A34] outline-none transition placeholder:text-[#8A9DA5] focus:border-[#0F4C5C] focus:ring-2 focus:ring-[#0F4C5C]/15";
+const fieldClass = "mt-1.5 min-h-12 w-full rounded-xl border border-[#BFCFD6] bg-white px-3.5 text-sm font-semibold text-[#102A34] outline-none transition placeholder:text-[#8A9DA5] focus:border-[#1680A2] focus:ring-2 focus:ring-[#1680A2]/20";
 const secondaryButton = "min-h-12 rounded-2xl border border-[#D5E4EA] bg-[#FFFFFF] px-4 text-sm font-extrabold text-[#0F4C5C] transition hover:bg-[#F4FAFC]";
 const primaryButton = "min-h-12 rounded-2xl bg-[#0F4C5C] px-4 text-sm font-extrabold text-white transition hover:bg-[#0B3B49] disabled:cursor-not-allowed disabled:bg-[#9FB6BF]";
+const darkOutlineButton = "min-h-12 rounded-xl border border-white/65 bg-transparent px-4 text-sm font-extrabold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-45";
 
 export default function Home() {
   const today = localDateKey();
@@ -237,13 +238,13 @@ export default function Home() {
         </div>
       )}
       {tab === "courses" && (
-        <section>
+        <section className="min-h-[calc(100svh-10rem)] pb-4 text-white">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3 sm:mb-5">
             <div>
-              <h2 className="text-xl font-extrabold tracking-[-0.025em]">הכיתות שלכם</h2>
-              <p className="mt-1 text-sm font-medium text-[#5B7180]">התחילו נוכחות בלחיצה אחת. כל התלמידים מתחילים כנוכחים.</p>
+              <h2 className="sr-only">הכיתות שלכם</h2>
+              <p className="mt-1 text-sm font-medium text-white/65">התחילו נוכחות בלחיצה אחת. כל התלמידים מתחילים כנוכחים.</p>
             </div>
-            <button type="button" className={primaryButton} onClick={() => setModal({ type: "course" })}>+ הוספת כיתה</button>
+            <button type="button" className={darkOutlineButton} onClick={() => setModal({ type: "course" })}>+ הוספת כיתה</button>
           </div>
           {data.courses.length ? (
             <div className="grid gap-3 sm:gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -271,14 +272,14 @@ export default function Home() {
       )}
 
       {tab === "today" && (
-        <section>
+        <section className="min-h-[calc(100svh-10rem)] pb-4 text-white">
           <div className="mb-2 flex flex-wrap items-end justify-between gap-2 sm:mb-4 sm:gap-3">
             <div>
-              <h2 className="text-lg font-extrabold tracking-[-0.025em] sm:text-xl">הנוכחות של היום</h2>
-              <p className="mt-0.5 text-xs font-medium text-[#5B7180] sm:mt-1 sm:text-sm">לחצו על סטטוס כדי לעדכן. השינויים נשמרים אוטומטית.</p>
+              <h2 className="sr-only">הנוכחות של היום</h2>
+              <p className="mt-0.5 text-xs font-medium text-white/65 sm:mt-1 sm:text-sm">לחצו על סטטוס כדי לעדכן. השינויים נשמרים אוטומטית.</p>
             </div>
             {todayLogs.length > 0 && (
-              <label className="w-full text-xs font-extrabold text-[#5B7180] sm:w-auto">
+              <label className="w-full text-xs font-extrabold text-white/70 sm:w-auto">
                 כיתה
                 <select value={todayCourse} onChange={(event) => setTodayCourse(event.target.value)} className={`${fieldClass} mt-1 w-full sm:min-w-48`}>
                   <option value="all">כל הכיתות</option>
@@ -288,11 +289,11 @@ export default function Home() {
             )}
           </div>
           {todayLogs.length === 0 ? (
-            <section className="soft-card rounded-[18px] border border-[#D5E4EA] bg-[#FFFFFF] p-3 sm:rounded-[20px] sm:p-5">
+            <section className="rounded-[20px] border border-white/15 bg-white/[0.06] p-4 shadow-[0_18px_46px_rgba(0,18,27,0.24)] sm:p-5">
               <h3 className="text-lg font-extrabold">מה מתחילים עכשיו?</h3>
-              <p className="mt-1 text-sm font-medium leading-6 text-[#5B7180]">בחרו כיתה כדי להתחיל נוכחות. כל התלמידים יסומנו כנוכחים כברירת מחדל.</p>
+              <p className="mt-1 text-sm font-medium leading-6 text-white/70">בחרו כיתה כדי להתחיל נוכחות. כל התלמידים יסומנו כנוכחים כברירת מחדל.</p>
               {data.courses.some((course) => course.active) ? (
-                <div className="mt-3 divide-y divide-[#DCE9EE] rounded-2xl border border-[#DCE9EE] sm:mt-4">
+                <div className="mt-3 divide-y divide-white/10 overflow-hidden rounded-2xl border border-white/15 sm:mt-4">
                   {data.courses.filter((course) => course.active).map((course) => {
                     const studentCount = data.students.filter((student) => student.courseId === course.id && student.active).length;
                     const startedToday = todayLogs.some((log) => log.courseId === course.id);
@@ -300,9 +301,9 @@ export default function Home() {
                       <article key={course.id} className="flex flex-wrap items-center gap-2.5 p-2.5 sm:flex-nowrap sm:gap-3 sm:p-3">
                         <div className="min-w-0 flex-1">
                           <h4 dir="auto" className="truncate text-sm font-extrabold">{course.name}</h4>
-                          <p className="mt-1 text-xs font-semibold text-[#5B7180]">{studentCount} {studentCount === 1 ? "תלמיד פעיל" : "תלמידים פעילים"} · {startedToday ? "התחילה היום" : "לא התחילה"}</p>
+                          <p className="mt-1 text-xs font-semibold text-white/60">{studentCount} {studentCount === 1 ? "תלמיד פעיל" : "תלמידים פעילים"} · {startedToday ? "התחילה היום" : "לא התחילה"}</p>
                         </div>
-                        <button type="button" disabled={studentCount === 0} onClick={() => startedToday ? setTodayCourse(course.id) : void startAttendance(course.id)} className={`${primaryButton} w-full whitespace-nowrap sm:w-auto`}>{startedToday ? "פתיחת נוכחות" : "התחלת נוכחות"}</button>
+                        <button type="button" disabled={studentCount === 0} onClick={() => startedToday ? setTodayCourse(course.id) : void startAttendance(course.id)} className="min-h-11 w-full whitespace-nowrap rounded-xl bg-white px-4 text-sm font-extrabold text-[#073B4C] disabled:opacity-40 sm:w-auto">{startedToday ? "פתיחת נוכחות" : "התחלת נוכחות"}</button>
                       </article>
                     );
                   })}
@@ -316,9 +317,9 @@ export default function Home() {
             </section>
           ) : (
             <>
-              <div className="mb-2 inline-flex rounded-xl border border-[#D5E4EA] bg-[#FFFFFF] p-1 sm:mb-3" role="group" aria-label="סינון רשימת הנוכחות">
-                <button type="button" aria-pressed={todayFilter === "all"} onClick={() => setTodayFilter("all")} className={`min-h-9 rounded-lg px-3 text-xs font-extrabold ${todayFilter === "all" ? "bg-[#DDEFF2] text-[#0F4C5C]" : "text-[#5B7180] hover:bg-[#F4FAFC]"}`}>הכל</button>
-                <button type="button" aria-pressed={todayFilter === "exceptions"} onClick={() => setTodayFilter("exceptions")} className={`min-h-9 rounded-lg px-3 text-xs font-extrabold ${todayFilter === "exceptions" ? "bg-[#DDEFF2] text-[#0F4C5C]" : "text-[#5B7180] hover:bg-[#F4FAFC]"}`}>חריגים בלבד</button>
+              <div className="mb-2 inline-flex rounded-xl border border-white/20 bg-white/[0.06] p-1 sm:mb-3" role="group" aria-label="סינון רשימת הנוכחות">
+                <button type="button" aria-pressed={todayFilter === "all"} onClick={() => setTodayFilter("all")} className={`min-h-9 rounded-lg px-3 text-xs font-extrabold ${todayFilter === "all" ? "bg-white text-[#073B4C]" : "text-white/70 hover:bg-white/10"}`}>הכל</button>
+                <button type="button" aria-pressed={todayFilter === "exceptions"} onClick={() => setTodayFilter("exceptions")} className={`min-h-9 rounded-lg px-3 text-xs font-extrabold ${todayFilter === "exceptions" ? "bg-white text-[#073B4C]" : "text-white/70 hover:bg-white/10"}`}>חריגים בלבד</button>
               </div>
               <SummaryCards logs={courseTodayLogs} />
               {visibleTodayLogs.length ? (
@@ -328,7 +329,7 @@ export default function Home() {
                     .map((course) => {
                       const courseLogs = visibleTodayLogs.filter((log) => log.courseId === course.id);
                       return (
-                        <section key={course.id} className="soft-card rounded-[18px] border border-[#D5E4EA] bg-[#FFFFFF] p-3 sm:rounded-[20px] sm:p-4" aria-labelledby={`today-${course.id}`}>
+                        <section key={course.id} className="rounded-[20px] border border-[#D5E4EA] bg-[#F9FCFD] p-3 text-[#102A34] shadow-[0_18px_42px_rgba(0,24,34,0.16)] sm:p-4" aria-labelledby={`today-${course.id}`}>
                           <div className="mb-2 flex items-end justify-between gap-3 sm:mb-3">
                             <div>
                               <p className="text-[11px] font-extrabold uppercase tracking-[0.14em] text-[#5B7180]">כיתה</p>
@@ -357,7 +358,7 @@ export default function Home() {
               ) : (
                 <section className="mt-4 rounded-[20px] border border-dashed border-[#C7DFE6] bg-[#FFFFFF]/75 px-5 py-8 text-center">
                   <h3 className="text-base font-extrabold">{todayFilter === "exceptions" ? "אין חריגים בתצוגה הזו" : "אין רשומות לכיתה הזו"}</h3>
-                  <p className="mt-1 text-sm font-medium text-[#5B7180]">{todayFilter === "exceptions" ? "כל התלמידים המסוננים מסומנים כנוכחים." : "בחרו כיתה אחרת כדי להציג את הנוכחות שלה."}</p>
+                  <p className="mt-1 text-sm font-medium text-white/65">{todayFilter === "exceptions" ? "כל התלמידים המסוננים מסומנים כנוכחים." : "בחרו כיתה אחרת כדי להציג את הנוכחות שלה."}</p>
                 </section>
               )}
             </>
@@ -366,18 +367,18 @@ export default function Home() {
       )}
 
       {tab === "students" && (
-        <section>
+        <section className="min-h-[calc(100svh-10rem)] pb-4 text-white">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3 sm:mb-5">
             <div>
-              <h2 className="text-xl font-extrabold tracking-[-0.025em]">תלמידים</h2>
-              <p className="mt-1 text-sm font-medium text-[#5B7180]">ניהול רשימות התלמידים בלי למחוק נוכחות מהעבר.</p>
+              <h2 className="sr-only">תלמידים</h2>
+              <p className="mt-1 text-sm font-medium text-white/65">ניהול רשימות התלמידים בלי למחוק נוכחות מהעבר.</p>
             </div>
             <div className="flex flex-wrap gap-2">
-              <button type="button" className={primaryButton} disabled={!data.courses.length} onClick={() => setModal({ type: "student" })}>+ הוספת תלמיד</button>
-              <button type="button" className={secondaryButton} disabled={!data.courses.length} onClick={() => setModal({ type: "import" })}>ייבוא רשימה</button>
+              <button type="button" className={darkOutlineButton} disabled={!data.courses.length} onClick={() => setModal({ type: "student" })}>+ הוספת תלמיד</button>
+              <button type="button" className="min-h-12 rounded-xl px-3 text-sm font-extrabold text-white/70 hover:bg-white/10 disabled:opacity-45" disabled={!data.courses.length} onClick={() => setModal({ type: "import" })}>ייבוא רשימה</button>
             </div>
           </div>
-          <div className="mb-4 grid gap-3 rounded-[20px] border border-[#D5E4EA] bg-[#FFFFFF] p-3 sm:grid-cols-[1fr_220px] sm:p-4">
+          <div className="dark-filter mb-4 grid gap-3 rounded-[18px] border border-white/20 bg-white/[0.05] p-3 sm:grid-cols-[1fr_220px] sm:p-4">
             <label className="text-xs font-extrabold text-[#5B7180]">חיפוש
               <input value={studentSearch} onChange={(event) => setStudentSearch(event.target.value)} placeholder="שם או אימייל" className={fieldClass} />
             </label>
@@ -389,7 +390,7 @@ export default function Home() {
             </label>
           </div>
           {filteredStudents.length ? (
-            <div className="overflow-hidden rounded-[20px] border border-[#D5E4EA] bg-[#FFFFFF] shadow-[0_8px_24px_rgba(19,69,84,0.07)]">
+            <div className="overflow-hidden rounded-[20px] border border-[#D5E4EA] bg-white text-[#102A34] shadow-[0_16px_36px_rgba(0,24,34,0.16)]">
               <ul className="divide-y divide-[#DCE9EE]">
                 {filteredStudents.map((student) => (
                   <li key={student.id} className="flex items-center gap-2.5 p-3 sm:gap-3 sm:p-4">
@@ -414,15 +415,15 @@ export default function Home() {
       )}
 
       {tab === "history" && (
-        <section>
+        <section className="min-h-[calc(100svh-10rem)] pb-4 text-white">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3 sm:mb-5">
             <div>
-              <h2 className="text-xl font-extrabold tracking-[-0.025em]">היסטוריית נוכחות</h2>
-              <p className="mt-1 text-sm font-medium text-[#5B7180]">בדקו יום מסוים או ייצאו את הרשומות המסוננות.</p>
+              <h2 className="sr-only">היסטוריית נוכחות</h2>
+              <p className="mt-1 text-sm font-medium text-white/65">בדקו יום מסוים או ייצאו את הרשומות המסוננות.</p>
             </div>
-            <button type="button" className={primaryButton} disabled={!historyLogs.length} onClick={exportCsv}>ייצוא CSV</button>
+            <button type="button" className={darkOutlineButton} disabled={!historyLogs.length} onClick={exportCsv}>ייצוא CSV</button>
           </div>
-          <div className="mb-4 grid gap-3 rounded-[20px] border border-[#D5E4EA] bg-[#FFFFFF] p-3 sm:grid-cols-2 sm:p-4">
+          <div className="dark-filter mb-4 grid gap-3 rounded-[18px] border border-white/20 bg-white/[0.05] p-3 sm:grid-cols-2 sm:p-4">
             <label className="text-xs font-extrabold text-[#5B7180]">תאריך
               <input type="date" value={historyDate} onChange={(event) => setHistoryDate(event.target.value)} className={fieldClass} />
             </label>
@@ -438,7 +439,7 @@ export default function Home() {
             <>
               <div className="mt-3 grid gap-2 md:hidden">
                 {historyLogs.map((log) => (
-                  <article key={log.id} className="rounded-2xl border border-[#D5E4EA] bg-[#FFFFFF] p-3 shadow-[0_6px_18px_rgba(19,69,84,0.06)]">
+                  <article key={log.id} className="rounded-2xl border border-[#D5E4EA] bg-white p-3 text-[#102A34] shadow-[0_10px_24px_rgba(0,24,34,0.14)]">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0 flex-1">
                         <h3 dir="auto" className="truncate text-sm font-extrabold">{studentsById.get(log.studentId)?.name ?? "תלמיד לא ידוע"}</h3>
@@ -451,7 +452,7 @@ export default function Home() {
                   </article>
                 ))}
               </div>
-              <div className="mt-4 hidden overflow-hidden rounded-[20px] border border-[#D5E4EA] bg-[#FFFFFF] shadow-[0_8px_24px_rgba(19,69,84,0.07)] md:block">
+              <div className="mt-4 hidden overflow-hidden rounded-[20px] border border-[#D5E4EA] bg-white text-[#102A34] shadow-[0_16px_36px_rgba(0,24,34,0.16)] md:block">
                 <div className="overflow-x-auto">
                   <table className="w-full min-w-[700px] border-collapse text-right text-sm">
                     <thead className="bg-[#F4FAFC] text-xs uppercase tracking-[0.08em] text-[#5B7180]">
@@ -529,7 +530,7 @@ export default function Home() {
 
 function EmptyState({ title, body, action, onAction }: { title: string; body: string; action?: string; onAction?: () => void }) {
   return (
-    <section className="rounded-[20px] border border-dashed border-[#C7DFE6] bg-[#FFFFFF]/75 px-5 py-10 text-center">
+    <section className="rounded-[20px] border border-dashed border-[#C7DFE6] bg-white/95 px-5 py-10 text-center text-[#102A34] shadow-[0_14px_34px_rgba(0,24,34,0.12)]">
       <h3 className="text-lg font-extrabold">{title}</h3>
       <p className="mx-auto mt-2 max-w-md text-sm font-medium leading-6 text-[#5B7180]">{body}</p>
       {action && onAction && <button type="button" onClick={onAction} className={`${primaryButton} mt-5`}>{action}</button>}

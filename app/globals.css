@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 :root {
-  --background: #eaf3f6;
+  --background: #073b4c;
   --foreground: #102a34;
 }
 
@@ -46,12 +46,16 @@ textarea:focus-visible {
 
 .app-bg {
   background:
-    radial-gradient(circle at 88% 0%, rgba(80, 159, 186, 0.23), transparent 380px),
-    linear-gradient(180deg, #f6fbfc 0%, #eaf3f6 58%, #e4f0f4 100%);
+    radial-gradient(circle at 88% 0%, rgba(35, 122, 154, 0.28), transparent 420px),
+    linear-gradient(180deg, #073b4c 0%, #052f3e 100%);
 }
 
 .soft-card {
   box-shadow: 0 10px 28px rgba(19, 69, 84, 0.1);
+}
+
+.dark-filter label {
+  color: rgba(255, 255, 255, 0.72);
 }
 
 @media (prefers-reduced-motion: reduce) {

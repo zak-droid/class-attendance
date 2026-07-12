@@ -47,20 +47,15 @@ export function Layout({
   onSignOut: () => void;
   children: ReactNode;
 }) {
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const title = navItems.find((item) => item.id === tab)?.label ?? "כיתות";
   const dateLabel = new Intl.DateTimeFormat("he-IL", {
     weekday: "long",
     month: "long",
     day: "numeric",
-    year: "numeric",
   }).format(new Date());
-  const mobileDateLabel = new Intl.DateTimeFormat("he-IL", {
-    day: "numeric",
-    month: "numeric",
-  }).format(new Date());
-
   return (
-    <div lang="he" dir="rtl" className="app-bg min-h-[100svh] bg-[#EAF3F6] text-right text-[#102A34]">
+    <div lang="he" dir="rtl" className="min-h-[100svh] bg-[#073B4C] text-right text-[#102A34]">
       <div className="mx-auto flex min-h-[100svh] w-full max-w-[1180px]">
         <aside className="hidden w-[226px] shrink-0 border-e border-[#0B3B49] bg-[#0F4C5C] px-5 py-7 text-white lg:block">
           <div className="mb-8 flex items-center gap-3">
@@ -92,17 +87,23 @@ export function Layout({
           </div>
         </aside>
 
-        <div className="min-w-0 flex-1 pb-[calc(6.5rem+env(safe-area-inset-bottom))] lg:pb-10">
-          <header className="px-4 pb-1 pt-2 sm:px-6 sm:pb-2 sm:pt-5 lg:px-10 lg:pb-3 lg:pt-9">
-            <p className="mb-1 hidden text-xs font-extrabold uppercase tracking-[0.16em] text-[#0F4C5C] lg:block">{title}</p>
-            <div className="flex items-center justify-between gap-2 lg:items-end">
-              <h1 className="text-2xl font-extrabold tracking-[-0.04em] sm:text-[28px] lg:text-[32px]">{title}</h1>
-              <div className="flex items-center gap-2 lg:pb-1">
-                <time className="text-xs font-semibold text-[#5B7180] lg:hidden">{mobileDateLabel}</time>
-                <time className="hidden text-sm font-semibold text-[#5B7180] lg:inline">{dateLabel}</time>
-                <button type="button" onClick={onSignOut} className="min-h-8 rounded-lg px-2 text-[11px] font-bold text-[#5B7180] hover:bg-[#FFFFFF]/75 hover:text-[#0F4C5C] lg:hidden">יציאה</button>
+        <div className="min-w-0 flex-1 pb-[calc(6rem+env(safe-area-inset-bottom))] lg:pb-10">
+          <header className="relative bg-[#073B4C] px-4 pb-3 pt-5 text-white sm:px-6 sm:pb-4 sm:pt-6 lg:px-10 lg:pb-5 lg:pt-9">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h1 className="text-[28px] font-extrabold tracking-[-0.04em] sm:text-[32px]">{title}</h1>
+                {tab === "today" && <time className="mt-1.5 block text-sm font-semibold text-white/75">{dateLabel}</time>}
               </div>
+              <button type="button" onClick={() => setMobileMenuOpen((open) => !open)} aria-expanded={mobileMenuOpen} aria-label="פתיחת תפריט" className="grid h-11 w-11 place-items-center rounded-xl border border-white/15 text-white hover:bg-white/10 lg:hidden">
+                <span className="space-y-1.5" aria-hidden="true"><span className="block h-0.5 w-6 bg-current" /><span className="block h-0.5 w-6 bg-current" /><span className="block h-0.5 w-6 bg-current" /></span>
+              </button>
             </div>
+            {mobileMenuOpen && (
+              <div className="absolute end-4 top-16 z-30 w-64 rounded-2xl border border-white/15 bg-[#0B465A] p-3 shadow-[0_18px_50px_rgba(0,18,27,0.35)] lg:hidden">
+                <p dir="ltr" className="truncate text-left text-xs font-semibold text-white/70">{userEmail}</p>
+                <button type="button" onClick={onSignOut} className="mt-3 min-h-10 w-full rounded-xl border border-white/25 px-3 text-sm font-extrabold text-white hover:bg-white/10">יציאה</button>
+              </div>
+            )}
           </header>
           <main className="px-4 pb-4 sm:px-6 sm:pb-8 lg:px-10">{children}</main>
         </div>
@@ -116,7 +117,7 @@ export function BottomNav({ tab, onTabChange }: { tab: AppTab; onTabChange: (tab
   return (
     <nav
       aria-label="ניווט ראשי"
-      className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-4 border-t border-[#D5E4EA] bg-[#FFFFFF]/95 px-2 pb-[calc(8px+env(safe-area-inset-bottom))] pt-2 shadow-[0_-8px_28px_rgba(19,69,84,0.08)] backdrop-blur-xl lg:hidden"
+      className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-4 border-t border-[#D5E4EA] bg-white px-2 pb-[calc(7px+env(safe-area-inset-bottom))] pt-1.5 shadow-[0_-8px_30px_rgba(0,28,39,0.13)] lg:hidden"
     >
       {navItems.map((item) => (
         <button
@@ -124,11 +125,11 @@ export function BottomNav({ tab, onTabChange }: { tab: AppTab; onTabChange: (tab
           type="button"
           onClick={() => onTabChange(item.id)}
           aria-current={tab === item.id ? "page" : undefined}
-          className={`mx-1 flex min-h-14 flex-col items-center justify-center rounded-2xl text-[11px] font-extrabold transition active:scale-[0.97] ${
-            tab === item.id ? "bg-[#DDEFF2] text-[#0F4C5C]" : "text-[#5B7180]"
+          className={`mx-1 flex min-h-[58px] flex-col items-center justify-center text-[11px] font-extrabold transition active:scale-[0.97] ${
+            tab === item.id ? "text-[#073B4C]" : "text-[#5B7180]"
           }`}
         >
-          <NavIcon tab={item.id} className="mb-1 h-4 w-4" />
+          <span className={`mb-0.5 grid h-9 w-9 place-items-center rounded-full ${tab === item.id ? "bg-[#073B4C] text-white shadow-[0_6px_16px_rgba(7,59,76,0.28)]" : ""}`}><NavIcon tab={item.id} className="h-[18px] w-[18px]" /></span>
           {item.label}
         </button>
       ))}
@@ -143,11 +144,11 @@ export function StatusBadge({ status }: { status: AttendanceStatus }) {
 export function SummaryCards({ logs }: { logs: AttendanceLog[] }) {
   const statuses: AttendanceStatus[] = ["Present", "Late", "Absent", "Excused"];
   return (
-    <section aria-label="סיכום נוכחות" className="grid grid-cols-4 gap-1.5 rounded-[16px] border border-[#D5E4EA] bg-[#FFFFFF]/85 p-1.5 shadow-[0_8px_24px_rgba(19,69,84,0.08)] sm:gap-2 sm:rounded-[20px] sm:p-2">
+    <section aria-label="סיכום נוכחות" className="grid grid-cols-4 overflow-hidden rounded-2xl border border-white/15 bg-white/[0.07] shadow-[0_12px_32px_rgba(0,24,34,0.2)]">
       {statuses.map((status) => (
-        <article key={status} className={`rounded-xl border px-1 py-1.5 text-center sm:rounded-2xl sm:p-3 ${statusStyles[status]}`}>
-          <strong className="block text-lg font-extrabold tracking-[-0.04em] text-[#102A34] sm:text-2xl">{logs.filter((log) => log.status === status).length}</strong>
-          <span className="mt-0.5 block text-[10px] font-extrabold sm:mt-1 sm:text-[11px]">{statusLabels[status]}</span>
+        <article key={status} className="border-e border-white/10 px-1 py-2.5 text-center first:border-e-0 sm:py-3">
+          <strong className={`block text-xl font-extrabold tracking-[-0.04em] sm:text-2xl ${status === "Present" ? "text-[#6FDC9A]" : status === "Late" ? "text-[#FFD35C]" : status === "Absent" ? "text-[#FF7B70]" : "text-[#D7E1E6]"}`}>{logs.filter((log) => log.status === status).length}</strong>
+          <span className={`mt-0.5 block text-[10px] font-extrabold sm:text-xs ${status === "Present" ? "text-[#6FDC9A]" : status === "Late" ? "text-[#FFD35C]" : status === "Absent" ? "text-[#FF7B70]" : "text-[#D7E1E6]"}`}>{statusLabels[status]}</span>
         </article>
       ))}
     </section>
@@ -174,19 +175,19 @@ export function CourseCard({
   const [menuOpen, setMenuOpen] = useState(false);
 
   return (
-    <article className={`soft-card flex h-full flex-col rounded-[18px] border bg-[#FFFFFF] p-3 sm:rounded-[20px] sm:p-5 ${course.active ? "border-[#D5E4EA]" : "border-[#DCE9EE] opacity-70"}`}>
+    <article className={`flex h-full flex-col rounded-[20px] border p-4 text-white shadow-[0_16px_36px_rgba(0,24,34,0.25)] sm:p-5 ${course.active ? "border-[#46A9C7]/60 bg-gradient-to-br from-[#1680A2] to-[#0E6787]" : "border-white/15 bg-[#0B465A] opacity-70"}`}>
       <div className="mb-3 flex items-start justify-between gap-3 sm:mb-5 sm:gap-4">
         <div>
           <div className="mb-2 flex flex-wrap items-center gap-2">
             <h3 dir="auto" className="text-lg font-extrabold tracking-[-0.025em] sm:text-xl">{course.name}</h3>
-            {!course.active && <span className="rounded-full bg-[#EAF0F4] px-2 py-1 text-[10px] font-extrabold text-[#4D6470]">לא פעיל</span>}
+            {!course.active && <span className="rounded-full bg-white/15 px-2 py-1 text-[10px] font-extrabold text-white/75">לא פעיל</span>}
           </div>
-          <p dir="auto" className="line-clamp-2 text-sm font-medium leading-5 text-[#5B7180] sm:leading-6">{course.description || "אין עדיין תיאור"}</p>
+          <p dir="auto" className="line-clamp-2 text-sm font-medium leading-5 text-white/75 sm:leading-6">{course.description || "אין עדיין תיאור"}</p>
         </div>
         <div className="flex shrink-0 items-start gap-2">
-          <span className="grid h-10 w-10 place-items-center rounded-full bg-[#DDEFF2] text-xs font-extrabold text-[#0F4C5C] sm:h-12 sm:w-12 sm:text-sm">{studentCount}</span>
+          <span className="grid h-10 w-10 place-items-center rounded-full bg-white/15 text-xs font-extrabold text-white ring-1 ring-white/20 sm:h-12 sm:w-12 sm:text-sm">{studentCount}</span>
           <div className="relative">
-            <button type="button" onClick={() => setMenuOpen((open) => !open)} aria-expanded={menuOpen} aria-label={`פעולות נוספות עבור ${course.name}`} className="grid h-10 w-10 place-items-center rounded-xl text-[#5B7180] hover:bg-[#F4FAFC] hover:text-[#0F4C5C]">
+            <button type="button" onClick={() => setMenuOpen((open) => !open)} aria-expanded={menuOpen} aria-label={`פעולות נוספות עבור ${course.name}`} className="grid h-10 w-10 place-items-center rounded-xl text-white/75 hover:bg-white/10 hover:text-white">
               <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5 fill-current"><circle cx="5" cy="12" r="1.8" /><circle cx="12" cy="12" r="1.8" /><circle cx="19" cy="12" r="1.8" /></svg>
             </button>
             {menuOpen && (
@@ -198,15 +199,15 @@ export function CourseCard({
           </div>
         </div>
       </div>
-      <div className="mb-3 flex items-center justify-between border-t border-[#DCE9EE] pt-2 text-xs font-bold text-[#5B7180] sm:mb-4 sm:pt-3">
-        <button type="button" onClick={onViewStudents} className="rounded-lg px-1 py-2 text-[#0F4C5C] underline-offset-4 hover:underline">{studentCount} {studentCount === 1 ? "תלמיד פעיל" : "תלמידים פעילים"}</button>
-        <span className={startedToday ? "text-[#276749]" : "text-[#5B7180]"}>{startedToday ? "התחילה היום" : "לא התחילה"}</span>
+      <div className="mb-3 flex items-center justify-between border-t border-white/15 pt-2 text-xs font-bold text-white/75 sm:mb-4 sm:pt-3">
+        <button type="button" onClick={onViewStudents} className="rounded-lg px-1 py-2 text-white underline-offset-4 hover:underline">{studentCount} {studentCount === 1 ? "תלמיד פעיל" : "תלמידים פעילים"}</button>
+        <span className={startedToday ? "text-[#9CE4B8]" : "text-white/65"}>{startedToday ? "התחילה היום" : "לא התחילה"}</span>
       </div>
       <div className="mt-auto grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
-        <button type="button" disabled={!course.active} onClick={onStart} className="min-h-11 whitespace-nowrap rounded-xl bg-[#0F4C5C] px-3 text-sm font-extrabold text-white transition hover:bg-[#0B3B49] disabled:cursor-not-allowed disabled:bg-[#9FB6BF] sm:min-h-12 sm:rounded-2xl">
+        <button type="button" disabled={!course.active} onClick={onStart} className="min-h-11 whitespace-nowrap rounded-xl bg-white px-3 text-sm font-extrabold text-[#073B4C] transition hover:bg-[#EAF3F6] disabled:cursor-not-allowed disabled:bg-white/35 disabled:text-white/70 sm:min-h-12 sm:rounded-2xl">
           {startedToday ? "פתיחת נוכחות" : "התחלת נוכחות"}
         </button>
-        <button type="button" onClick={onEdit} aria-label={`עריכת ${course.name}`} className="hidden min-h-12 rounded-2xl border border-[#D5E4EA] px-3 text-sm font-bold text-[#0F4C5C] hover:bg-[#F4FAFC] sm:block">עריכה</button>
+        <button type="button" onClick={onEdit} aria-label={`עריכת ${course.name}`} className="hidden min-h-12 rounded-2xl border border-white/30 px-3 text-sm font-bold text-white hover:bg-white/10 sm:block">עריכה</button>
       </div>
     </article>
   );
@@ -230,9 +231,9 @@ export function AttendanceRow({
 
   useEffect(() => setNotes(log.notes ?? ""), [log.notes]);
   return (
-    <li className="rounded-2xl border border-[#DCE9EE] bg-[#F4FAFC] p-2.5 sm:p-3">
+    <li className="rounded-2xl border border-[#DCE9EE] bg-white p-2.5 shadow-[0_6px_18px_rgba(0,38,52,0.06)] sm:p-3">
       <div className="flex items-center gap-2 sm:gap-2.5">
-        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#DDEFF2] text-xs font-extrabold text-[#0F4C5C]" aria-hidden="true">{initials}</span>
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#EAF0F4] text-xs font-extrabold text-[#073B4C]" aria-hidden="true">{initials}</span>
         <div className="min-w-0 flex-1">
           <p dir="auto" className="truncate text-sm font-extrabold">{student.name}</p>
           <p className="mt-0.5 text-[11px] font-semibold text-[#5B7180] sm:text-xs">סומן בשעה {log.time}</p>
@@ -292,8 +293,9 @@ export function Modal({ title, onClose, children }: { title: string; onClose: ()
   }, [onClose]);
 
   return (
-    <div className="fixed inset-0 z-50 grid items-end bg-[#102A34]/45 p-0 backdrop-blur-[2px] sm:place-items-center sm:p-5" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose(); }}>
-      <section role="dialog" aria-modal="true" aria-labelledby="modal-title" className="max-h-[92svh] w-full overflow-y-auto rounded-t-[24px] bg-[#FFFFFF] p-5 shadow-[0_20px_60px_rgba(19,69,84,0.16)] sm:max-w-lg sm:rounded-[24px] sm:p-6">
+    <div className="fixed inset-0 z-50 grid items-end bg-[#001B25]/70 p-0 backdrop-blur-[3px] sm:place-items-center sm:p-5" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose(); }}>
+      <section role="dialog" aria-modal="true" aria-labelledby="modal-title" className="max-h-[92svh] w-full overflow-y-auto rounded-t-[26px] bg-white p-5 pt-3 shadow-[0_24px_70px_rgba(0,18,27,0.4)] sm:max-w-lg sm:rounded-[26px] sm:p-6">
+        <span className="mx-auto mb-3 block h-1 w-12 rounded-full bg-[#CAD3D8] sm:hidden" aria-hidden="true" />
         <div className="mb-5 flex items-center justify-between gap-4">
           <h2 id="modal-title" className="text-xl font-extrabold tracking-[-0.025em]">{title}</h2>
           <button type="button" onClick={onClose} aria-label="סגירת החלון" className="grid h-11 w-11 place-items-center rounded-full border border-[#D5E4EA] text-lg font-bold text-[#5B7180] hover:bg-[#F4FAFC]">×</button>

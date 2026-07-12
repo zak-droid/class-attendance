@@ -74,9 +74,9 @@ export function AuthScreen() {
 
 function AuthShell({ children }: { children: React.ReactNode }) {
   return (
-    <main lang="he" dir="rtl" className="app-bg grid min-h-[100svh] place-items-center bg-[#EAF3F6] p-4 text-right">
-      <section className="w-full max-w-md rounded-[24px] border border-[#D5E4EA] bg-[#FFFFFF] p-6 shadow-[0_20px_60px_rgba(19,69,84,0.12)] sm:p-8">
-        <div className="mb-6 grid h-14 w-14 place-items-center rounded-2xl bg-[#0F4C5C] text-sm font-extrabold text-white">נכ</div>
+    <main lang="he" dir="rtl" className="app-bg grid min-h-[100svh] place-items-center p-4 text-right">
+      <section className="w-full max-w-md rounded-[26px] border border-white/15 bg-white p-6 shadow-[0_26px_80px_rgba(0,18,27,0.4)] sm:p-8">
+        <div className="mb-6 grid h-14 w-14 place-items-center rounded-2xl bg-[#073B4C] text-sm font-extrabold text-white shadow-[0_10px_24px_rgba(7,59,76,0.25)]">נכ</div>
         {children}
       </section>
     </main>

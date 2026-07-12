@@ -12,10 +12,10 @@ test("production build contains the phone-accessible app", async () => {
   ]);
   assert.match(html, /<html lang="he" dir="rtl">/i);
   assert.match(html, /<title>ניהול נוכחות<\/title>/i);
-  assert.match(html, /<meta name="theme-color" content="#eaf3f6"/i);
+  assert.match(html, /<meta name="theme-color" content="#073b4c"/i);
   assert.match(html, /fonts\.googleapis\.com\/css2\?family=Heebo:wght@400;500;600;700;800&display=swap/i);
   assert.match(globalCss, /font-family:\s*Heebo,\s*"Noto Sans Hebrew",\s*"Segoe UI",\s*Arial,\s*sans-serif/);
-  assert.match(globalCss, /--background:\s*#eaf3f6/);
+  assert.match(globalCss, /--background:\s*#073b4c/);
   assert.match(globalCss, /rgba\(19, 69, 84, 0\.1\)/);
   assert.match(html, /assets\/index-/);
 });
@@ -39,7 +39,7 @@ test("shared data uses secure sign-in, duplicate prevention, and realtime sync",
   assert.match(components, /Absent:\s*"נעדר"/);
   assert.match(components, /Excused:\s*"מוצדק"/);
   assert.match(components, /Present:\s*"bg-\[#E7F2E9\] text-\[#276749\] border-\[#CBE3D0\]"/);
-  assert.match(components, /bg-\[#FFFFFF\]\/95/);
+  assert.match(components, /bg-white/);
   assert.match(page, /bg-\[#0F4C5C\]/);
   assert.match(page, /border-\[#D5E4EA\] bg-\[#FFFFFF\]/);
   assert.match(components, /new Intl\.DateTimeFormat\("he-IL"/);
@@ -51,9 +51,9 @@ test("shared data uses secure sign-in, duplicate prevention, and realtime sync",
   assert.match(components, /const \[menuOpen, setMenuOpen\] = useState\(false\)/);
   assert.match(components, /const \[noteOpen, setNoteOpen\] = useState\(false\)/);
   assert.match(components, /הוספת הערה/);
-  assert.match(components, /pb-\[calc\(6\.5rem\+env\(safe-area-inset-bottom\)\)\]/);
+  assert.match(components, /pb-\[calc\(6rem\+env\(safe-area-inset-bottom\)\)\]/);
   assert.match(components, /grid grid-cols-4/);
-  assert.match(components, /px-4 pb-1 pt-2/);
+  assert.match(components, /bg-\[#073B4C\]/);
   assert.match(page, /function StudentActions/);
   assert.match(page, /onEdit\(\);.*?>עריכה/s);
   assert.match(page, /student\.active \? "השבתה" : "הפעלה"/);
