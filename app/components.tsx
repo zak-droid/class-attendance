@@ -175,7 +175,7 @@ export function CourseCard({
   const [menuOpen, setMenuOpen] = useState(false);
 
   return (
-    <article className={`flex h-full flex-col rounded-[20px] border p-4 text-white shadow-[0_16px_36px_rgba(0,24,34,0.25)] sm:p-5 ${course.active ? "border-white/20 bg-[#176B87]" : "border-white/15 bg-[#073B4C] opacity-70"}`}>
+    <article className={`flex h-full flex-col rounded-[20px] border p-4 text-white shadow-[0_16px_36px_rgba(0,24,34,0.25)] sm:p-5 ${course.active ? "border-[#46A9C7]/60 bg-gradient-to-br from-[#1680A2] to-[#0E6787]" : "border-white/15 bg-[#073B4C] opacity-70"}`}>
       <div className="mb-3 flex items-start justify-between gap-3 sm:mb-5 sm:gap-4">
         <div>
           <div className="mb-2 flex flex-wrap items-center gap-2">
