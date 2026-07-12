@@ -246,7 +246,7 @@ export default function Home() {
               <p className="mt-1 text-sm font-medium text-white/65">התחילו נוכחות בלחיצה אחת. כל התלמידים מתחילים כנוכחים.</p>
             </div>
             <div className="flex flex-wrap gap-2">
-              <button type="button" className={darkOutlineButton} onClick={() => setModal({ type: "course" })}>+ הוספת כיתה</button>
+              <button type="button" className={primaryButton} onClick={() => setModal({ type: "course" })}>+ הוספת כיתה</button>
               <button type="button" className={darkOutlineButton} disabled={!data.courses.length} onClick={() => setModal({ type: "student" })}>+ הוספת תלמיד</button>
               <button type="button" className="min-h-12 rounded-xl px-3 text-sm font-extrabold text-[#B8D8E6] hover:bg-white/10 disabled:opacity-45" disabled={!data.courses.length} onClick={() => setModal({ type: "import" })}>ייבוא תלמידים</button>
             </div>
@@ -281,21 +281,21 @@ export default function Home() {
           <button type="button" onClick={() => { setActiveSessionCourseId(null); setSessionReadOnly(false); }} className="mb-3 min-h-10 rounded-xl border border-white/20 px-3 text-sm font-bold text-[#B8D8E6]">חזרה להיום</button>
           <div className="flex items-end justify-between gap-3">
             <div><p className="text-xs font-semibold text-[#B8D8E6]">{sessionReadOnly ? "סיכום נוכחות" : "נוכחות בתהליך"}</p><h2 dir="auto" className="mt-1 text-2xl font-bold">{activeSessionCourse.name}</h2></div>
-            <span className="rounded-full border border-white/15 bg-[#005580] px-3 py-1.5 text-xs font-bold">{sessionReadOnly ? "הושלמה" : "בתהליך"}</span>
+            <span className="rounded-full border border-white/[0.12] bg-white/[0.07] px-3 py-1.5 text-xs font-bold">{sessionReadOnly ? "הושלמה" : "בתהליך"}</span>
           </div>
           <div className="mt-4"><SummaryCards logs={activeSessionLogs} /></div>
-          {!sessionReadOnly && <p className="mt-3 rounded-xl border border-white/15 bg-[#005580] px-3 py-2.5 text-sm font-semibold text-white">כל התלמידים סומנו כנוכחים. סמנו רק חריגים.</p>}
-          <div className="mt-4 inline-flex rounded-xl border border-white/15 bg-[#005580] p-1" role="group" aria-label="סינון רשימת הנוכחות">
+          {!sessionReadOnly && <p className="glass-panel mt-4 rounded-xl px-3 py-2.5 text-sm font-semibold text-white">כל התלמידים סומנו כנוכחים. סמנו רק חריגים.</p>}
+          <div className="mt-5 inline-flex rounded-xl border border-white/[0.12] bg-white/[0.05] p-1" role="group" aria-label="סינון רשימת הנוכחות">
             <button type="button" onClick={() => setTodayFilter("all")} className={`min-h-10 rounded-lg px-3 text-xs font-extrabold ${todayFilter === "all" ? "bg-white text-[#002B45]" : "text-[#B8D8E6]"}`}>כל התלמידים</button>
             <button type="button" onClick={() => setTodayFilter("exceptions")} className={`min-h-10 rounded-lg px-3 text-xs font-extrabold ${todayFilter === "exceptions" ? "bg-white text-[#002B45]" : "text-[#B8D8E6]"}`}>חריגים בלבד</button>
           </div>
-          <ul className="mt-4 overflow-hidden rounded-2xl bg-white shadow-[0_16px_40px_rgba(0,18,27,0.25)]">
+          <ul className="mt-5 overflow-hidden rounded-2xl bg-white shadow-[0_18px_44px_rgba(0,18,27,0.22)]">
             {activeSessionLogs.filter((log) => todayFilter === "all" || log.status !== "Present" || Boolean(log.notes)).map((log) => {
               const student = studentsById.get(log.studentId);
               return student ? <AttendanceStudentRow key={log.id} log={log} student={student} onOpen={() => setSelectedAttendanceId(log.id)} /> : null;
             })}
           </ul>
-          {todayFilter === "exceptions" && !activeSessionLogs.some((log) => log.status !== "Present" || Boolean(log.notes)) && <p className="mt-4 rounded-2xl border border-white/15 bg-[#005580] p-5 text-center text-sm font-semibold text-[#B8D8E6]">אין חריגים. כל התלמידים מסומנים כנוכחים.</p>}
+          {todayFilter === "exceptions" && !activeSessionLogs.some((log) => log.status !== "Present" || Boolean(log.notes)) && <p className="glass-panel mt-5 rounded-2xl p-6 text-center text-sm font-semibold text-[#B8D8E6]">אין חריגים. כל התלמידים מסומנים כנוכחים.</p>}
           {!sessionReadOnly && <FinishAttendanceBar logs={activeSessionLogs} onFinish={() => { setCompletedCourseIds((current) => new Set(current).add(activeSessionCourseId)); setActiveSessionCourseId(null); notify("הנוכחות הושלמה"); }} />}
         </section>
       )}
@@ -307,15 +307,15 @@ export default function Home() {
             <p className="mt-1 text-sm font-medium leading-6 text-[#B8D8E6]">בחרו כיתה. כל התלמידים יסומנו כנוכחים כברירת מחדל.</p>
           </div>
           {data.courses.some((course) => course.active) ? (
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-              {data.courses.filter((course) => course.active).map((course) => {
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {data.courses.filter((course) => course.active).map((course, index) => {
                 const studentCount = data.students.filter((student) => student.courseId === course.id && student.active).length;
                 const startedToday = todayLogs.some((log) => log.courseId === course.id);
                 const completed = completedCourseIds.has(course.id);
                 const stateLabel = completed ? "הושלמה" : startedToday ? "בתהליך" : "לא התחילה";
                 const actionLabel = completed ? "צפייה בסיכום" : startedToday ? "המשך נוכחות" : "התחלת נוכחות";
                 return (
-                  <article key={course.id} className="rounded-2xl border border-white/15 bg-[#005580] p-4 shadow-[0_14px_34px_rgba(0,18,27,0.24)]">
+                  <article key={course.id} className="glass-panel rounded-[20px] p-4 sm:p-5">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0 flex-1">
                         <h3 dir="auto" className="truncate text-lg font-extrabold">{course.name}</h3>
@@ -330,7 +330,7 @@ export default function Home() {
                         if (!startedToday) void startAttendance(course.id);
                         else { setTodayFilter("all"); setSessionReadOnly(completed); setActiveSessionCourseId(course.id); }
                       }}
-                      className="mt-4 min-h-12 w-full rounded-xl bg-[#00A6A6] px-4 text-sm font-extrabold text-white transition hover:bg-[#00B3A4] disabled:cursor-not-allowed disabled:bg-white/15 disabled:text-white/50"
+                      className={`mt-5 min-h-12 w-full rounded-xl px-4 text-sm font-extrabold transition disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/[0.45] ${index === 0 ? "bg-[#00A6A6] text-white hover:bg-[#00B3A4]" : "border border-white/[0.18] bg-white/[0.09] text-white hover:bg-white/[0.14]"}`}
                     >
                       {studentCount === 0 ? "אין תלמידים פעילים" : actionLabel}
                     </button>
@@ -352,15 +352,19 @@ export default function Home() {
               <p className="mt-1 text-sm font-medium text-white/65">ניהול רשימות התלמידים בלי למחוק נוכחות מהעבר.</p>
             </div>
           </div>
-          <div className="dark-filter mb-4 grid gap-3 rounded-[18px] border border-white/20 bg-white/[0.05] p-3 sm:grid-cols-[1fr_220px] sm:p-4">
-      …109 tokens truncated…ue)} className={fieldClass}>
+          <div className="dark-filter glass-panel mb-5 grid gap-4 rounded-[18px] p-4 sm:grid-cols-[1fr_220px]">
+            <label className="text-xs font-extrabold text-[#475569]">חיפוש
+              <input value={studentSearch} onChange={(event) => setStudentSearch(event.target.value)} placeholder="שם או אימייל" className={fieldClass} />
+            </label>
+            <label className="text-xs font-extrabold text-[#475569]">כיתה
+              <select value={studentCourse} onChange={(event) => setStudentCourse(event.target.value)} className={fieldClass}>
                 <option value="all">כל הכיתות</option>
                 {data.courses.map((course) => <option dir="auto" key={course.id} value={course.id}>{course.name}</option>)}
               </select>
             </label>
           </div>
           {filteredStudents.length ? (
-            <div className="overflow-hidden rounded-[20px] border border-[#CBD5E1] bg-white text-[#0F172A] shadow-[0_16px_36px_rgba(0,24,34,0.16)]">
+            <div className="overflow-hidden rounded-[20px] border border-white/40 bg-white text-[#0F172A] shadow-[0_18px_44px_rgba(0,18,27,0.22)]">
               <ul className="divide-y divide-[#CBD5E1]">
                 {filteredStudents.map((student) => (
                   <li key={student.id} className="flex items-center gap-2.5 p-3 sm:gap-3 sm:p-4">
@@ -393,7 +397,7 @@ export default function Home() {
             </div>
             <button type="button" className={darkOutlineButton} disabled={!historyLogs.length} onClick={exportCsv}>ייצוא CSV</button>
           </div>
-          <div className="dark-filter mb-4 grid gap-3 rounded-[18px] border border-white/20 bg-white/[0.05] p-3 sm:grid-cols-2 sm:p-4">
+          <div className="dark-filter glass-panel mb-5 grid gap-4 rounded-[18px] p-4 sm:grid-cols-2">
             <label className="text-xs font-extrabold text-[#475569]">תאריך
               <input type="date" value={historyDate} onChange={(event) => setHistoryDate(event.target.value)} className={fieldClass} />
             </label>
@@ -685,4 +689,3 @@ function StudentForm({ student, courses, onClose, onSave }: { student?: Student;
     </Modal>
   );
 }
-
