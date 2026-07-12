@@ -84,7 +84,7 @@ textarea:focus-visible {
 
 .bottom-nav-glass {
   border: 1px solid rgba(255, 255, 255, 0.12);
-  background: linear-gradient(135deg, rgba(0, 43, 69, 0.74), rgba(0, 85, 128, 0.34));
+  background: linear-gradient(135deg, rgba(0, 43, 69, 0.96), rgba(0, 85, 128, 0.9));
   box-shadow: 0 16px 38px rgba(0, 18, 27, 0.34);
   backdrop-filter: blur(20px);
 }
