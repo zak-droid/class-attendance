@@ -89,12 +89,12 @@ export function Layout({
           </div>
         </aside>
 
-        <div className="min-w-0 flex-1 pb-[calc(6rem+env(safe-area-inset-bottom))] lg:pb-10">
-          <header className="relative bg-transparent px-5 pb-4 pt-6 text-white sm:px-6 sm:pb-5 sm:pt-7 lg:px-10 lg:pb-6 lg:pt-9">
+        <div className="min-w-0 flex-1 pb-[calc(7.25rem+env(safe-area-inset-bottom))] lg:pb-10">
+          <header className="relative bg-transparent px-5 pb-3 pt-4 text-white sm:px-6 sm:pb-4 sm:pt-6 lg:px-10 lg:pb-6 lg:pt-9">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <h1 className="text-[28px] font-extrabold tracking-[-0.04em] sm:text-[32px]">{title}</h1>
-                {tab === "today" && <time className="mt-1.5 block text-sm font-semibold text-white/75">{dateLabel}</time>}
+                <h1 className="text-[26px] font-extrabold tracking-[-0.04em] sm:text-[32px]">{title}</h1>
+                {tab === "today" && <time className="mt-1 block text-sm font-semibold text-white/75">{dateLabel}</time>}
               </div>
               <button type="button" onClick={() => setMobileMenuOpen((open) => !open)} aria-expanded={mobileMenuOpen} aria-label="פתיחת תפריט" className="grid h-11 w-11 place-items-center rounded-xl border border-white/15 text-white hover:bg-white/10 lg:hidden">
                 <span className="space-y-1.5" aria-hidden="true"><span className="block h-0.5 w-6 bg-current" /><span className="block h-0.5 w-6 bg-current" /><span className="block h-0.5 w-6 bg-current" /></span>
@@ -107,7 +107,7 @@ export function Layout({
               </div>
             )}
           </header>
-          <main className="px-5 pb-6 sm:px-6 sm:pb-10 lg:px-10">{children}</main>
+          <main className="px-5 pb-8 sm:px-6 sm:pb-10 lg:px-10">{children}</main>
         </div>
       </div>
       {!attendanceActive && <BottomNav tab={tab} onTabChange={onTabChange} />}
@@ -119,7 +119,7 @@ export function BottomNav({ tab, onTabChange }: { tab: AppTab; onTabChange: (tab
   return (
     <nav
       aria-label="ניווט ראשי"
-      className="bottom-nav-glass fixed inset-x-4 bottom-3 z-40 grid grid-cols-4 rounded-[26px] px-2 pb-[calc(6px+env(safe-area-inset-bottom))] pt-1.5 lg:hidden"
+      className="bottom-nav-glass fixed inset-x-5 bottom-4 z-40 grid grid-cols-4 rounded-[24px] px-2 pb-[calc(4px+env(safe-area-inset-bottom))] pt-1 lg:hidden"
     >
       {navItems.map((item) => (
         <button
@@ -127,11 +127,11 @@ export function BottomNav({ tab, onTabChange }: { tab: AppTab; onTabChange: (tab
           type="button"
           onClick={() => onTabChange(item.id)}
           aria-current={tab === item.id ? "page" : undefined}
-          className={`mx-1 flex min-h-[58px] flex-col items-center justify-center text-[11px] font-extrabold transition active:scale-[0.97] ${
+          className={`mx-0.5 flex min-h-[52px] flex-col items-center justify-center text-[11px] font-extrabold transition active:scale-[0.97] ${
             tab === item.id ? "text-white" : "text-[#B8D8E6]"
           }`}
         >
-          <span className={`mb-0.5 grid h-9 w-9 place-items-center rounded-full transition ${tab === item.id ? "bg-white/[0.14] text-white ring-1 ring-white/[0.18]" : ""}`}><NavIcon tab={item.id} className="h-[18px] w-[18px]" /></span>
+          <span className={`mb-0.5 grid h-8 w-8 place-items-center rounded-full transition ${tab === item.id ? "bg-white/[0.14] text-white ring-1 ring-white/[0.18]" : ""}`}><NavIcon tab={item.id} className="h-4 w-4" /></span>
           {item.label}
         </button>
       ))}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { AuthScreen } from "./AuthScreen";
 import {
@@ -50,6 +50,7 @@ export default function Home() {
   const [sessionReadOnly, setSessionReadOnly] = useState(false);
   const [selectedAttendanceId, setSelectedAttendanceId] = useState<string | null>(null);
   const [completedCourseIds, setCompletedCourseIds] = useState<Set<string>>(() => new Set());
+  const [moreView, setMoreView] = useState<"menu" | "courses">("menu");
 
   const refreshData = useCallback(async () => {
     setDataLoading(true);
@@ -228,7 +229,10 @@ export default function Home() {
   return (
     <Layout
       tab={tab}
-      onTabChange={setTab}
+      onTabChange={(nextTab) => {
+        if (nextTab === "more") setMoreView("menu");
+        setTab(nextTab);
+      }}
       userEmail={session.user.email ?? "מורה"}
       onSignOut={() => { if (supabase) void supabase.auth.signOut(); }}
       attendanceActive={Boolean(activeSessionCourseId && !sessionReadOnly)}
@@ -239,41 +243,58 @@ export default function Home() {
         </div>
       )}
       {tab === "more" && (
-        <section className="min-h-[calc(100svh-10rem)] pb-4 text-white">
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-3 sm:mb-5">
-            <div>
-              <h2 className="sr-only">הכיתות שלכם</h2>
-              <p className="mt-1 text-sm font-medium text-white/65">התחילו נוכחות בלחיצה אחת. כל התלמידים מתחילים כנוכחים.</p>
+        moreView === "menu" ? (
+          <section className="min-h-[calc(100svh-9rem)] pb-6 text-white">
+            <p className="mb-5 max-w-lg text-sm font-medium leading-6 text-[#B8D8E6]">כלי הניהול והנתונים נמצאים כאן, כדי שמסך היום יישאר מהיר ופשוט בזמן השיעור.</p>
+            <div className="space-y-6">
+              <MoreGroup title="ניהול">
+                <MoreAction title="ניהול כיתות" description={`${data.courses.length} ${data.courses.length === 1 ? "כיתה" : "כיתות"} במערכת`} onClick={() => setMoreView("courses")} />
+                <MoreAction title="הוספת כיתה" description="יצירת כיתה חדשה" onClick={() => setModal({ type: "course" })} />
+                <MoreAction title="הוספת תלמיד" description="הוספת תלמיד לכיתה קיימת" disabled={!data.courses.length} onClick={() => setModal({ type: "student" })} />
+              </MoreGroup>
+              <MoreGroup title="נתונים">
+                <MoreAction title="ייבוא תלמידים" description="הדבקת רשימה מ־Excel או Google Sheets" disabled={!data.courses.length} onClick={() => setModal({ type: "import" })} />
+                <MoreAction title="דוחות וייצוא" description="צפייה בהיסטוריה וייצוא CSV" onClick={() => setTab("history")} />
+              </MoreGroup>
+              <MoreGroup title="הגדרות">
+                <MoreAction title="הגדרות האפליקציה" description="אפשרויות נוספות יתווספו בהמשך" disabled badge="בקרוב" />
+              </MoreGroup>
             </div>
-            <div className="flex flex-wrap gap-2">
+          </section>
+        ) : (
+          <section className="min-h-[calc(100svh-9rem)] pb-6 text-white">
+            <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <button type="button" onClick={() => setMoreView("menu")} className="mb-2 min-h-10 rounded-xl border border-white/20 px-3 text-sm font-bold text-[#B8D8E6] hover:bg-white/[0.07]">חזרה לעוד</button>
+                <h2 className="text-xl font-extrabold">ניהול כיתות</h2>
+                <p className="mt-1 text-sm font-medium text-[#B8D8E6]">עריכה, הפעלה והשבתה של כיתות.</p>
+              </div>
               <button type="button" className={primaryButton} onClick={() => setModal({ type: "course" })}>+ הוספת כיתה</button>
-              <button type="button" className={darkOutlineButton} disabled={!data.courses.length} onClick={() => setModal({ type: "student" })}>+ הוספת תלמיד</button>
-              <button type="button" className="min-h-12 rounded-xl px-3 text-sm font-extrabold text-[#B8D8E6] hover:bg-white/10 disabled:opacity-45" disabled={!data.courses.length} onClick={() => setModal({ type: "import" })}>ייבוא תלמידים</button>
             </div>
-          </div>
-          {data.courses.length ? (
-            <div className="grid gap-3 sm:gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {data.courses.map((course) => {
-                const studentCount = data.students.filter((student) => student.courseId === course.id && student.active).length;
-                const startedToday = todayLogs.some((log) => log.courseId === course.id);
-                return (
-                  <CourseCard
-                    key={course.id}
-                    course={course}
-                    studentCount={studentCount}
-                    startedToday={startedToday}
-                    onStart={() => startAttendance(course.id)}
-                    onEdit={() => setModal({ type: "course", course })}
-                    onToggleActive={() => toggleCourse(course.id)}
-                    onViewStudents={() => { setStudentCourse(course.id); setTab("students"); }}
-                  />
-                );
-              })}
-            </div>
-          ) : (
-            <EmptyState title="אין עדיין כיתות" body="הוסיפו את הכיתה הראשונה, ולאחר מכן הוסיפו אליה תלמידים." action="הוספת כיתה" onAction={() => setModal({ type: "course" })} />
-          )}
-        </section>
+            {data.courses.length ? (
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                {data.courses.map((course) => {
+                  const studentCount = data.students.filter((student) => student.courseId === course.id && student.active).length;
+                  const startedToday = todayLogs.some((log) => log.courseId === course.id);
+                  return (
+                    <CourseCard
+                      key={course.id}
+                      course={course}
+                      studentCount={studentCount}
+                      startedToday={startedToday}
+                      onStart={() => startAttendance(course.id)}
+                      onEdit={() => setModal({ type: "course", course })}
+                      onToggleActive={() => toggleCourse(course.id)}
+                      onViewStudents={() => { setStudentCourse(course.id); setTab("students"); }}
+                    />
+                  );
+                })}
+              </div>
+            ) : (
+              <EmptyState title="אין עדיין כיתות" body="הוסיפו את הכיתה הראשונה, ולאחר מכן הוסיפו אליה תלמידים." action="הוספת כיתה" onAction={() => setModal({ type: "course" })} />
+            )}
+          </section>
+        )
       )}
 
       {tab === "today" && activeSessionCourseId && activeSessionCourse && (
@@ -315,7 +336,7 @@ export default function Home() {
                 const stateLabel = completed ? "הושלמה" : startedToday ? "בתהליך" : "לא התחילה";
                 const actionLabel = completed ? "צפייה בסיכום" : startedToday ? "המשך נוכחות" : "התחלת נוכחות";
                 return (
-                  <article key={course.id} className="glass-panel rounded-[20px] p-4 sm:p-5">
+                  <article key={course.id} className={`rounded-[20px] p-4 sm:p-5 ${index === 0 ? "glass-panel" : "border border-white/[0.1] bg-white/[0.035] shadow-[0_12px_30px_rgba(0,18,27,0.14)]"}`}>
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0 flex-1">
                         <h3 dir="auto" className="truncate text-lg font-extrabold">{course.name}</h3>
@@ -496,6 +517,42 @@ function EmptyState({ title, body, action, onAction }: { title: string; body: st
       <p className="mx-auto mt-2 max-w-md text-sm font-medium leading-6 text-[#475569]">{body}</p>
       {action && onAction && <button type="button" onClick={onAction} className={`${primaryButton} mt-5`}>{action}</button>}
     </section>
+  );
+}
+
+function MoreGroup({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <section aria-labelledby={`more-${title}`}>
+      <h2 id={`more-${title}`} className="mb-2 px-1 text-sm font-extrabold text-[#B8D8E6]">{title}</h2>
+      <div className="glass-panel divide-y divide-white/10 overflow-hidden rounded-[20px]">{children}</div>
+    </section>
+  );
+}
+
+function MoreAction({
+  title,
+  description,
+  onClick,
+  disabled = false,
+  badge,
+}: {
+  title: string;
+  description: string;
+  onClick?: () => void;
+  disabled?: boolean;
+  badge?: string;
+}) {
+  return (
+    <button type="button" onClick={onClick} disabled={disabled} className="flex min-h-[68px] w-full items-center gap-3 px-4 py-3 text-right text-white transition hover:bg-white/[0.06] disabled:cursor-default disabled:opacity-55">
+      <span className="min-w-0 flex-1">
+        <span className="flex flex-wrap items-center gap-2">
+          <strong className="text-base font-extrabold">{title}</strong>
+          {badge && <span className="rounded-full border border-white/15 bg-white/[0.08] px-2 py-0.5 text-[10px] font-bold text-[#B8D8E6]">{badge}</span>}
+        </span>
+        <span className="mt-0.5 block text-xs font-medium text-[#B8D8E6]">{description}</span>
+      </span>
+      {!disabled && <span className="text-lg text-[#B8D8E6]" aria-hidden="true">←</span>}
+    </button>
   );
 }
 

@@ -56,7 +56,7 @@ test("shared data uses secure sign-in, duplicate prevention, and realtime sync",
   assert.match(components, /function AttendanceStudentRow/);
   assert.match(components, /function FinishAttendanceBar/);
   assert.match(components, /הוספת הערה/);
-  assert.match(components, /pb-\[calc\(6rem\+env\(safe-area-inset-bottom\)\)\]/);
+  assert.match(components, /pb-\[calc\(7\.25rem\+env\(safe-area-inset-bottom\)\)\]/);
   assert.match(components, /grid grid-cols-4/);
   assert.match(components, /bg-\[#002B45\]/);
   assert.match(page, /function StudentActions/);
@@ -66,6 +66,10 @@ test("shared data uses secure sign-in, duplicate prevention, and realtime sync",
   assert.doesNotMatch(page, /<table/);
   assert.match(page, /useState<AppTab>\("today"\)/);
   assert.match(page, /מה מתחילים עכשיו\?/);
+  assert.match(page, /moreView === "menu"/);
+  assert.match(page, /title="ניהול כיתות"/);
+  assert.match(page, /title="ייבוא תלמידים"/);
+  assert.match(page, /title="דוחות וייצוא"/);
   assert.match(page, /חריגים בלבד/);
   assert.match(page, /log\.status !== "Present"/);
   assert.match(page, /Boolean\(log\.notes\)/);
@@ -111,4 +115,3 @@ test("bulk student import parses rows, validates emails, and skips course duplic
   assert.equal(preview.invalid.length, 1);
   assert.equal(preview.invalid[0].reason, "כתובת האימייל אינה תקינה");
 });
-
