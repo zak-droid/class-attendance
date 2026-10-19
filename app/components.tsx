@@ -3,22 +3,12 @@
 import { useEffect, useState, type ReactNode } from "react";
 import type { AppTab, AttendanceLog, AttendanceStatus, Course, Student } from "./types";
 
-const navItems: { id: AppTab; label: string }[] = [
-  { id: "today", label: "היום" },
-  { id: "students", label: "תלמידים" },
-  { id: "history", label: "היסטוריה" },
-  { id: "more", label: "עוד" },
-];
-
-function NavIcon({ tab, className = "h-4 w-4" }: { tab: AppTab; className?: string }) {
-  const icon: Record<AppTab, ReactNode> = {
-    today: <><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M16 3v4M8 3v4M3 10h18M8 15l2 2 5-5" /></>,
-    students: <><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" /></>,
-    history: <><path d="M3 12a9 9 0 1 0 3-6.7L3 8" /><path d="M3 3v5h5M12 7v5l3 2" /></>,
-    more: <><circle cx="5" cy="12" r="1.6" fill="currentColor" stroke="none" /><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none" /><circle cx="19" cy="12" r="1.6" fill="currentColor" stroke="none" /></>,
-  };
-  return <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={className}>{icon[tab]}</svg>;
-}
+export const statusLabels: Record<AttendanceStatus, string> = {
+  Present: "נוכח",
+  Late: "מאחר",
+  Absent: "נעדר",
+  Excused: "מוצדק",
+};
 
 export const statusStyles: Record<AttendanceStatus, string> = {
   Present: "bg-[#DCFCE7] text-[#166534] border-[#16A34A]/20",
@@ -27,12 +17,48 @@ export const statusStyles: Record<AttendanceStatus, string> = {
   Excused: "bg-[#DBEAFE] text-[#1E40AF] border-[#2563EB]/20",
 };
 
-export const statusLabels: Record<AttendanceStatus, string> = {
-  Present: "נוכח",
-  Late: "איחר",
-  Absent: "נעדר",
-  Excused: "מוצדק",
-};
+const navItems: Array<{ id: AppTab; label: string }> = [
+  { id: "today", label: "היום" },
+  { id: "students", label: "תלמידים" },
+  { id: "history", label: "היסטוריה" },
+  { id: "more", label: "עוד" },
+];
+
+export function NavIcon({ tab }: { tab?: AppTab } = {}) {
+  if (tab === "today") {
+    return (
+      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+        <line x1="16" y1="2" x2="16" y2="6" />
+        <line x1="8" y1="2" x2="8" y2="6" />
+        <line x1="3" y1="10" x2="21" y2="10" />
+      </svg>
+    );
+  }
+  if (tab === "students") {
+    return (
+      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+        <circle cx="9" cy="7" r="4" />
+      </svg>
+    );
+  }
+  if (tab === "history") {
+    return (
+      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <circle cx="12" cy="12" r="10" />
+        <polyline points="12 6 12 12 16 14" />
+      </svg>
+    );
+  }
+  return (
+    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <line x1="3" y1="12" x2="21" y2="12" />
+      <line x1="3" y1="6" x2="21" y2="6" />
+      <line x1="3" y1="18" x2="21" y2="18" />
+    </svg>
+  );
+}
 
 export function Layout({
   tab,
@@ -40,6 +66,7 @@ export function Layout({
   userEmail,
   onSignOut,
   attendanceActive = false,
+  title = "ניהול נוכחות",
   children,
 }: {
   tab: AppTab;
@@ -47,113 +74,110 @@ export function Layout({
   userEmail: string;
   onSignOut: () => void;
   attendanceActive?: boolean;
+  title?: string;
   children: ReactNode;
 }) {
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const title = navItems.find((item) => item.id === tab)?.label ?? "היום";
-  const dateLabel = new Intl.DateTimeFormat("he-IL", {
+  const formattedDate = new Intl.DateTimeFormat("he-IL", {
     weekday: "long",
-    month: "long",
     day: "numeric",
+    month: "long",
   }).format(new Date());
-  return (
-    <div lang="he" dir="rtl" className="app-shell min-h-[100svh] text-right text-[#0F172A]">
-      <div className="mx-auto flex min-h-[100svh] w-full max-w-[1180px]">
-        <aside className="hidden w-[226px] shrink-0 border-e border-white/10 bg-[#002B45]/[0.65] px-5 py-7 text-white backdrop-blur-xl lg:block">
-          <div className="mb-8 flex items-center gap-3">
-            <span className="grid h-11 w-11 place-items-center rounded-2xl bg-white/15 text-white ring-1 ring-white/20" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-6 w-6"><path d="M5 12l4 4L19 6" /><path d="M4 4h16v16H4z" /></svg></span>
-            <div>
-              <p className="font-extrabold tracking-[-0.02em]">ניהול נוכחות</p>
-              <p className="text-xs font-medium text-[#B8D8E6]">סביבת עבודה למורים</p>
-            </div>
-          </div>
-          <nav aria-label="ניווט ראשי" className="space-y-2">
-            {navItems.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => onTabChange(item.id)}
-                aria-current={tab === item.id ? "page" : undefined}
-                className={`flex min-h-12 w-full items-center gap-3 rounded-2xl px-3 text-right text-sm font-bold transition ${
-                  tab === item.id ? "bg-white/15 text-white ring-1 ring-white/15" : "text-[#B8D8E6] hover:bg-white/10 hover:text-white"
-                }`}
-              >
-                <span className="grid h-8 w-8 place-items-center rounded-xl border border-current/15"><NavIcon tab={item.id} /></span>
-                {item.label}
-              </button>
-            ))}
-          </nav>
-          <div className="mt-8 border-t border-white/15 pt-4">
-            <p dir="ltr" className="truncate text-left text-xs font-bold text-[#B8D8E6]">{userEmail}</p>
-            <button type="button" onClick={onSignOut} className="mt-2 min-h-10 w-full rounded-xl border border-white/20 bg-white/10 px-3 text-sm font-bold text-white hover:bg-white/20">התנתקות</button>
-          </div>
-        </aside>
 
-        <div className="min-w-0 flex-1 pb-[calc(7.25rem+env(safe-area-inset-bottom))] lg:pb-10">
-          <header className="relative bg-transparent px-5 pb-3 pt-4 text-white sm:px-6 sm:pb-4 sm:pt-6 lg:px-10 lg:pb-6 lg:pt-9">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <h1 className="text-[26px] font-extrabold tracking-[-0.04em] sm:text-[32px]">{title}</h1>
-                {tab === "today" && <time className="mt-1 block text-sm font-semibold text-white/75">{dateLabel}</time>}
-              </div>
-              <button type="button" onClick={() => setMobileMenuOpen((open) => !open)} aria-expanded={mobileMenuOpen} aria-label="פתיחת תפריט" className="grid h-11 w-11 place-items-center rounded-xl border border-white/15 text-white hover:bg-white/10 lg:hidden">
-                <span className="space-y-1.5" aria-hidden="true"><span className="block h-0.5 w-6 bg-current" /><span className="block h-0.5 w-6 bg-current" /><span className="block h-0.5 w-6 bg-current" /></span>
-              </button>
-            </div>
-            {mobileMenuOpen && (
-              <div className="glass-panel absolute end-5 top-16 z-30 w-64 rounded-2xl p-3 lg:hidden">
-                <p dir="ltr" className="truncate text-left text-xs font-semibold text-white/70">{userEmail}</p>
-                <button type="button" onClick={onSignOut} className="mt-3 min-h-10 w-full rounded-xl border border-white/25 px-3 text-sm font-extrabold text-white hover:bg-white/10">יציאה</button>
-              </div>
-            )}
-          </header>
-          <main className="px-5 pb-8 sm:px-6 sm:pb-10 lg:px-10">{children}</main>
+  return (
+    <div lang="he" dir="rtl" className="min-h-[100svh] bg-[#002B45] text-white">
+      <header className="border-b border-white/14 bg-[#002B45] px-5 pt-5 pb-4">
+        <div className="mx-auto flex max-w-4xl items-center justify-between gap-3">
+          <div>
+            <p className="text-xs font-semibold text-[#B8D8E6]">{formattedDate}</p>
+            <h1 className="text-2xl font-extrabold tracking-tight">{title}</h1>
+            <p className="mt-0.5 text-xs font-medium text-[#B8D8E6]">{userEmail}</p>
+          </div>
+          <button
+            type="button"
+            onClick={onSignOut}
+            className="min-h-10 rounded-xl border border-white/15 bg-[#005580] px-3.5 py-1.5 text-xs font-extrabold text-white hover:bg-[#005580]/80"
+          >
+            התנתקות
+          </button>
         </div>
-      </div>
+      </header>
+
+      <main className="mx-auto max-w-4xl px-5 pt-5 pb-[calc(7.25rem+env(safe-area-inset-bottom))]">
+        {children}
+      </main>
+
       {!attendanceActive && <BottomNav tab={tab} onTabChange={onTabChange} />}
     </div>
   );
 }
 
-export function BottomNav({ tab, onTabChange }: { tab: AppTab; onTabChange: (tab: AppTab) => void }) {
+export function BottomNav({
+  tab,
+  onTabChange,
+}: {
+  tab: AppTab;
+  onTabChange: (tab: AppTab) => void;
+}) {
   return (
     <nav
       aria-label="ניווט ראשי"
-      className="bottom-nav-glass fixed inset-x-5 bottom-4 z-40 grid grid-cols-4 rounded-[24px] px-2 pb-[calc(4px+env(safe-area-inset-bottom))] pt-1 lg:hidden"
+      className="fixed inset-x-0 bottom-0 z-40 border-t border-white/14 bg-[#002B45] pb-[calc(0.35rem+env(safe-area-inset-bottom))]"
     >
-      {navItems.map((item) => (
-        <button
-          key={item.id}
-          type="button"
-          onClick={() => onTabChange(item.id)}
-          aria-current={tab === item.id ? "page" : undefined}
-          className={`mx-0.5 flex min-h-[52px] flex-col items-center justify-center text-[11px] font-extrabold transition active:scale-[0.97] ${
-            tab === item.id ? "text-white" : "text-[#B8D8E6]"
-          }`}
-        >
-          <span className={`mb-0.5 grid h-8 w-8 place-items-center rounded-full transition ${tab === item.id ? "bg-white/[0.14] text-white ring-1 ring-white/[0.18]" : ""}`}><NavIcon tab={item.id} className="h-4 w-4" /></span>
-          {item.label}
-        </button>
-      ))}
+      <div className="mx-auto grid max-w-md grid-cols-4 px-2">
+        {navItems.map((item) => {
+          const active = tab === item.id;
+          return (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => onTabChange(item.id)}
+              className={`flex min-h-14 flex-col items-center justify-center rounded-2xl py-2 text-xs font-extrabold transition ${
+                active ? "text-[#00A6A6]" : "text-[#B8D8E6] hover:text-white"
+              }`}
+            >
+              <NavIcon tab={item.id} />
+              <span className="mt-1">{item.label}</span>
+            </button>
+          );
+        })}
+      </div>
     </nav>
   );
 }
 
 export function StatusBadge({ status }: { status: AttendanceStatus }) {
-  return <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-extrabold ${statusStyles[status]}`}>{statusLabels[status]}</span>;
+  return (
+    <span
+      className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-extrabold ${statusStyles[status]}`}
+    >
+      {statusLabels[status]}
+    </span>
+  );
 }
 
 export function SummaryCards({ logs }: { logs: AttendanceLog[] }) {
-  const statuses: AttendanceStatus[] = ["Present", "Late", "Absent", "Excused"];
+  const counts: Record<AttendanceStatus, number> = {
+    Present: 0,
+    Late: 0,
+    Absent: 0,
+    Excused: 0,
+  };
+  logs.forEach((log) => {
+    counts[log.status] = (counts[log.status] ?? 0) + 1;
+  });
+
   return (
-    <section aria-label="סיכום נוכחות" className="summary-panel grid grid-cols-4 overflow-hidden rounded-2xl">
-      {statuses.map((status) => (
-        <article key={status} className="border-e border-white/10 px-1 py-2.5 text-center first:border-e-0 sm:py-3">
-          <strong className="block text-xl font-extrabold tracking-[-0.04em] text-white sm:text-2xl">{logs.filter((log) => log.status === status).length}</strong>
-          <span className="mt-0.5 block text-[10px] font-extrabold text-[#B8D8E6] sm:text-xs">{statusLabels[status]}</span>
-        </article>
+    <div className="grid grid-cols-4 gap-2">
+      {(["Present", "Late", "Absent", "Excused"] as AttendanceStatus[]).map((status) => (
+        <div
+          key={status}
+          className="rounded-2xl border border-white/14 bg-[#005580] p-3 text-center"
+        >
+          <p className="text-xs font-bold text-[#B8D8E6]">{statusLabels[status]}</p>
+          <p className="mt-1 text-2xl font-extrabold text-white">{counts[status]}</p>
+        </div>
       ))}
-    </section>
+    </div>
   );
 }
 
@@ -161,6 +185,7 @@ export function CourseCard({
   course,
   studentCount,
   startedToday,
+  completedToday = false,
   onStart,
   onEdit,
   onToggleActive,
@@ -169,119 +194,54 @@ export function CourseCard({
   course: Course;
   studentCount: number;
   startedToday: boolean;
+  completedToday?: boolean;
   onStart: () => void;
-  onEdit: () => void;
-  onToggleActive: () => void;
-  onViewStudents: () => void;
+  onEdit?: () => void;
+  onToggleActive?: () => void;
+  onViewStudents?: () => void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const stateLabel = completedToday
+    ? "הושלמה היום"
+    : startedToday
+    ? "בתהליך"
+    : "לא התחילה היום";
 
   return (
-    <article className={`flex h-full flex-col rounded-[20px] p-4 text-white sm:p-5 ${course.active ? "glass-panel" : "border border-white/10 bg-white/[0.025] opacity-65"}`}>
-      <div className="mb-3 flex items-start justify-between gap-3 sm:mb-5 sm:gap-4">
-        <div>
-          <div className="mb-2 flex flex-wrap items-center gap-2">
-            <h3 dir="auto" className="text-lg font-extrabold tracking-[-0.025em] sm:text-xl">{course.name}</h3>
-            {!course.active && <span className="rounded-full bg-white/15 px-2 py-1 text-[10px] font-extrabold text-white/75">לא פעיל</span>}
-          </div>
-          <p dir="auto" className="line-clamp-2 text-sm font-medium leading-5 text-white/75 sm:leading-6">{course.description || "אין עדיין תיאור"}</p>
+    <article className="rounded-[20px] border border-white/14 bg-[#005580] p-4 text-white">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <h3 dir="auto" className="truncate text-lg font-extrabold">
+            {course.name}
+          </h3>
+          <p className="mt-1 text-xs font-semibold text-[#B8D8E6]">
+            {studentCount} {studentCount !== 1 ? "תלמידים" : "תלמיד אחד"}
+          </p>
         </div>
-        <div className="flex shrink-0 items-start gap-2">
-          <span className="grid h-10 w-10 place-items-center rounded-full bg-white/15 text-xs font-extrabold text-white ring-1 ring-white/20 sm:h-12 sm:w-12 sm:text-sm">{studentCount}</span>
-          <div className="relative">
-            <button type="button" onClick={() => setMenuOpen((open) => !open)} aria-expanded={menuOpen} aria-label={`פעולות נוספות עבור ${course.name}`} className="grid h-10 w-10 place-items-center rounded-xl text-white/75 hover:bg-white/10 hover:text-white">
-              <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5 fill-current"><circle cx="5" cy="12" r="1.8" /><circle cx="12" cy="12" r="1.8" /><circle cx="19" cy="12" r="1.8" /></svg>
-            </button>
-            {menuOpen && (
-              <div className="absolute end-0 top-11 z-20 min-w-28 rounded-xl border border-[#CBD5E1] bg-white p-1.5 shadow-[0_12px_30px_rgba(0,18,27,0.18)]">
-                <button type="button" onClick={() => { setMenuOpen(false); onEdit(); }} className="min-h-10 w-full rounded-lg px-3 text-right text-sm font-bold text-[#002B45] hover:bg-[#F4F8FA] sm:hidden">עריכה</button>
-                <button type="button" onClick={() => { setMenuOpen(false); onToggleActive(); }} className="min-h-10 w-full rounded-lg px-3 text-right text-sm font-bold text-[#475569] hover:bg-[#F4F8FA] hover:text-[#002B45]">{course.active ? "השבתה" : "הפעלה"}</button>
-              </div>
-            )}
-          </div>
-        </div>
+        <span className="rounded-full bg-white/10 px-2.5 py-1 text-xs font-extrabold text-[#B8D8E6]">
+          {stateLabel}
+        </span>
       </div>
-      <div className="mb-3 flex items-center justify-between border-t border-white/15 pt-2 text-xs font-bold text-white/75 sm:mb-4 sm:pt-3">
-        <button type="button" onClick={onViewStudents} className="rounded-lg px-1 py-2 text-white underline-offset-4 hover:underline">{studentCount} {studentCount === 1 ? "תלמיד פעיל" : "תלמידים פעילים"}</button>
-        <span className={startedToday ? "text-[#DCFCE7]" : "text-[#B8D8E6]"}>{startedToday ? "התחילה היום" : "לא התחילה"}</span>
-      </div>
-      <div className="mt-auto grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
-        <button type="button" disabled={!course.active} onClick={onStart} className="min-h-11 whitespace-nowrap rounded-xl bg-white px-3 text-sm font-extrabold text-[#002B45] transition hover:bg-[#F4F8FA] disabled:cursor-not-allowed disabled:bg-white/20 disabled:text-white/60 sm:min-h-12">
-          {startedToday ? "פתיחת נוכחות" : "התחלת נוכחות"}
+
+      <div className="mt-4 flex items-center gap-2">
+        <button
+          type="button"
+          onClick={onStart}
+          className="min-h-11 flex-1 rounded-xl bg-[#00A6A6] px-4 text-sm font-extrabold text-white hover:bg-[#00B3A4]"
+        >
+          {completedToday ? "צפייה בסיכום" : startedToday ? "המשך נוכחות" : "התחלת נוכחות"}
         </button>
-        <button type="button" onClick={onEdit} aria-label={`עריכת ${course.name}`} className="hidden min-h-12 rounded-xl border border-white/30 px-3 text-sm font-bold text-white hover:bg-white/10 sm:block">עריכה</button>
+        {(onEdit || onToggleActive || onViewStudents) && (
+          <button
+            type="button"
+            onClick={() => setMenuOpen((prev) => !prev)}
+            className="min-h-11 rounded-xl border border-white/14 bg-[#002B45] px-3 text-xs font-bold text-[#B8D8E6]"
+          >
+            •••
+          </button>
+        )}
       </div>
     </article>
-  );
-}
-
-export function AttendanceRow({
-  log,
-  student,
-  onStatusChange,
-  onNotesChange,
-}: {
-  log: AttendanceLog;
-  student: Student;
-  onStatusChange: (status: AttendanceStatus) => void;
-  onNotesChange: (notes: string) => void;
-}) {
-  const statuses: AttendanceStatus[] = ["Present", "Late", "Absent", "Excused"];
-  const initials = student.name.split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase();
-  const [notes, setNotes] = useState(log.notes ?? "");
-  const [noteOpen, setNoteOpen] = useState(false);
-
-  useEffect(() => setNotes(log.notes ?? ""), [log.notes]);
-  return (
-    <li className="rounded-2xl border border-[#CBD5E1] bg-white p-2.5 shadow-[0_6px_18px_rgba(0,38,52,0.06)] sm:p-3">
-      <div className="flex items-center gap-2 sm:gap-2.5">
-        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#F4F8FA] text-xs font-extrabold text-[#002B45]" aria-hidden="true">{initials}</span>
-        <div className="min-w-0 flex-1">
-          <p dir="auto" className="truncate text-sm font-extrabold">{student.name}</p>
-          <p className="mt-0.5 text-[11px] font-semibold text-[#475569] sm:text-xs">סומן בשעה {log.time}</p>
-        </div>
-        <StatusBadge status={log.status} />
-      </div>
-      <fieldset className="mt-1.5 sm:mt-2">
-        <legend className="sr-only">סטטוס עבור {student.name}</legend>
-        <div className="grid grid-cols-4 gap-1">
-          {statuses.map((status) => (
-            <button
-              key={status}
-              type="button"
-              aria-pressed={log.status === status}
-              onClick={() => onStatusChange(status)}
-              className={`min-h-10 min-w-0 rounded-xl border px-1 text-[10px] font-extrabold transition active:scale-[0.97] sm:text-xs ${
-                log.status === status ? statusStyles[status] : "border-[#CBD5E1] bg-[#FFFFFF] text-[#475569] hover:border-[#CBD5E1]"
-              }`}
-            >
-              {statusLabels[status]}
-            </button>
-          ))}
-        </div>
-      </fieldset>
-      {noteOpen ? (
-        <label className="mt-2 block text-xs font-extrabold text-[#475569]">
-          הערה <span className="font-medium">(אופציונלי)</span>
-          <input
-            autoFocus
-            dir="auto"
-            value={notes}
-            onChange={(event) => setNotes(event.target.value)}
-            onBlur={() => {
-              if (notes !== (log.notes ?? "")) onNotesChange(notes);
-            }}
-            placeholder="הוספת הערה קצרה"
-            className="mt-1.5 min-h-10 w-full rounded-xl border border-[#CBD5E1] bg-[#FFFFFF] px-3 text-sm font-medium text-[#0F172A] outline-none transition placeholder:text-[#475569] focus:border-[#002B45] focus:ring-2 focus:ring-[#002B45]/15"
-          />
-        </label>
-      ) : (
-        <div className="mt-1.5 flex min-w-0 items-center justify-between gap-3 sm:mt-2">
-          {notes && <p dir="auto" className="min-w-0 flex-1 truncate text-xs font-medium text-[#475569]">{notes}</p>}
-          <button type="button" onClick={() => setNoteOpen(true)} className="min-h-8 shrink-0 rounded-lg px-1.5 text-[11px] font-extrabold text-[#002B45] hover:bg-[#FFFFFF] sm:min-h-9 sm:px-2 sm:text-xs">{notes ? "עריכת הערה" : "הוספת הערה"}</button>
-        </div>
-      )}
-    </li>
   );
 }
 
@@ -294,21 +254,24 @@ export function AttendanceStudentRow({
   student: Student;
   onOpen: () => void;
 }) {
-  const initials = student.name.split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase();
   return (
-    <li>
-      <button type="button" onClick={onOpen} className="flex min-h-[62px] w-full items-center gap-3 border-b border-[#E2E8F0] bg-white px-3 py-2.5 text-right last:border-b-0 active:bg-[#F4F8FA]">
-        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#E2E8F0] text-xs font-extrabold text-[#002B45]" aria-hidden="true">{initials}</span>
-        <span className="min-w-0 flex-1">
-          <span dir="auto" className="block truncate text-base font-semibold text-[#0F172A]">{student.name}</span>
-          <span className="mt-0.5 flex items-center gap-2 text-xs font-medium text-[#475569]">
-            <span>{log.time}</span>
-            {log.notes && <span aria-label="יש הערה">● הערה</span>}
-          </span>
-        </span>
-        <StatusBadge status={log.status} />
-      </button>
-    </li>
+    <button
+      type="button"
+      onClick={onOpen}
+      className="flex min-h-14 w-full items-center justify-between gap-3 rounded-2xl border border-white/14 bg-[#005580] px-4 py-3 text-right text-white transition hover:bg-[#005580]/90"
+    >
+      <div className="min-w-0 flex-1">
+        <p dir="auto" className="truncate text-base font-bold">
+          {student.name}
+        </p>
+        {log.notes && (
+          <p className="mt-0.5 truncate text-xs font-medium text-[#B8D8E6]">
+            הערה: {log.notes}
+          </p>
+        )}
+      </div>
+      <StatusBadge status={log.status} />
+    </button>
   );
 }
 
@@ -326,55 +289,233 @@ export function StudentActionBottomSheet({
   onNotesChange: (notes: string) => void;
 }) {
   const [notes, setNotes] = useState(log.notes ?? "");
-  const statuses: AttendanceStatus[] = ["Present", "Late", "Absent", "Excused"];
+
   return (
-    <div className="fixed inset-0 z-[70] grid items-end bg-[#002B45]/75 backdrop-blur-[2px]" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-      <section role="dialog" aria-modal="true" aria-label={`עדכון נוכחות עבור ${student.name}`} className="w-full rounded-t-[24px] bg-white p-5 pb-[calc(20px+env(safe-area-inset-bottom))] shadow-[0_-18px_50px_rgba(0,18,27,0.32)]">
-        <span className="mx-auto mb-4 block h-1 w-12 rounded-full bg-[#E2E8F0]" aria-hidden="true" />
-        <div className="flex items-center justify-between gap-3">
-          <div><h2 dir="auto" className="text-xl font-bold text-[#0F172A]">{student.name}</h2><p className="text-sm text-[#475569]">עדכון הסטטוס נשמר מיד</p></div>
-          <button type="button" onClick={onClose} aria-label="סגירה" className="grid h-11 w-11 place-items-center rounded-full border border-[#E2E8F0] text-xl text-[#475569]">×</button>
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-0 sm:items-center sm:p-4">
+      <div className="w-full max-w-md rounded-t-3xl border-t border-white/14 bg-[#002B45] p-6 text-white sm:rounded-3xl">
+        <div className="flex items-center justify-between border-b border-white/14 pb-3">
+          <h3 dir="auto" className="text-lg font-extrabold">
+            {student.name}
+          </h3>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-xs font-bold text-[#B8D8E6] hover:text-white"
+          >
+            סגירה
+          </button>
         </div>
-        <div className="mt-5 grid grid-cols-2 gap-2">
-          {statuses.map((status) => <button key={status} type="button" onClick={() => { onStatusChange(status); onClose(); }} className={`min-h-12 rounded-xl border px-3 text-sm font-extrabold ${statusStyles[status]} ${log.status === status ? "ring-2 ring-[#002B45] ring-offset-2" : ""}`}>{statusLabels[status]}</button>)}
+
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          {(["Present", "Late", "Absent", "Excused"] as AttendanceStatus[]).map((status) => (
+            <button
+              key={status}
+              type="button"
+              onClick={() => onStatusChange(status)}
+              className={`min-h-11 rounded-xl border px-3 py-2 text-sm font-extrabold ${
+                log.status === status
+                  ? "border-[#00A6A6] bg-[#00A6A6] text-white"
+                  : statusStyles[status]
+              }`}
+            >
+              {statusLabels[status]}
+            </button>
+          ))}
         </div>
-        <label className="mt-5 block text-sm font-semibold text-[#475569]">הערה
-          <textarea dir="auto" value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="הוספה או עריכת הערה" className="mt-2 min-h-20 w-full rounded-xl border border-[#E2E8F0] bg-[#F4F8FA] p-3 text-sm text-[#0F172A] outline-none focus:border-[#00A6A6]" />
-        </label>
-        <button type="button" onClick={() => { onNotesChange(notes.trim()); onClose(); }} className="mt-3 min-h-12 w-full rounded-xl bg-[#002B45] text-sm font-extrabold text-white">שמירת הערה</button>
-      </section>
+
+        <div className="mt-4">
+          <label className="block text-xs font-bold text-[#B8D8E6]">
+            הערה לתלמיד/ה
+            <textarea
+              rows={2}
+              value={notes}
+              onChange={(event) => setNotes(event.target.value)}
+              className="mt-1.5 w-full rounded-xl border border-white/14 bg-white p-3 text-sm font-semibold text-[#0F172A]"
+            />
+          </label>
+          <button
+            type="button"
+            onClick={() => {
+              onNotesChange(notes);
+              onClose();
+            }}
+            className="mt-3 min-h-11 w-full rounded-xl bg-[#00A6A6] px-4 text-sm font-extrabold text-white hover:bg-[#00B3A4]"
+          >
+            שמירת הערה
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
 
-export function FinishAttendanceBar({ logs, onFinish }: { logs: AttendanceLog[]; onFinish: () => void }) {
+export function FinishAttendanceBar({
+  logs,
+  onFinish,
+}: {
+  logs: AttendanceLog[];
+  onFinish: () => void;
+}) {
+  const presentCount = logs.filter((l) => l.status === "Present").length;
+  const lateCount = logs.filter((l) => l.status === "Late").length;
+  const absentCount = logs.filter((l) => l.status === "Absent").length;
+  const excusedCount = logs.filter((l) => l.status === "Excused").length;
+
   return (
-    <div className="fixed inset-x-3 bottom-3 z-50 rounded-[22px] border border-white/[0.12] bg-[#002B45]/[0.82] px-4 pb-[calc(12px+env(safe-area-inset-bottom))] pt-3 shadow-[0_-10px_38px_rgba(0,18,27,0.32)] backdrop-blur-xl">
-      <p className="mb-2 text-center text-xs font-semibold text-[#B8D8E6]">נוכחים {logs.filter((log) => log.status === "Present").length} · מאחרים {logs.filter((log) => log.status === "Late").length} · נעדרים {logs.filter((log) => log.status === "Absent").length} · מוצדקים {logs.filter((log) => log.status === "Excused").length}</p>
-      <button type="button" onClick={onFinish} className="min-h-12 w-full rounded-xl bg-[#00A6A6] text-base font-extrabold text-white active:bg-[#00B3A4]">סיום נוכחות</button>
+    <div className="fixed inset-x-0 bottom-0 z-40 border-t border-white/14 bg-[#002B45]/95 px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] backdrop-blur">
+      <div className="mx-auto flex max-w-md items-center justify-between gap-3">
+        <p className="text-xs font-bold text-[#B8D8E6]">
+          נוכחים {presentCount} · מאחרים {lateCount} · נעדרים {absentCount} · מוצדקים {excusedCount}
+        </p>
+        <button
+          type="button"
+          onClick={onFinish}
+          className="min-h-11 rounded-xl bg-[#00A6A6] px-5 text-sm font-extrabold text-white hover:bg-[#00B3A4]"
+        >
+          סיום נוכחות
+        </button>
+      </div>
     </div>
   );
 }
 
-export function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
+export function Modal({
+  title,
+  onClose,
+  children,
+}: {
+  title: string;
+  onClose: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+      <div className="w-full max-w-md rounded-3xl border border-white/14 bg-white p-6 text-[#0F172A] shadow-xl">
+        <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+          <h2 className="text-lg font-extrabold">{title}</h2>
+          <button type="button" onClick={onClose} className="text-xs font-bold text-[#475569]">
+            סגירה
+          </button>
+        </div>
+        <div className="mt-4">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+export function BiometricLockScreen({
+  email,
+  onVerify,
+  onFallbackSignOut,
+}: {
+  email: string;
+  onVerify: () => Promise<void>;
+  onFallbackSignOut: () => void;
+}) {
+  const [verifying, setVerifying] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleVerify = async () => {
+    setVerifying(true);
+    setError("");
+    try {
+      await onVerify();
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "האימות הביומטרי בוטל או נכשל. נסו שוב."
+      );
+    } finally {
+      setVerifying(false);
+    }
+  };
+
   useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [onClose]);
+    void handleVerify();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
-    <div className="fixed inset-0 z-50 grid items-end bg-[#002B45]/75 p-0 backdrop-blur-[3px] sm:place-items-center sm:p-5" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose(); }}>
-      <section role="dialog" aria-modal="true" aria-labelledby="modal-title" className="max-h-[92svh] w-full overflow-y-auto rounded-t-[26px] bg-white p-5 pt-3 shadow-[0_24px_70px_rgba(0,18,27,0.4)] sm:max-w-lg sm:rounded-[26px] sm:p-6">
-        <span className="mx-auto mb-3 block h-1 w-12 rounded-full bg-[#CBD5E1] sm:hidden" aria-hidden="true" />
-        <div className="mb-5 flex items-center justify-between gap-4">
-          <h2 id="modal-title" className="text-xl font-extrabold tracking-[-0.025em]">{title}</h2>
-          <button type="button" onClick={onClose} aria-label="סגירת החלון" className="grid h-11 w-11 place-items-center rounded-full border border-[#CBD5E1] text-lg font-bold text-[#475569] hover:bg-[#FFFFFF]">×</button>
+    <main
+      lang="he"
+      dir="rtl"
+      className="min-h-[100svh] bg-[#002B45] px-5 py-8 text-right text-white flex items-center justify-center"
+    >
+      <section className="w-full max-w-md rounded-[24px] border border-white/14 bg-[#005580] p-6 shadow-[0_24px_64px_rgba(0,18,27,0.35)] sm:p-8">
+        <div
+          className="mb-5 flex h-14 w-14 items-center justify-center rounded-2xl border border-white/14 bg-[#002B45] text-[#00A6A6]"
+          aria-hidden="true"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={2}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="h-7 w-7"
+          >
+            <path d="M12 10a2 2 0 0 0-2 2c0 1.02-.1 2.51-.26 4" />
+            <path d="M14 13.12c0 2.38 0 6.38-1 8.88" />
+            <path d="M17.29 21.02c.12-.6.43-2.3.5-3.02" />
+            <path d="M2 12a10 10 0 0 1 18-6" />
+            <path d="M2 16h.01" />
+            <path d="M21.8 16c.2-2 .131-5.354 0-6" />
+            <path d="M5 19.5C5.5 18 6 15 6 12a6 6 0 0 1 .34-2" />
+            <path d="M8.65 22c.21-.66.45-1.32.57-2" />
+            <path d="M9 6.8a6 6 0 0 1 9 5.2v2" />
+          </svg>
         </div>
-        {children}
+
+        <h1 className="text-2xl font-extrabold tracking-tight text-white">כניסה מהירה</h1>
+        <p className="mt-1.5 text-sm font-medium text-[#B8D8E6]">
+          מחובר/ת כ- <span dir="ltr" className="font-bold text-white">{email}</span>
+        </p>
+
+        {error && (
+          <p
+            role="alert"
+            className="mt-4 rounded-xl border border-[#DC2626]/30 bg-[#FEE2E2] px-3.5 py-2.5 text-xs font-extrabold text-[#991B1B]"
+          >
+            {error}
+          </p>
+        )}
+
+        <button
+          type="button"
+          disabled={verifying}
+          onClick={() => void handleVerify()}
+          className="mt-6 flex min-h-12 w-full items-center justify-center gap-2.5 rounded-xl bg-[#00A6A6] px-4 py-3 text-sm font-extrabold text-white transition hover:bg-[#00B3A4] disabled:opacity-60"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={2}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="h-5 w-5"
+            aria-hidden="true"
+          >
+            <path d="M12 10a2 2 0 0 0-2 2c0 1.02-.1 2.51-.26 4" />
+            <path d="M14 13.12c0 2.38 0 6.38-1 8.88" />
+            <path d="M5 19.5C5.5 18 6 15 6 12a6 6 0 0 1 .34-2" />
+            <path d="M9 6.8a6 6 0 0 1 9 5.2v2" />
+          </svg>
+          <span>{verifying ? "מאמת טביעת אצבע..." : "כניסה באמצעות טביעת אצבע"}</span>
+        </button>
+
+        <div className="mt-5 border-t border-white/14 pt-4 text-center">
+          <button
+            type="button"
+            onClick={onFallbackSignOut}
+            className="min-h-11 w-full rounded-xl border border-white/14 bg-[#002B45] px-4 py-2.5 text-xs font-bold text-[#B8D8E6] transition hover:text-white"
+          >
+            אימות באמצעות קישור למייל / החלפת משתמש
+          </button>
+        </div>
       </section>
-    </div>
+    </main>
   );
 }

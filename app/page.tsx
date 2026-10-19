@@ -4,6 +4,17 @@ import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type
 import type { Session } from "@supabase/supabase-js";
 import { AuthScreen } from "./AuthScreen";
 import {
+  clearBiometricRecord,
+  dismissBiometricPromptForSession,
+  hasBiometricEnabled,
+  isBiometricAvailable,
+  isBiometricPromptDismissed,
+  isBiometricSessionUnlocked,
+  lockBiometricSession,
+  registerBiometric,
+  verifyBiometric,
+} from "./biometric";
+import {
   createTodayAttendance,
   fetchAppData,
   saveCourse,
@@ -13,7 +24,17 @@ import {
   subscribeToSharedData,
   updateAttendanceLog,
 } from "./cloud-data";
-import { AttendanceStudentRow, CourseCard, FinishAttendanceBar, Layout, Modal, StatusBadge, StudentActionBottomSheet, SummaryCards, statusLabels } from "./components";
+import {
+  AttendanceStudentRow,
+  BiometricLockScreen,
+  CourseCard,
+  FinishAttendanceBar,
+  Layout,
+  Modal,
+  StatusBadge,
+  StudentActionBottomSheet,
+  SummaryCards,
+} from "./components";
 import { prepareStudentImport } from "./student-import";
 import { supabase } from "./supabase";
 import type { AppData, AppTab, AttendanceStatus, Course, Student } from "./types";
@@ -25,10 +46,8 @@ type ModalState =
   | { type: "import"; initialCourseId?: string }
   | null;
 
-const fieldClass = "mt-1.5 min-h-12 w-full rounded-xl border border-[#CBD5E1] bg-white px-3.5 text-sm font-semibold text-[#0F172A] outline-none transition placeholder:text-[#475569] focus:border-[#00A6A6] focus:ring-2 focus:ring-[#00A6A6]/20";
-const secondaryButton = "min-h-12 rounded-xl border border-[#CBD5E1] bg-white px-4 text-sm font-extrabold text-[#002B45] transition hover:bg-[#F4F8FA]";
-const primaryButton = "min-h-12 rounded-xl bg-[#00A6A6] px-4 text-sm font-extrabold text-white transition hover:bg-[#00B3A4] disabled:cursor-not-allowed disabled:bg-[#64748B]";
-const darkOutlineButton = "min-h-12 rounded-xl border border-white/65 bg-transparent px-4 text-sm font-extrabold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-45";
+const primaryButton =
+  "min-h-12 rounded-xl bg-[#00A6A6] px-4 text-sm font-extrabold text-white hover:bg-[#00B3A4]";
 
 export default function Home() {
   const today = localDateKey();
@@ -41,56 +60,25 @@ export default function Home() {
   const [modal, setModal] = useState<ModalState>(null);
   const [toast, setToast] = useState("");
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const [todayFilter, setTodayFilter] = useState<"all" | "exceptions">("all");
   const [studentCourse, setStudentCourse] = useState("all");
   const [studentSearch, setStudentSearch] = useState("");
   const [historyDate, setHistoryDate] = useState(today);
   const [historyCourse, setHistoryCourse] = useState("all");
+
   const [activeSessionCourseId, setActiveSessionCourseId] = useState<string | null>(null);
   const [sessionReadOnly, setSessionReadOnly] = useState(false);
   const [selectedAttendanceId, setSelectedAttendanceId] = useState<string | null>(null);
   const [completedCourseIds, setCompletedCourseIds] = useState<Set<string>>(() => new Set());
-  const [moreView, setMoreView] = useState<"menu" | "courses">("menu");
+  const [moreView, setMoreView] = useState<"menu" | "courses" | "students">("menu");
   const [studentAddSheetOpen, setStudentAddSheetOpen] = useState(false);
 
-  const refreshData = useCallback(async () => {
-    setDataLoading(true);
-    try {
-      setData(await fetchAppData());
-      setDataError("");
-    } catch (error) {
-      console.error(error);
-      setDataError("לא הצלחנו לטעון את הנתונים המשותפים. בדקו את החיבור ונסו שוב.");
-    } finally {
-      setDataLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!supabase) {
-      setAuthReady(true);
-      return;
-    }
-    void supabase.auth.getSession().then(({ data: authData }) => {
-      setSession(authData.session);
-      setAuthReady(true);
-    });
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-      setSession(nextSession);
-      setAuthReady(true);
-    });
-    return () => listener.subscription.unsubscribe();
-  }, []);
-
-  useEffect(() => {
-    if (!session) return;
-    void refreshData();
-    return subscribeToSharedData(() => void refreshData());
-  }, [refreshData, session]);
-
-  useEffect(() => () => {
-    if (toastTimer.current) clearTimeout(toastTimer.current);
-  }, []);
+  // Biometric state
+  const [biometricSupported, setBiometricSupported] = useState(false);
+  const [biometricEnabled, setBiometricEnabled] = useState(false);
+  const [biometricUnlocked, setBiometricUnlocked] = useState(() => isBiometricSessionUnlocked());
+  const [biometricDismissed, setBiometricDismissed] = useState(() => isBiometricPromptDismissed());
 
   const notify = useCallback((message: string) => {
     setToast(message);
@@ -98,450 +86,814 @@ export default function Home() {
     toastTimer.current = setTimeout(() => setToast(""), 3000);
   }, []);
 
-  const coursesById = useMemo(() => new Map(data.courses.map((course) => [course.id, course])), [data.courses]);
-  const studentsById = useMemo(() => new Map(data.students.map((student) => [student.id, student])), [data.students]);
-  const todayLogs = useMemo(() => data.attendance.filter((log) => log.date === today), [data.attendance, today]);
-  const activeSessionCourse = activeSessionCourseId ? coursesById.get(activeSessionCourseId) : undefined;
-  const activeSessionLogs = activeSessionCourseId ? todayLogs.filter((log) => log.courseId === activeSessionCourseId) : [];
-  const selectedAttendance = selectedAttendanceId ? data.attendance.find((log) => log.id === selectedAttendanceId) : undefined;
-  const selectedAttendanceStudent = selectedAttendance ? studentsById.get(selectedAttendance.studentId) : undefined;
+  const refreshData = useCallback(async () => {
+    setDataLoading(true);
+    setDataError("");
+    try {
+      const nextData = await fetchAppData();
+      setData(nextData);
+    } catch (error) {
+      setDataError(error instanceof Error ? error.message : "שגיאה בטעינת הנתונים");
+    } finally {
+      setDataLoading(false);
+    }
+  }, []);
 
-  const startAttendance = async (courseId: string) => {
-    const eligible = data.students.filter((student) => student.courseId === courseId && student.active).length;
-    if (eligible === 0) {
-      notify("אין עדיין תלמידים פעילים בכיתה הזו");
+  useEffect(() => {
+    void isBiometricAvailable().then((available) => {
+      setBiometricSupported(available);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!supabase) {
+      setAuthReady(true);
       return;
     }
-    try {
-      const created = await createTodayAttendance(courseId, today, localTimeKey());
-      await refreshData();
-      notify(created === 0
-        ? "כבר קיימת נוכחות להיום עבור הכיתה הזו"
-        : `נוצרה נוכחות עבור ${created} ${created === 1 ? "תלמיד" : "תלמידים"}`);
-      setTab("today");
-      setSessionReadOnly(false);
-      setActiveSessionCourseId(courseId);
-    } catch (error) {
-      console.error(error);
-      notify("לא הצלחנו להתחיל את הנוכחות. נסו שוב.");
-    }
-  };
 
-  const updateAttendance = async (logId: string, updates: { status?: AttendanceStatus; notes?: string }) => {
-    setData((current) => ({
-      ...current,
-      attendance: current.attendance.map((log) => log.id === logId ? { ...log, ...updates } : log),
-    }));
-    try {
-      await updateAttendanceLog(logId, updates);
-    } catch (error) {
-      console.error(error);
-      notify("השינוי לא נשמר. נסו שוב.");
-      await refreshData();
-    }
-  };
-
-  const toggleCourse = async (courseId: string) => {
-    const course = data.courses.find((item) => item.id === courseId);
-    if (!course) return;
-    try {
-      await setCourseActive(courseId, !course.active);
-      await refreshData();
-    } catch (error) {
-      console.error(error);
-      notify("לא הצלחנו לעדכן את הכיתה.");
-    }
-  };
-
-  const toggleStudent = async (studentId: string) => {
-    const student = data.students.find((item) => item.id === studentId);
-    if (!student) return;
-    try {
-      await setStudentActive(studentId, !student.active);
-      await refreshData();
-    } catch (error) {
-      console.error(error);
-      notify("לא הצלחנו לעדכן את התלמיד.");
-    }
-  };
-
-  const filteredStudents = useMemo(() => {
-    const query = studentSearch.trim().toLowerCase();
-    return data.students.filter((student) => {
-      const matchesCourse = studentCourse === "all" || student.courseId === studentCourse;
-      const matchesSearch = !query || student.name.toLowerCase().includes(query) || (student.email ?? "").toLowerCase().includes(query);
-      return matchesCourse && matchesSearch;
-    });
-  }, [data.students, studentCourse, studentSearch]);
-
-  const historyLogs = useMemo(() => data.attendance.filter((log) => {
-    return log.date === historyDate && (historyCourse === "all" || log.courseId === historyCourse);
-  }), [data.attendance, historyCourse, historyDate]);
-
-  const exportCsv = () => {
-    if (!historyLogs.length) return;
-    const escape = (value: string) => `"${value.replaceAll('"', '""')}"`;
-    const rows = [
-      ["תאריך", "שעה", "כיתה", "תלמיד", "אימייל", "סטטוס", "הערות"],
-      ...historyLogs.map((log) => {
-        const course = coursesById.get(log.courseId);
-        const student = studentsById.get(log.studentId);
-        return [log.date, log.time, course?.name ?? "כיתה לא ידועה", student?.name ?? "תלמיד לא ידוע", student?.email ?? "", statusLabels[log.status], log.notes ?? ""];
-      }),
-    ];
-    const csv = `\uFEFF${rows.map((row) => row.map((value) => escape(String(value))).join(",")).join("\n")}`;
-    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `נוכחות-${historyDate}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
-    notify(`יוצאו ${historyLogs.length} ${historyLogs.length === 1 ? "רשומת נוכחות" : "רשומות נוכחות"}`);
-  };
-
-  const importStudents = async (courseId: string, text: string) => {
-    const latestData = await fetchAppData();
-    const preview = prepareStudentImport(text, courseId, latestData.students);
-    try {
-      for (let index = 0; index < preview.ready.length; index += 20) {
-        await Promise.all(preview.ready.slice(index, index + 20).map((row) => saveStudent({
-          id: makeId(),
-          name: row.name,
-          email: row.email,
-          courseId,
-          active: true,
-        })));
+    supabase.auth.getSession().then(({ data: { session: currentSession } }) => {
+      setSession(currentSession);
+      if (currentSession?.user?.email) {
+        setBiometricEnabled(hasBiometricEnabled(currentSession.user.email));
+        setBiometricUnlocked(isBiometricSessionUnlocked());
       }
-    } catch (error) {
-      await refreshData();
-      throw error;
+      setAuthReady(true);
+    });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, nextSession) => {
+      setSession(nextSession);
+      if (nextSession?.user?.email) {
+        setBiometricEnabled(hasBiometricEnabled(nextSession.user.email));
+        if (event === "SIGNED_IN" && !hasBiometricEnabled(nextSession.user.email)) {
+          setBiometricUnlocked(true);
+        } else {
+          setBiometricUnlocked(isBiometricSessionUnlocked());
+        }
+      } else {
+        lockBiometricSession();
+        setBiometricUnlocked(false);
+      }
+      setAuthReady(true);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if (!session) return;
+    if (biometricEnabled && !biometricUnlocked) return;
+    void refreshData();
+    const unsubscribe = subscribeToSharedData(() => {
+      void refreshData();
+    });
+    return () => unsubscribe();
+  }, [session, biometricEnabled, biometricUnlocked, refreshData]);
+
+  const userEmail = session?.user?.email ?? "";
+
+  const handleSignOut = useCallback(() => {
+    lockBiometricSession();
+    setBiometricUnlocked(false);
+    if (supabase) {
+      void supabase.auth.signOut();
     }
-    await refreshData();
-    notify(`נוספו ${preview.ready.length} תלמידים. ${preview.duplicates.length} תלמידים כבר היו קיימים.`);
-    setModal(null);
-  };
+  }, []);
+
+  const handleEnableBiometric = useCallback(async () => {
+    if (!userEmail) return;
+    try {
+      await registerBiometric(userEmail);
+      setBiometricEnabled(true);
+      setBiometricUnlocked(true);
+      notify("כניסה בטביעת אצבע הופעלה במכשיר זה");
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "האימות הביומטרי בוטל או נכשל. נסו שוב.");
+    }
+  }, [userEmail, notify]);
+
+  const handleDisableBiometric = useCallback(() => {
+    clearBiometricRecord();
+    setBiometricEnabled(false);
+    setBiometricUnlocked(true);
+    notify("כניסה בטביעת אצבע בוטלה במכשיר זה");
+  }, [notify]);
+
+  const handleLockAppNow = useCallback(() => {
+    lockBiometricSession();
+    setBiometricUnlocked(false);
+  }, []);
+
+  const handleDismissBiometricBanner = useCallback(() => {
+    dismissBiometricPromptForSession();
+    setBiometricDismissed(true);
+  }, []);
+
+  const todayLogs = useMemo(
+    () => data.attendance.filter((log) => log.date === today),
+    [data.attendance, today]
+  );
+
+  const startAttendance = useCallback(
+    async (courseId: string) => {
+      try {
+        await createTodayAttendance(courseId, today, localTimeKey());
+        await refreshData();
+        setTodayFilter("all");
+        setSessionReadOnly(false);
+        setActiveSessionCourseId(courseId);
+        notify("כל התלמידים סומנו כנוכחים. סמנו רק חריגים.");
+      } catch (error) {
+        notify(error instanceof Error ? error.message : "שגיאה בפתיחת נוכחות");
+      }
+    },
+    [today, refreshData, notify]
+  );
 
   if (!authReady) {
-    return <main lang="he" dir="rtl" className="app-bg grid min-h-[100svh] place-items-center text-sm font-bold text-white">פותחים את ניהול הנוכחות…</main>;
+    return (
+      <main lang="he" dir="rtl" className="app-bg grid min-h-[100svh] place-items-center text-sm font-bold text-[#B8D8E6]">
+        טוען נתונים...
+      </main>
+    );
   }
 
   if (!session) return <AuthScreen />;
 
+  if (hasBiometricEnabled(userEmail) && !biometricUnlocked) {
+    return (
+      <BiometricLockScreen
+        email={userEmail}
+        onVerify={async () => {
+          await verifyBiometric(userEmail);
+          setBiometricUnlocked(true);
+        }}
+        onFallbackSignOut={handleSignOut}
+      />
+    );
+  }
+
+  const activeSessionLogs = activeSessionCourseId
+    ? todayLogs.filter((log) => log.courseId === activeSessionCourseId)
+    : [];
+  const filteredSessionLogs =
+    todayFilter === "exceptions"
+      ? activeSessionLogs.filter((log) => log.status !== "Present" || Boolean(log.notes))
+      : activeSessionLogs;
+
+  const selectedLog = selectedAttendanceId
+    ? data.attendance.find((log) => log.id === selectedAttendanceId) ?? null
+    : null;
+  const selectedStudent = selectedLog
+    ? data.students.find((student) => student.id === selectedLog.studentId) ?? null
+    : null;
+
   return (
     <Layout
       tab={tab}
-      onTabChange={(nextTab) => {
-        if (nextTab === "more") setMoreView("menu");
-        setTab(nextTab);
-      }}
-      userEmail={session.user.email ?? "מורה"}
-      onSignOut={() => { if (supabase) void supabase.auth.signOut(); }}
-      attendanceActive={Boolean(activeSessionCourseId && !sessionReadOnly)}
+      onTabChange={setTab}
+      userEmail={userEmail || "מורה"}
+      onSignOut={handleSignOut}
+      attendanceActive={Boolean(activeSessionCourseId)}
     >
-      {(dataLoading || dataError) && (
-        <div className={`mb-4 rounded-2xl px-4 py-3 text-sm font-bold ${dataError ? "bg-[#FEE2E2] text-[#991B1B]" : "border border-white/15 bg-[#005580] text-white"}`} role={dataError ? "alert" : "status"}>
-          {dataError || "מסנכרנים את נתוני הנוכחות…"}
+      {dataLoading && (
+        <p className="mb-3 text-xs font-bold text-[#B8D8E6]">טוען נתונים...</p>
+      )}
+      {dataError && (
+        <div className="mb-4 rounded-2xl border border-[#DC2626]/30 bg-[#FEE2E2] p-3 text-xs font-bold text-[#991B1B]">
+          {dataError}
         </div>
       )}
-      {tab === "more" && (
-        moreView === "menu" ? (
-          <section className="min-h-[calc(100svh-9rem)] pb-6 text-white">
-            <p className="mb-5 max-w-lg text-sm font-medium leading-6 text-[#B8D8E6]">כלי הניהול והנתונים נמצאים כאן, כדי שמסך היום יישאר מהיר ופשוט בזמן השיעור.</p>
-            <div className="space-y-6">
-              <MoreGroup title="ניהול">
-                <MoreAction title="ניהול כיתות" description={`${data.courses.length} ${data.courses.length === 1 ? "כיתה" : "כיתות"} במערכת`} onClick={() => setMoreView("courses")} />
-                <MoreAction title="הוספת כיתה" description="יצירת כיתה חדשה" onClick={() => setModal({ type: "course" })} />
-                <MoreAction title="הוספת תלמיד" description="הוספת תלמיד לכיתה קיימת" disabled={!data.courses.length} onClick={() => setModal({ type: "student" })} />
-              </MoreGroup>
-              <MoreGroup title="נתונים">
-                <MoreAction title="ייבוא תלמידים" description="הדבקת רשימה מ־Excel או Google Sheets" disabled={!data.courses.length} onClick={() => setModal({ type: "import" })} />
-                <MoreAction title="דוחות וייצוא" description="צפייה בהיסטוריה וייצוא CSV" onClick={() => setTab("history")} />
-              </MoreGroup>
-              <MoreGroup title="הגדרות">
-                <MoreAction title="הגדרות האפליקציה" description="אפשרויות נוספות יתווספו בהמשך" disabled badge="בקרוב" />
-              </MoreGroup>
-            </div>
-          </section>
-        ) : (
-          <section className="min-h-[calc(100svh-9rem)] pb-6 text-white">
-            <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <button type="button" onClick={() => setMoreView("menu")} className="mb-2 min-h-10 rounded-xl border border-white/20 px-3 text-sm font-bold text-[#B8D8E6] hover:bg-white/[0.07]">חזרה לעוד</button>
-                <h2 className="text-xl font-extrabold">ניהול כיתות</h2>
-                <p className="mt-1 text-sm font-medium text-[#B8D8E6]">עריכה, הפעלה והשבתה של כיתות.</p>
-              </div>
-              <button type="button" className={primaryButton} onClick={() => setModal({ type: "course" })}>+ הוספת כיתה</button>
-            </div>
-            {data.courses.length ? (
-              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                {data.courses.map((course) => {
-                  const studentCount = data.students.filter((student) => student.courseId === course.id && student.active).length;
-                  const startedToday = todayLogs.some((log) => log.courseId === course.id);
-                  return (
-                    <CourseCard
-                      key={course.id}
-                      course={course}
-                      studentCount={studentCount}
-                      startedToday={startedToday}
-                      onStart={() => startAttendance(course.id)}
-                      onEdit={() => setModal({ type: "course", course })}
-                      onToggleActive={() => toggleCourse(course.id)}
-                      onViewStudents={() => { setStudentCourse(course.id); setTab("students"); }}
-                    />
-                  );
-                })}
-              </div>
-            ) : (
-              <EmptyState title="אין עדיין כיתות" body="הוסיפו את הכיתה הראשונה, ולאחר מכן הוסיפו אליה תלמידים." action="הוספת כיתה" onAction={() => setModal({ type: "course" })} />
-            )}
-          </section>
-        )
-      )}
 
-      {tab === "today" && activeSessionCourseId && activeSessionCourse && (
-        <section className={`min-h-[calc(100svh-10rem)] text-white ${sessionReadOnly ? "pb-6" : "pb-28"}`}>
-          <button type="button" onClick={() => { setActiveSessionCourseId(null); setSessionReadOnly(false); }} className="mb-3 min-h-10 rounded-xl border border-white/20 px-3 text-sm font-bold text-[#B8D8E6]">חזרה להיום</button>
-          <div className="flex items-end justify-between gap-3">
-            <div><p className="text-xs font-semibold text-[#B8D8E6]">{sessionReadOnly ? "סיכום נוכחות" : "נוכחות בתהליך"}</p><h2 dir="auto" className="mt-1 text-2xl font-bold">{activeSessionCourse.name}</h2></div>
-            <span className="rounded-full border border-white/[0.12] bg-white/[0.07] px-3 py-1.5 text-xs font-bold">{sessionReadOnly ? "הושלמה" : "בתהליך"}</span>
-          </div>
-          <div className="mt-4"><SummaryCards logs={activeSessionLogs} /></div>
-          {!sessionReadOnly && <p className="glass-panel mt-4 rounded-xl px-3 py-2.5 text-sm font-semibold text-white">כל התלמידים סומנו כנוכחים. סמנו רק חריגים.</p>}
-          <div className="mt-5 inline-flex rounded-xl border border-white/[0.12] bg-white/[0.05] p-1" role="group" aria-label="סינון רשימת הנוכחות">
-            <button type="button" onClick={() => setTodayFilter("all")} className={`min-h-10 rounded-lg px-3 text-xs font-extrabold ${todayFilter === "all" ? "bg-white text-[#002B45]" : "text-[#B8D8E6]"}`}>כל התלמידים</button>
-            <button type="button" onClick={() => setTodayFilter("exceptions")} className={`min-h-10 rounded-lg px-3 text-xs font-extrabold ${todayFilter === "exceptions" ? "bg-white text-[#002B45]" : "text-[#B8D8E6]"}`}>חריגים בלבד</button>
-          </div>
-          <ul className="mt-5 overflow-hidden rounded-2xl bg-white shadow-[0_18px_44px_rgba(0,18,27,0.22)]">
-            {activeSessionLogs.filter((log) => todayFilter === "all" || log.status !== "Present" || Boolean(log.notes)).map((log) => {
-              const student = studentsById.get(log.studentId);
-              return student ? <AttendanceStudentRow key={log.id} log={log} student={student} onOpen={() => setSelectedAttendanceId(log.id)} /> : null;
-            })}
-          </ul>
-          {todayFilter === "exceptions" && !activeSessionLogs.some((log) => log.status !== "Present" || Boolean(log.notes)) && <p className="glass-panel mt-5 rounded-2xl p-6 text-center text-sm font-semibold text-[#B8D8E6]">אין חריגים. כל התלמידים מסומנים כנוכחים.</p>}
-          {!sessionReadOnly && <FinishAttendanceBar logs={activeSessionLogs} onFinish={() => { setCompletedCourseIds((current) => new Set(current).add(activeSessionCourseId)); setActiveSessionCourseId(null); notify("הנוכחות הושלמה"); }} />}
-        </section>
-      )}
-
+      {/* TAB: TODAY */}
       {tab === "today" && !activeSessionCourseId && (
         <section className="min-h-[calc(100svh-10rem)] pb-4 text-white">
+          {biometricSupported && !biometricEnabled && !biometricDismissed && (
+            <div className="mb-5 rounded-[20px] border border-white/14 bg-[#005580] p-4 shadow-[0_14px_34px_rgba(0,18,27,0.18)]">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="text-base font-extrabold text-white">כניסה מהירה בטביעת אצבע</h3>
+                  <p className="mt-1 text-xs font-medium leading-5 text-[#B8D8E6]">
+                    הפעילו זיהוי ביומטרי במכשיר זה כדי להיכנס לאפליקציה מיד ללא המתנה למייל.
+                  </p>
+                </div>
+              </div>
+              <div className="mt-3.5 flex flex-wrap items-center gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => void handleEnableBiometric()}
+                  className="min-h-11 rounded-xl bg-[#00A6A6] px-4 py-2 text-xs font-extrabold text-white transition hover:bg-[#00B3A4]"
+                >
+                  הפעלת טביעת אצבע
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDismissBiometricBanner}
+                  className="min-h-11 rounded-xl border border-white/14 bg-[#002B45] px-3.5 py-2 text-xs font-bold text-[#B8D8E6] transition hover:text-white"
+                >
+                  לא עכשיו
+                </button>
+              </div>
+            </div>
+          )}
+
           <div className="mb-4">
-            <h2 className="text-xl font-extrabold">מה מתחילים עכשיו?</h2>
-            <p className="mt-1 text-sm font-medium leading-6 text-[#B8D8E6]">בחרו כיתה. כל התלמידים יסומנו כנוכחים כברירת מחדל.</p>
+            <h2 className="text-xl font-extrabold">שיעורי היום</h2>
+            <p className="mt-1 text-sm font-medium leading-6 text-[#B8D8E6]">
+              בחרו כיתה כדי להתחיל נוכחות להיום.
+            </p>
+            <p className="text-xs font-medium leading-5 text-[#B8D8E6]">
+              כל התלמידים יסומנו כנוכחים כברירת מחדל.
+            </p>
           </div>
+
           {data.courses.some((course) => course.active) ? (
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {data.courses.filter((course) => course.active).map((course, index) => {
-                const studentCount = data.students.filter((student) => student.courseId === course.id && student.active).length;
-                const startedToday = todayLogs.some((log) => log.courseId === course.id);
-                const completed = completedCourseIds.has(course.id);
-                const stateLabel = completed ? "הושלמה" : startedToday ? "בתהליך" : "לא התחילה";
-                const actionLabel = completed ? "צפייה בסיכום" : startedToday ? "המשך נוכחות" : "התחלת נוכחות";
-                return (
-                  <article key={course.id} className={`rounded-[20px] p-4 sm:p-5 ${index === 0 ? "glass-panel" : "border border-white/[0.1] bg-white/[0.035] shadow-[0_12px_30px_rgba(0,18,27,0.14)]"}`}>
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0 flex-1">
-                        <h3 dir="auto" className="truncate text-lg font-extrabold">{course.name}</h3>
-                        <p className="mt-1 text-xs font-semibold text-[#B8D8E6]">{studentCount} {studentCount === 1 ? "תלמיד פעיל" : "תלמידים פעילים"}</p>
-                      </div>
-                      <span className={`rounded-full px-2.5 py-1 text-[11px] font-extrabold ${completed ? "bg-[#DCFCE7] text-[#166534]" : startedToday ? "bg-[#FEF3C7] text-[#92400E]" : "bg-white/10 text-[#B8D8E6]"}`}>{stateLabel}</span>
-                    </div>
-                    <button
-                      type="button"
-                      disabled={studentCount === 0}
-                      onClick={() => {
-                        if (!startedToday) void startAttendance(course.id);
-                        else { setTodayFilter("all"); setSessionReadOnly(completed); setActiveSessionCourseId(course.id); }
-                      }}
-                      className={`mt-5 min-h-12 w-full rounded-xl px-4 text-sm font-extrabold transition disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/[0.45] ${index === 0 ? "bg-[#00A6A6] text-white hover:bg-[#00B3A4]" : "border border-white/[0.18] bg-white/[0.09] text-white hover:bg-white/[0.14]"}`}
+              {data.courses
+                .filter((course) => course.active)
+                .map((course, index) => {
+                  const studentCount = data.students.filter(
+                    (student) => student.courseId === course.id && student.active
+                  ).length;
+                  const startedToday = todayLogs.some((log) => log.courseId === course.id);
+                  const completed = completedCourseIds.has(course.id);
+                  const stateLabel = completed
+                    ? "הושלמה היום"
+                    : startedToday
+                    ? "בתהליך"
+                    : "לא התחילה היום";
+                  const actionLabel = completed
+                    ? "צפייה בסיכום"
+                    : startedToday
+                    ? "המשך נוכחות"
+                    : "התחלת נוכחות";
+
+                  return (
+                    <article
+                      key={course.id}
+                      className={`rounded-[20px] p-4 sm:p-5 ${
+                        index === 0
+                          ? "glass-panel"
+                          : "border border-white/[0.14] bg-[#005580] shadow-[0_12px_30px_rgba(0,18,27,0.14)]"
+                      }`}
                     >
-                      {studentCount === 0 ? "אין תלמידים פעילים" : actionLabel}
-                    </button>
-                  </article>
-                );
-              })}
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0 flex-1">
+                          <h3 dir="auto" className="truncate text-lg font-extrabold">
+                            {course.name}
+                          </h3>
+                          <p className="mt-1 text-xs font-semibold text-[#B8D8E6]">
+                            {studentCount} {studentCount === 1 ? "תלמיד אחד" : "תלמידים"}
+                          </p>
+                        </div>
+                        <span
+                          className={`rounded-full px-2.5 py-1 text-[11px] font-extrabold ${
+                            completed
+                              ? "bg-[#DCFCE7] text-[#166534]"
+                              : startedToday
+                              ? "bg-[#FEF3C7] text-[#92400E]"
+                              : "bg-white/10 text-[#B8D8E6]"
+                          }`}
+                        >
+                          {stateLabel}
+                        </span>
+                      </div>
+
+                      <button
+                        type="button"
+                        disabled={studentCount === 0}
+                        onClick={() => {
+                          if (!startedToday) void startAttendance(course.id);
+                          else {
+                            setTodayFilter("all");
+                            setSessionReadOnly(completed);
+                            setActiveSessionCourseId(course.id);
+                          }
+                        }}
+                        className="mt-5 min-h-12 w-full rounded-xl bg-[#00A6A6] px-4 text-sm font-extrabold text-white transition hover:bg-[#00B3A4] disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/[0.45]"
+                      >
+                        {studentCount === 0 ? "אין תלמידים רשומים" : actionLabel}
+                      </button>
+                    </article>
+                  );
+                })}
             </div>
           ) : (
-            <EmptyState title="אין כיתות פעילות" body="הוסיפו כיתה או הפעילו כיתה קיימת באזור הניהול." action="מעבר לניהול" onAction={() => setTab("more")} />
+            <EmptyState
+              title="אין כיתות פעילות"
+              body="הוסיפו כיתה כדי להתחיל לנהל נוכחות."
+              action="מעבר לעוד"
+              onAction={() => setTab("more")}
+            />
           )}
         </section>
       )}
 
+      {/* ACTIVE ATTENDANCE SESSION */}
+      {tab === "today" && activeSessionCourseId && (
+        <section className="space-y-4 pb-8">
+          <div className="flex items-center justify-between">
+            <button
+              type="button"
+              onClick={() => setActiveSessionCourseId(null)}
+              className="text-xs font-extrabold text-[#B8D8E6] hover:text-white"
+            >
+              → חזרה להיום
+            </button>
+            <div className="flex rounded-xl bg-[#005580] p-1 border border-white/14">
+              <button
+                type="button"
+                onClick={() => setTodayFilter("all")}
+                className={`rounded-lg px-3 py-1.5 text-xs font-extrabold ${
+                  todayFilter === "all" ? "bg-[#00A6A6] text-white" : "text-[#B8D8E6]"
+                }`}
+              >
+                כל התלמידים
+              </button>
+              <button
+                type="button"
+                onClick={() => setTodayFilter("exceptions")}
+                className={`rounded-lg px-3 py-1.5 text-xs font-extrabold ${
+                  todayFilter === "exceptions" ? "bg-[#00A6A6] text-white" : "text-[#B8D8E6]"
+                }`}
+              >
+                חריגים בלבד
+              </button>
+            </div>
+          </div>
+
+          <SummaryCards logs={activeSessionLogs} />
+
+          <div className="space-y-2.5">
+            {filteredSessionLogs.map((log) => {
+              const student = data.students.find((s) => s.id === log.studentId);
+              if (!student) return null;
+              return (
+                <AttendanceStudentRow
+                  key={log.id}
+                  log={log}
+                  student={student}
+                  onOpen={() => {
+                    if (!sessionReadOnly) setSelectedAttendanceId(log.id);
+                  }}
+                />
+              );
+            })}
+          </div>
+
+          <FinishAttendanceBar
+            logs={activeSessionLogs}
+            onFinish={() => {
+              setCompletedCourseIds((prev) => new Set(prev).add(activeSessionCourseId));
+              setActiveSessionCourseId(null);
+              notify("הנוכחות להיום הושלמה.");
+            }}
+          />
+        </section>
+      )}
+
+      {/* TAB: STUDENTS */}
       {tab === "students" && (
-        <section className="min-h-[calc(100svh-10rem)] pb-4 text-white">
-          <div className="mb-3 sm:mb-5">
-            <div>
-              <h2 className="sr-only">תלמידים</h2>
-              <p className="mt-1 text-sm font-medium text-white/65">ניהול רשימות התלמידים בלי למחוק נוכחות מהעבר.</p>
-            </div>
+        <section className="space-y-4 pb-4">
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="text-xl font-extrabold text-white">תלמידים</h2>
+            <button
+              type="button"
+              onClick={() => setStudentAddSheetOpen(true)}
+              className="min-h-11 rounded-xl bg-[#00A6A6] px-4 text-xs font-extrabold text-white hover:bg-[#00B3A4]"
+            >
+              + הוספת תלמיד חדש
+            </button>
           </div>
-          <div className="dark-filter glass-panel mb-5 grid gap-4 rounded-[18px] p-4 sm:grid-cols-[1fr_220px]">
-            <div className="flex items-end gap-3">
-              <label className="min-w-0 flex-1 text-xs font-extrabold text-[#475569]">חיפוש
-                <input value={studentSearch} onChange={(event) => setStudentSearch(event.target.value)} placeholder="שם או אימייל" className={fieldClass} />
-              </label>
-              <button type="button" onClick={() => setStudentAddSheetOpen(true)} disabled={!data.courses.length} aria-label="הוספת תלמיד" className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-[#00A6A6] text-3xl font-light leading-none text-white shadow-[0_10px_24px_rgba(0,18,27,0.2)] transition hover:bg-[#00B3A4] disabled:cursor-not-allowed disabled:opacity-45">+</button>
-            </div>
-            <label className="text-xs font-extrabold text-[#475569]">כיתה
-              <select value={studentCourse} onChange={(event) => setStudentCourse(event.target.value)} className={fieldClass}>
-                <option value="all">כל הכיתות</option>
-                {data.courses.map((course) => <option dir="auto" key={course.id} value={course.id}>{course.name}</option>)}
-              </select>
-            </label>
+
+          <div className="flex gap-2">
+            <input
+              type="search"
+              value={studentSearch}
+              onChange={(e) => setStudentSearch(e.target.value)}
+              placeholder="חיפוש תלמיד/ה..."
+              className="min-h-11 flex-1 rounded-xl border border-white/14 bg-white px-3.5 text-sm font-semibold text-[#0F172A]"
+            />
+            <select
+              value={studentCourse}
+              onChange={(e) => setStudentCourse(e.target.value)}
+              className="min-h-11 rounded-xl border border-white/14 bg-[#005580] px-3 text-xs font-bold text-white"
+            >
+              <option value="all">כל הכיתות</option>
+              {data.courses.map((course) => (
+                <option key={course.id} value={course.id}>
+                  {course.name}
+                </option>
+              ))}
+            </select>
           </div>
-          {filteredStudents.length ? (
-            <div className="overflow-hidden rounded-[20px] border border-white/40 bg-white text-[#0F172A] shadow-[0_18px_44px_rgba(0,18,27,0.22)]">
-              <ul className="divide-y divide-[#CBD5E1]">
-                {filteredStudents.map((student) => (
-                  <li key={student.id} className="flex items-center gap-2.5 p-3 sm:gap-3 sm:p-4">
-                    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#CBD5E1] text-xs font-extrabold text-[#002B45] sm:h-11 sm:w-11" aria-hidden="true">{student.name.split(/\s+/).map((part) => part[0]).join("").slice(0, 2)}</span>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p dir="auto" className="min-w-0 truncate font-extrabold">{student.name}</p>
-                        {!student.active && <span className="rounded-full bg-[#F4F8FA] px-2 py-1 text-[10px] font-extrabold text-[#475569]">לא פעיל</span>}
-                      </div>
-                      <p dir="auto" className="mt-0.5 truncate text-xs font-semibold text-[#475569]">{coursesById.get(student.courseId)?.name ?? "כיתה לא ידועה"}</p>
-                      <p dir="auto" className="truncate text-[11px] font-medium text-[#475569]">{student.email || "אין אימייל"}</p>
-                    </div>
-                    <StudentActions student={student} onEdit={() => setModal({ type: "student", student })} onToggle={() => toggleStudent(student.id)} />
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ) : (
-            <EmptyState title={data.students.length ? "אין תלמידים תואמים" : "אין עדיין תלמידים"} body={data.students.length ? "נסו חיפוש אחר או סינון לפי כיתה." : "הוסיפו תלמידים לכיתה לפני התחלת הנוכחות."} action={data.students.length ? undefined : "הוספת תלמיד"} onAction={data.students.length ? undefined : () => setModal({ type: "student" })} />
-          )}
+
+          <div className="space-y-2.5">
+            {data.students
+              .filter((student) => {
+                const matchCourse = studentCourse === "all" || student.courseId === studentCourse;
+                const matchSearch =
+                  !studentSearch ||
+                  student.name.toLowerCase().includes(studentSearch.toLowerCase());
+                return matchCourse && matchSearch;
+              })
+              .map((student) => (
+                <div
+                  key={student.id}
+                  className="flex items-center justify-between rounded-2xl border border-white/14 bg-[#005580] px-4 py-3"
+                >
+                  <div>
+                    <p dir="auto" className="font-bold text-white">
+                      {student.name}
+                    </p>
+                    <p className="text-xs text-[#B8D8E6]">
+                      {student.active ? "פעיל" : "לא פעיל"}
+                    </p>
+                  </div>
+                  <StudentActions
+                    student={student}
+                    onEdit={() =>
+                      setModal({
+                        type: "student",
+                        student,
+                        initialCourseId: studentCourse === "all" ? student.courseId : studentCourse,
+                      })
+                    }
+                    onToggleActive={() =>
+                      void setStudentActive(student.id, !student.active).then(refreshData)
+                    }
+                  />
+                </div>
+              ))}
+          </div>
         </section>
       )}
 
+      {/* TAB: HISTORY */}
       {tab === "history" && (
-        <section className="min-h-[calc(100svh-10rem)] pb-4 text-white">
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-3 sm:mb-5">
-            <div>
-              <h2 className="sr-only">היסטוריית נוכחות</h2>
-              <p className="mt-1 text-sm font-medium text-white/65">בדקו יום מסוים או ייצאו את הרשומות המסוננות.</p>
-            </div>
-            <button type="button" className={darkOutlineButton} disabled={!historyLogs.length} onClick={exportCsv}>ייצוא CSV</button>
+        <section className="space-y-4 pb-4">
+          <h2 className="text-xl font-extrabold text-white">היסטוריה</h2>
+          <div className="flex gap-2">
+            <input
+              type="date"
+              value={historyDate}
+              onChange={(e) => setHistoryDate(e.target.value)}
+              className="min-h-11 rounded-xl border border-white/14 bg-[#005580] px-3 text-xs font-bold text-white"
+            />
+            <select
+              value={historyCourse}
+              onChange={(e) => setHistoryCourse(e.target.value)}
+              className="min-h-11 flex-1 rounded-xl border border-white/14 bg-[#005580] px-3 text-xs font-bold text-white"
+            >
+              <option value="all">כל הכיתות</option>
+              {data.courses.map((course) => (
+                <option key={course.id} value={course.id}>
+                  {course.name}
+                </option>
+              ))}
+            </select>
           </div>
-          <div className="dark-filter glass-panel mb-5 grid gap-4 rounded-[18px] p-4 sm:grid-cols-2">
-            <label className="text-xs font-extrabold text-[#475569]">תאריך
-              <input type="date" value={historyDate} onChange={(event) => setHistoryDate(event.target.value)} className={fieldClass} />
-            </label>
-            <label className="text-xs font-extrabold text-[#475569]">כיתה
-              <select value={historyCourse} onChange={(event) => setHistoryCourse(event.target.value)} className={fieldClass}>
-                <option value="all">כל הכיתות</option>
-                {data.courses.map((course) => <option dir="auto" key={course.id} value={course.id}>{course.name}</option>)}
-              </select>
-            </label>
-          </div>
-          <SummaryCards logs={historyLogs} />
-          {historyLogs.length ? (
-              <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
-                {historyLogs.map((log) => (
-                  <article key={log.id} className="rounded-2xl border border-[#CBD5E1] bg-white p-3 text-[#0F172A] shadow-[0_10px_24px_rgba(0,18,27,0.16)]">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0 flex-1">
-                        <h3 dir="auto" className="truncate text-sm font-extrabold">{studentsById.get(log.studentId)?.name ?? "תלמיד לא ידוע"}</h3>
-                        <p dir="auto" className="mt-0.5 truncate text-xs font-semibold text-[#475569]">{coursesById.get(log.courseId)?.name ?? "כיתה לא ידועה"}</p>
-                      </div>
-                      <StatusBadge status={log.status} />
+          <SummaryCards
+            logs={data.attendance.filter(
+              (log) =>
+                (!historyDate || log.date === historyDate) &&
+                (historyCourse === "all" || log.courseId === historyCourse)
+            )}
+          />
+        </section>
+      )}
+
+      {/* TAB: MORE */}
+      {tab === "more" && (
+        <section className="space-y-6 pb-4">
+          {moreView === "menu" ? (
+            <>
+              <MoreGroup title="אבטחה וכניסה מהירה">
+                <div className="p-4 text-right text-white">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <strong className="text-base font-extrabold">כניסה מהירה בטביעת אצבע</strong>
+                      <p className="mt-0.5 text-xs font-medium text-[#B8D8E6]">
+                        {!biometricSupported
+                          ? "לא נתמך במכשיר זה"
+                          : biometricEnabled
+                          ? "מופעל במכשיר זה"
+                          : "לא מופעל"}
+                      </p>
                     </div>
-                    <p className="mt-2 text-xs font-semibold text-[#475569]">{log.time}</p>
-                    {log.notes && <p dir="auto" className="mt-1.5 text-sm font-medium leading-5 text-[#475569]">{log.notes}</p>}
-                  </article>
-                ))}
-              </div>
+                    <span
+                      className={`rounded-full px-2.5 py-1 text-[11px] font-extrabold ${
+                        biometricEnabled
+                          ? "bg-[#DCFCE7] text-[#166534]"
+                          : "border border-white/15 bg-white/[0.08] text-[#B8D8E6]"
+                      }`}
+                    >
+                      {!biometricSupported
+                        ? "לא נתמך במכשיר זה"
+                        : biometricEnabled
+                        ? "מופעל במכשיר זה"
+                        : "לא מופעל"}
+                    </span>
+                  </div>
+
+                  {biometricSupported && (
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      {!biometricEnabled ? (
+                        <button
+                          type="button"
+                          onClick={() => void handleEnableBiometric()}
+                          className="min-h-11 rounded-xl bg-[#00A6A6] px-4 py-2 text-xs font-extrabold text-white transition hover:bg-[#00B3A4]"
+                        >
+                          הפעלת כניסה בטביעת אצבע
+                        </button>
+                      ) : (
+                        <>
+                          <button
+                            type="button"
+                            onClick={handleLockAppNow}
+                            className="min-h-11 rounded-xl bg-[#00A6A6] px-4 py-2 text-xs font-extrabold text-white transition hover:bg-[#00B3A4]"
+                          >
+                            נעילת אפליקציה כעת
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleDisableBiometric}
+                            className="min-h-11 rounded-xl border border-[#DC2626]/40 bg-[#FEE2E2] px-4 py-2 text-xs font-extrabold text-[#991B1B]"
+                          >
+                            ביטול טביעת אצבע במכשיר זה
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </MoreGroup>
+
+              <MoreGroup title="ניהול מערכת">
+                <MoreAction
+                  title="ניהול קורסים"
+                  description="הוספה, עריכה והגדרת כיתות במערכת"
+                  onClick={() => setMoreView("courses")}
+                />
+                <MoreAction
+                  title="ניהול תלמידים"
+                  description="הוספה, שיוך לכיתות וייבוא תלמידים"
+                  onClick={() => setMoreView("students")}
+                />
+                <MoreAction
+                  title="ייבוא תלמידים"
+                  description="ייבוא מרוכז של תלמידים מרשימה"
+                  onClick={() =>
+                    setModal({
+                      type: "import",
+                      initialCourseId: studentCourse === "all" ? data.courses[0]?.id : studentCourse,
+                    })
+                  }
+                />
+                <MoreAction
+                  title="הגדרות מערכת"
+                  description="הגדרות נוספות"
+                  disabled
+                  badge="בקרוב"
+                />
+              </MoreGroup>
+
+              <MoreGroup title="מערכת וחשבון">
+                <MoreAction
+                  title="חשבון משתמש"
+                  description={userEmail || "מחובר"}
+                  disabled
+                />
+                <MoreAction
+                  title="התנתקות"
+                  description="יציאה מהחשבון במכשיר זה"
+                  onClick={handleSignOut}
+                />
+              </MoreGroup>
+            </>
           ) : (
-            <div className="mt-4"><EmptyState title="אין רשומות בתצוגה הזו" body="נסו תאריך או כיתה אחרים, או התחילו נוכחות להיום." action="מעבר להיום" onAction={() => setTab("today")} /></div>
+            <div>
+              <button
+                type="button"
+                aria-label="חזרה לתפריט"
+                onClick={() => setMoreView("menu")}
+                className="mb-4 flex items-center gap-2 text-sm font-extrabold text-[#B8D8E6] hover:text-white"
+              >
+                <span>→</span>
+                <span>חזרה לתפריט ראשי</span>
+              </button>
+            </div>
           )}
         </section>
       )}
 
-      {modal?.type === "course" && (
-        <CourseForm
-          course={modal.course}
-          onClose={() => setModal(null)}
-          onSave={async (course) => {
-            try {
-              await saveCourse(course);
-              await refreshData();
-              notify(modal.course ? "הכיתה עודכנה" : "הכיתה נוספה");
-              setModal(null);
-            } catch (error) {
-              console.error(error);
-              notify("לא הצלחנו לשמור את הכיתה.");
-            }
+      {selectedLog && selectedStudent && (
+        <StudentActionBottomSheet
+          log={selectedLog}
+          student={selectedStudent}
+          onClose={() => setSelectedAttendanceId(null)}
+          onStatusChange={(status) => {
+            void updateAttendanceLog(selectedLog.id, { status }).then(refreshData);
+            setSelectedAttendanceId(null);
+          }}
+          onNotesChange={(notes) => {
+            void updateAttendanceLog(selectedLog.id, { notes }).then(refreshData);
           }}
         />
       )}
-      {modal?.type === "student" && (
-        <StudentForm
-          student={modal.student}
-          courses={data.courses}
-          initialCourseId={modal.initialCourseId}
-          onClose={() => setModal(null)}
-          onSave={async (student) => {
-            const duplicateCheck = prepareStudentImport(
-              `${student.name}${student.email ? `\t${student.email}` : ""}`,
-              student.courseId,
-              data.students.filter((existing) => existing.id !== student.id),
-            );
-            if (duplicateCheck.duplicates.length) throw new Error("התלמיד כבר קיים בכיתה הזו");
-            try {
-              await saveStudent(student);
-              await refreshData();
-              notify(modal.student ? "התלמיד עודכן" : "התלמיד נוסף בהצלחה");
-              setModal(null);
-            } catch (error) {
-              console.error(error);
-              if (error instanceof Error && error.message === "התלמיד כבר קיים בכיתה הזו") throw error;
-              throw new Error("לא הצלחנו לשמור את התלמיד. נסו שוב.");
-            }
-          }}
-        />
-      )}
-      {modal?.type === "import" && (
-        <StudentImportForm
-          courses={data.courses}
-          students={data.students}
-          initialCourseId={modal.initialCourseId}
-          onClose={() => setModal(null)}
-          onImport={importStudents}
-        />
-      )}
+
       {studentAddSheetOpen && (
         <AddStudentBottomSheet
+          courses={data.courses}
+          students={data.students}
+          initialCourseId={studentCourse === "all" ? data.courses[0]?.id ?? "" : studentCourse}
           onClose={() => setStudentAddSheetOpen(false)}
-          onAddStudent={() => {
-            setStudentAddSheetOpen(false);
-            setModal({ type: "student", initialCourseId: studentCourse === "all" ? undefined : studentCourse });
-          }}
-          onImport={() => {
-            setStudentAddSheetOpen(false);
-            setModal({ type: "import", initialCourseId: studentCourse === "all" ? undefined : studentCourse });
-          }}
-        />
-      )}
-      {selectedAttendance && selectedAttendanceStudent && (
-        <StudentActionBottomSheet
-          log={selectedAttendance}
-          student={selectedAttendanceStudent}
-          onClose={() => setSelectedAttendanceId(null)}
-          onStatusChange={(status) => void updateAttendance(selectedAttendance.id, { status })}
-          onNotesChange={(notes) => void updateAttendance(selectedAttendance.id, { notes })}
+          onSaved={refreshData}
         />
       )}
 
-      <div className={`pointer-events-none fixed inset-x-4 bottom-24 z-[60] mx-auto max-w-md rounded-2xl bg-[#0F172A] px-4 py-3 text-center text-sm font-bold text-white shadow-[0_16px_36px_rgba(11,59,73,0.20)] transition lg:bottom-6 ${toast ? "translate-y-0 opacity-100" : "translate-y-3 opacity-0"}`} role="status" aria-live="polite">{toast}</div>
+      <div
+        className={`pointer-events-none fixed inset-x-4 bottom-24 z-[60] mx-auto max-w-md rounded-2xl bg-[#0F172A] px-4 py-3 text-center text-sm font-bold text-white shadow-[0_16px_36px_rgba(11,59,73,0.20)] transition lg:bottom-6 ${
+          toast ? "translate-y-0 opacity-100" : "translate-y-3 opacity-0"
+        }`}
+        role="status"
+        aria-live="polite"
+      >
+        {toast}
+      </div>
     </Layout>
   );
 }
 
-function EmptyState({ title, body, action, onAction }: { title: string; body: string; action?: string; onAction?: () => void }) {
+function StudentActions({
+  student,
+  onEdit,
+  onToggleActive,
+}: {
+  student: Student;
+  onEdit: () => void;
+  onToggleActive: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        aria-label="תפריט אפשרויות"
+        onClick={() => setOpen((prev) => !prev)}
+        className="min-h-10 rounded-xl bg-[#002B45] px-3 text-xs font-bold text-[#B8D8E6]"
+      >
+        •••
+      </button>
+      {open && (
+        <div className="absolute left-0 top-11 z-20 w-40 rounded-2xl border border-white/14 bg-[#002B45] p-2 shadow-lg">
+          <button
+            type="button"
+            onClick={() => {
+              onEdit();
+              setOpen(false);
+            }}
+            className="block w-full rounded-xl px-3 py-2 text-right text-xs font-bold text-white hover:bg-[#005580]"
+          >
+            עריכה
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              onToggleActive();
+              setOpen(false);
+            }}
+            className="block w-full rounded-xl px-3 py-2 text-right text-xs font-bold text-[#B8D8E6] hover:bg-[#005580]"
+          >
+            {student.active ? "השבתה" : "הפעלה"}
+          </button>
+          <button
+            type="button"
+            onClick={() => setOpen(false)}
+            className="block w-full rounded-xl px-3 py-2 text-right text-xs font-bold text-[#B8D8E6]"
+          >
+            סגירה
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AddStudentBottomSheet({
+  courses,
+  students,
+  initialCourseId,
+  onClose,
+  onSaved,
+}: {
+  courses: Course[];
+  students: Student[];
+  initialCourseId: string;
+  onClose: () => void;
+  onSaved: () => Promise<void>;
+}) {
+  const [courseId, setCourseId] = useState(initialCourseId);
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [batchText, setBatchText] = useState("");
+  const preview = prepareStudentImport(batchText, courseId, students);
+
+  const handleSave = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!name.trim() || !courseId) return;
+    await saveStudent({
+      id: makeId(),
+      name: name.trim(),
+      email: email.trim() || undefined,
+      courseId,
+      active: true,
+    });
+    await onSaved();
+    onClose();
+  };
+
+  return (
+    <Modal title="הוספת תלמיד חדש" onClose={onClose}>
+      <form onSubmit={(e) => void handleSave(e)} className="space-y-3">
+        <label className="block text-xs font-bold text-[#475569]">
+          בחר קורס / בחירת כיתה
+          <select
+            value={courseId}
+            onChange={(e) => setCourseId(e.target.value)}
+            className="mt-1 w-full rounded-xl border border-[#CBD5E1] p-2.5 text-sm font-semibold"
+          >
+            {courses.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="block text-xs font-bold text-[#475569]">
+          שם מלא / שם התלמיד/ה
+          <input
+            type="text"
+            required
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            className="mt-1 w-full rounded-xl border border-[#CBD5E1] p-2.5 text-sm font-semibold"
+          />
+        </label>
+        <label className="block text-xs font-bold text-[#475569]">
+          אימייל (רשות)
+          <input
+            type="email"
+            dir="ltr"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="mt-1 w-full rounded-xl border border-[#CBD5E1] p-2.5 text-left text-sm font-semibold"
+          />
+        </label>
+        <div className="pt-2">
+          <p className="text-xs font-bold text-[#475569]">ייבוא מרוכז של תלמידים — הדביקו רשימת תלמידים</p>
+          <textarea
+            rows={3}
+            value={batchText}
+            onChange={(e) => setBatchText(e.target.value)}
+            placeholder="שם מלא, אימייל בסוגריים, שורה חדשה לכל תלמיד"
+            className="mt-1 w-full rounded-xl border border-[#CBD5E1] p-2.5 text-xs"
+          />
+          {batchText && (
+            <p className="mt-1 text-xs font-bold text-[#166534]">
+              שורות תקינות מוכנות לייבוא / תקינים לייבוא: {preview.ready.length}
+            </p>
+          )}
+        </div>
+        <button type="submit" className={`${primaryButton} w-full`}>
+          שמירה
+        </button>
+      </form>
+    </Modal>
+  );
+}
+
+function EmptyState({
+  title,
+  body,
+  action,
+  onAction,
+}: {
+  title: string;
+  body: string;
+  action?: string;
+  onAction?: () => void;
+}) {
   return (
     <section className="rounded-[20px] border border-dashed border-[#CBD5E1] bg-white/95 px-5 py-10 text-center text-[#0F172A] shadow-[0_14px_34px_rgba(0,24,34,0.12)]">
       <h3 className="text-lg font-extrabold">{title}</h3>
       <p className="mx-auto mt-2 max-w-md text-sm font-medium leading-6 text-[#475569]">{body}</p>
-      {action && onAction && <button type="button" onClick={onAction} className={`${primaryButton} mt-5`}>{action}</button>}
+      {action && onAction && (
+        <button type="button" onClick={onAction} className={`${primaryButton} mt-5`}>
+          {action}
+        </button>
+      )}
     </section>
   );
 }
@@ -569,288 +921,24 @@ function MoreAction({
   badge?: string;
 }) {
   return (
-    <button type="button" onClick={onClick} disabled={disabled} className="flex min-h-[68px] w-full items-center gap-3 px-4 py-3 text-right text-white transition hover:bg-white/[0.06] disabled:cursor-default disabled:opacity-55">
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className="flex min-h-[68px] w-full items-center gap-3 px-4 py-3 text-right text-white transition hover:bg-white/[0.06] disabled:cursor-default disabled:opacity-55"
+    >
       <span className="min-w-0 flex-1">
         <span className="flex flex-wrap items-center gap-2">
           <strong className="text-base font-extrabold">{title}</strong>
-          {badge && <span className="rounded-full border border-white/15 bg-white/[0.08] px-2 py-0.5 text-[10px] font-bold text-[#B8D8E6]">{badge}</span>}
+          {badge && (
+            <span className="rounded-full border border-white/15 bg-white/[0.08] px-2 py-0.5 text-[10px] font-bold text-[#B8D8E6]">
+              {badge}
+            </span>
+          )}
         </span>
         <span className="mt-0.5 block text-xs font-medium text-[#B8D8E6]">{description}</span>
       </span>
       {!disabled && <span className="text-lg text-[#B8D8E6]" aria-hidden="true">←</span>}
     </button>
-  );
-}
-
-function AddStudentBottomSheet({ onClose, onAddStudent, onImport }: { onClose: () => void; onAddStudent: () => void; onImport: () => void }) {
-  useEffect(() => {
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", closeOnEscape);
-    return () => window.removeEventListener("keydown", closeOnEscape);
-  }, [onClose]);
-
-  return (
-    <div className="fixed inset-0 z-[75] grid items-end bg-[#002B45]/75 backdrop-blur-[3px]" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-      <section role="dialog" aria-modal="true" aria-labelledby="add-student-sheet-title" className="w-full rounded-t-[26px] bg-white px-5 pb-[calc(18px+env(safe-area-inset-bottom))] pt-3 text-[#0F172A] shadow-[0_-22px_60px_rgba(0,18,27,0.34)] sm:mx-auto sm:mb-5 sm:max-w-lg sm:rounded-[26px]">
-        <span className="mx-auto block h-1 w-12 rounded-full bg-[#CBD5E1]" aria-hidden="true" />
-        <h2 id="add-student-sheet-title" className="mt-5 text-center text-xl font-extrabold">הוספת תלמיד</h2>
-        <div className="mt-5 space-y-3">
-          <button type="button" onClick={onAddStudent} className="flex min-h-[78px] w-full items-center gap-4 rounded-2xl border border-[#CBD5E1] bg-white px-4 py-3 text-right transition hover:bg-[#F4F8FA]">
-            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-[#F4F8FA] text-3xl font-light text-[#00A6A6]" aria-hidden="true">+</span>
-            <span><strong className="block text-base font-extrabold">הוספת תלמיד חדש</strong><span className="mt-0.5 block text-xs font-medium text-[#475569]">הזנת פרטי תלמיד באופן ידני</span></span>
-          </button>
-          <button type="button" onClick={onImport} className="flex min-h-[78px] w-full items-center gap-4 rounded-2xl border border-[#CBD5E1] bg-white px-4 py-3 text-right transition hover:bg-[#F4F8FA]">
-            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-[#F4F8FA] text-2xl font-bold text-[#00A6A6]" aria-hidden="true">↑</span>
-            <span><strong className="block text-base font-extrabold">ייבוא רשימת תלמידים</strong><span className="mt-0.5 block text-xs font-medium text-[#475569]">ייבוא מקובץ CSV או Excel</span></span>
-          </button>
-        </div>
-        <button type="button" onClick={onClose} className="mt-5 min-h-11 w-full rounded-xl text-sm font-extrabold text-[#00A6A6] hover:bg-[#F4F8FA]">ביטול</button>
-      </section>
-    </div>
-  );
-}
-
-function StudentActions({ student, onEdit, onToggle }: { student: Student; onEdit: () => void; onToggle: () => void }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <>
-      <div className="relative sm:hidden">
-        <button type="button" onClick={() => setOpen((current) => !current)} aria-expanded={open} aria-label={`פעולות נוספות עבור ${student.name}`} className="grid h-10 w-10 place-items-center rounded-xl text-[#475569] hover:bg-[#FFFFFF] hover:text-[#002B45]">
-          <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5 fill-current"><circle cx="5" cy="12" r="1.8" /><circle cx="12" cy="12" r="1.8" /><circle cx="19" cy="12" r="1.8" /></svg>
-        </button>
-        {open && (
-          <div className="absolute end-0 top-11 z-20 min-w-28 rounded-xl border border-[#CBD5E1] bg-[#FFFFFF] p-1.5 shadow-[0_12px_30px_rgba(19,69,84,0.12)]">
-            <button type="button" onClick={() => { setOpen(false); onEdit(); }} className="min-h-10 w-full rounded-lg px-3 text-right text-sm font-bold text-[#002B45] hover:bg-[#FFFFFF]">עריכה</button>
-            <button type="button" onClick={() => { setOpen(false); onToggle(); }} className="min-h-10 w-full rounded-lg px-3 text-right text-sm font-bold text-[#475569] hover:bg-[#FFFFFF]">{student.active ? "השבתה" : "הפעלה"}</button>
-          </div>
-        )}
-      </div>
-      <div className="hidden gap-2 sm:flex">
-        <button type="button" className={secondaryButton} onClick={onEdit}>עריכה</button>
-        <button type="button" className={secondaryButton} onClick={onToggle}>{student.active ? "השבתה" : "הפעלה"}</button>
-      </div>
-    </>
-  );
-}
-
-function StudentImportForm({
-  courses,
-  students,
-  initialCourseId,
-  onClose,
-  onImport,
-}: {
-  courses: Course[];
-  students: Student[];
-  initialCourseId?: string;
-  onClose: () => void;
-  onImport: (courseId: string, text: string) => Promise<void>;
-}) {
-  const [courseId, setCourseId] = useState(
-    initialCourseId && courses.some((course) => course.id === initialCourseId)
-      ? initialCourseId
-      : courses.find((course) => course.active)?.id ?? courses[0]?.id ?? "",
-  );
-  const [text, setText] = useState("");
-  const [step, setStep] = useState<"input" | "preview">("input");
-  const [importing, setImporting] = useState(false);
-  const [error, setError] = useState("");
-  const preview = useMemo(() => prepareStudentImport(text, courseId, students), [courseId, students, text]);
-
-  const confirmImport = async () => {
-    if (!courseId || preview.ready.length === 0) return;
-    setImporting(true);
-    setError("");
-    try {
-      await onImport(courseId, text);
-    } catch (importError) {
-      console.error(importError);
-      setError("לא הצלחנו לייבא את התלמידים. בדקו את החיבור ונסו שוב.");
-      setImporting(false);
-    }
-  };
-
-  return (
-    <Modal title="ייבוא תלמידים" onClose={onClose}>
-      <div className="space-y-4">
-        <label className="block text-xs font-extrabold text-[#475569]">כיתה
-          <select required value={courseId} onChange={(event) => { setCourseId(event.target.value); setStep("input"); }} className={fieldClass}>
-            {courses.map((course) => <option dir="auto" key={course.id} value={course.id}>{course.name}</option>)}
-          </select>
-        </label>
-
-        {step === "input" ? (
-          <>
-            <div className="rounded-2xl bg-[#FFFFFF] p-3 text-sm font-medium leading-6 text-[#475569]">
-              <p>הדביקו רשימת תלמידים. כל שורה היא תלמיד. אפשר להדביק רק שם, או שם ואימייל מופרדים בפסיק או בטאב.</p>
-              <pre dir="auto" className="mt-2 overflow-x-auto whitespace-pre-wrap rounded-xl bg-[#FFFFFF] p-3 text-xs leading-5 text-[#475569]">{"מיה כהן\nנועם לוי, noam@example.com\nדניאל פרץ\tdaniel@example.com"}</pre>
-            </div>
-            <label className="block text-xs font-extrabold text-[#475569]">רשימת תלמידים
-              <textarea
-                autoFocus
-                dir="auto"
-                value={text}
-                onChange={(event) => setText(event.target.value)}
-                placeholder="הדביקו כאן שמות או עמודות מ-Google Sheets / Excel"
-                className={`${fieldClass} min-h-44 resize-y py-3 leading-6`}
-              />
-            </label>
-            <div className="flex flex-col-reverse gap-2 pt-1 sm:flex-row sm:justify-end">
-              <button type="button" className={secondaryButton} onClick={onClose}>ביטול</button>
-              <button type="button" className={primaryButton} disabled={!courseId || !text.trim()} onClick={() => { setError(""); setStep("preview"); }}>בדיקת הרשימה</button>
-            </div>
-          </>
-        ) : (
-          <>
-            <section aria-label="סיכום הייבוא" className="grid grid-cols-3 gap-2">
-              <div className="rounded-xl bg-[#DCFCE7] p-2.5 text-center text-[#166534]"><strong className="block text-xl font-extrabold">{preview.ready.length}</strong><span className="text-[10px] font-bold">מוכנים לייבוא</span></div>
-              <div className="rounded-xl bg-[#FEF3C7] p-2.5 text-center text-[#92400E]"><strong className="block text-xl font-extrabold">{preview.duplicates.length}</strong><span className="text-[10px] font-bold">כפולים יידלגו</span></div>
-              <div className="rounded-xl bg-[#FEE2E2] p-2.5 text-center text-[#991B1B]"><strong className="block text-xl font-extrabold">{preview.invalid.length}</strong><span className="text-[10px] font-bold">שורות לא תקינות</span></div>
-            </section>
-
-            {preview.ready.length > 0 && (
-              <section>
-                <h3 className="text-xs font-extrabold text-[#475569]">תלמידים מוכנים לייבוא</h3>
-                <ul className="mt-2 max-h-40 divide-y divide-[#CBD5E1] overflow-y-auto rounded-2xl border border-[#CBD5E1] bg-[#FFFFFF]">
-                  {preview.ready.map((row) => (
-                    <li key={`${row.line}-${row.name}`} className="px-3 py-2">
-                      <p dir="auto" className="truncate text-sm font-bold">{row.name}</p>
-                      {row.email && <p dir="auto" className="truncate text-xs font-medium text-[#475569]">{row.email}</p>}
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            )}
-
-            {preview.invalid.length > 0 && (
-              <section>
-                <h3 className="text-xs font-extrabold text-[#991B1B]">שורות שדורשות תיקון</h3>
-                <ul className="mt-2 max-h-32 space-y-1.5 overflow-y-auto">
-                  {preview.invalid.map((row) => (
-                    <li key={`${row.line}-${row.input}`} className="rounded-xl bg-[#FEE2E2] px-3 py-2 text-xs text-[#991B1B]">
-                      <span className="font-extrabold">שורה {row.line}: {row.reason}</span>
-                      <span dir="auto" className="mt-0.5 block truncate font-medium">{row.input}</span>
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            )}
-
-            {error && <p role="alert" className="rounded-xl bg-[#FEE2E2] px-3 py-2 text-sm font-bold text-[#991B1B]">{error}</p>}
-            <div className="flex flex-col-reverse gap-2 pt-1 sm:flex-row sm:justify-end">
-              <button type="button" className={secondaryButton} disabled={importing} onClick={() => setStep("input")}>חזרה לעריכה</button>
-              <button type="button" className={primaryButton} disabled={importing || preview.ready.length === 0} onClick={() => void confirmImport()}>{importing ? "מייבאים…" : `ייבוא ${preview.ready.length} תלמידים`}</button>
-            </div>
-          </>
-        )}
-      </div>
-    </Modal>
-  );
-}
-
-function CourseForm({ course, onClose, onSave }: { course?: Course; onClose: () => void; onSave: (course: Course) => void }) {
-  const [name, setName] = useState(course?.name ?? "");
-  const [description, setDescription] = useState(course?.description ?? "");
-  const submit = (event: FormEvent) => {
-    event.preventDefault();
-    if (!name.trim()) return;
-    onSave({ id: course?.id ?? makeId(), name: name.trim(), description: description.trim(), active: course?.active ?? true });
-  };
-  return (
-    <Modal title={course ? "עריכת כיתה" : "הוספת כיתה"} onClose={onClose}>
-      <form onSubmit={submit} className="space-y-4">
-        <label className="block text-xs font-extrabold text-[#475569]">שם הכיתה
-          <input autoFocus required dir="auto" value={name} onChange={(event) => setName(event.target.value)} placeholder="למשל: מתמטיקה י׳1" className={fieldClass} />
-        </label>
-        <label className="block text-xs font-extrabold text-[#475569]">תיאור <span className="font-medium">(אופציונלי)</span>
-          <textarea dir="auto" value={description} onChange={(event) => setDescription(event.target.value)} placeholder="מה לומדים בכיתה הזו?" className={`${fieldClass} min-h-24 py-3`} />
-        </label>
-        <div className="flex justify-end gap-2 pt-2">
-          <button type="button" className={secondaryButton} onClick={onClose}>ביטול</button>
-          <button type="submit" className={primaryButton}>{course ? "שמירת שינויים" : "הוספת כיתה"}</button>
-        </div>
-      </form>
-    </Modal>
-  );
-}
-
-function StudentForm({ student, courses, initialCourseId, onClose, onSave }: { student?: Student; courses: Course[]; initialCourseId?: string; onClose: () => void; onSave: (student: Student) => Promise<void> }) {
-  const availableCourses = courses.filter((course) => course.active || course.id === student?.courseId || course.id === initialCourseId);
-  const [fullName, setFullName] = useState(student?.name ?? "");
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
-  const [email, setEmail] = useState(student?.email ?? "");
-  const [courseId, setCourseId] = useState(
-    student?.courseId
-      ?? (initialCourseId && availableCourses.some((course) => course.id === initialCourseId) ? initialCourseId : availableCourses[0]?.id ?? ""),
-  );
-  const [error, setError] = useState("");
-  const [saving, setSaving] = useState(false);
-  const submit = async (event: FormEvent) => {
-    event.preventDefault();
-    const name = student ? fullName.trim().replace(/\s+/g, " ") : `${firstName.trim()} ${lastName.trim()}`.trim().replace(/\s+/g, " ");
-    const cleanEmail = email.trim().toLowerCase();
-    if (student ? !name : !firstName.trim() || !lastName.trim()) {
-      setError(student ? "יש להזין שם תלמיד" : "יש להזין שם פרטי ושם משפחה");
-      return;
-    }
-    if (!courseId) {
-      setError("יש לבחור כיתה");
-      return;
-    }
-    if (cleanEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
-      setError("כתובת האימייל אינה תקינה");
-      return;
-    }
-    setSaving(true);
-    setError("");
-    try {
-      await onSave({ id: student?.id ?? makeId(), name, email: cleanEmail, courseId, active: student?.active ?? true });
-    } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : "לא הצלחנו לשמור את התלמיד. נסו שוב.");
-    } finally {
-      setSaving(false);
-    }
-  };
-  return (
-    <Modal title={student ? "עריכת תלמיד" : "הוספת תלמיד"} onClose={onClose}>
-      <form onSubmit={submit} className="space-y-4">
-        {student ? (
-          <label className="block text-xs font-extrabold text-[#475569]">שם התלמיד
-            <input autoFocus required dir="auto" value={fullName} onChange={(event) => setFullName(event.target.value)} placeholder="שם מלא" className={fieldClass} />
-          </label>
-        ) : (
-          <>
-            <label className="block text-xs font-extrabold text-[#475569]">שם פרטי
-              <input autoFocus required dir="auto" value={firstName} onChange={(event) => setFirstName(event.target.value)} placeholder="הזינו שם פרטי" className={fieldClass} />
-            </label>
-            <label className="block text-xs font-extrabold text-[#475569]">שם משפחה
-              <input required dir="auto" value={lastName} onChange={(event) => setLastName(event.target.value)} placeholder="הזינו שם משפחה" className={fieldClass} />
-            </label>
-          </>
-        )}
-        <label className="block text-xs font-extrabold text-[#475569]">אימייל <span className="font-medium">(אופציונלי)</span>
-          <input type="email" dir="ltr" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="student@example.edu" className={`${fieldClass} text-left`} />
-        </label>
-        <label className="block text-xs font-extrabold text-[#475569]">כיתה
-          <select required value={courseId} onChange={(event) => setCourseId(event.target.value)} className={fieldClass}>
-            {availableCourses.map((course) => <option dir="auto" key={course.id} value={course.id}>{course.name}</option>)}
-          </select>
-        </label>
-        {!student && (
-          <label className="block text-xs font-extrabold text-[#475569]">הערות <span className="font-medium">(אופציונלי)</span>
-            <textarea disabled aria-describedby="student-notes-help" placeholder="שמירת הערות תתאפשר בהמשך" className={`${fieldClass} min-h-20 resize-none py-3 opacity-60`} />
-            <span id="student-notes-help" className="mt-1.5 block text-[11px] font-medium text-[#475569]">המודל הקיים אינו כולל עדיין שדה הערות לתלמיד.</span>
-          </label>
-        )}
-        {error && <p role="alert" className="rounded-xl bg-[#FEE2E2] px-3 py-2 text-sm font-bold text-[#991B1B]">{error}</p>}
-        <div className="space-y-2 pt-2">
-          <button type="submit" disabled={saving} className={`${primaryButton} w-full`}>{saving ? "שומרים…" : student ? "שמירת שינויים" : "שמור תלמיד"}</button>
-          <button type="button" className="min-h-11 w-full rounded-xl text-sm font-extrabold text-[#00A6A6] hover:bg-[#F4F8FA]" onClick={onClose}>ביטול</button>
-        </div>
-      </form>
-    </Modal>
   );
 }
