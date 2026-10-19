@@ -194,13 +194,13 @@ export async function registerBiometric(email: string): Promise<BiometricRecord>
   try {
     const credential = (await window.navigator.credentials.create({
       publicKey: {
-        challenge,
+        challenge: challenge as any,
         rp: {
           name: "נוכחות",
           id: getRpId(),
         },
         user: {
-          id: userIdBytes,
+          id: userIdBytes as any,
           name: normalized,
           displayName: normalized,
         },
@@ -260,15 +260,15 @@ export async function verifyBiometric(email?: string): Promise<boolean> {
   try {
     const assertion = (await window.navigator.credentials.get({
       publicKey: {
-        challenge,
+        challenge: challenge as any,
         rpId: getRpId(),
         allowCredentials: [
           {
             type: "public-key",
-            id: credentialIdBytes.buffer.slice(
+            id: (credentialIdBytes.buffer.slice(
               credentialIdBytes.byteOffset,
               credentialIdBytes.byteOffset + credentialIdBytes.byteLength
-            ) as ArrayBuffer,
+            ) as ArrayBuffer) as any,
             transports: ["internal"],
           },
         ],
