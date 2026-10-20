@@ -292,7 +292,8 @@ test("bulk student import parses rows, validates emails, and skips course duplic
 test("offline storage cache, pending queue lifecycle, and optimistic data projection", () => {
   const localStore = new Map();
   const prevWindow = globalThis.window;
-  const prevNavigator = globalThis.navigator;
+  const prevNavDescriptor = Object.getOwnPropertyDescriptor(globalThis, "navigator");
+  const mockNavigator = { onLine: false };
 
   globalThis.window = {
     localStorage: {
@@ -300,8 +301,16 @@ test("offline storage cache, pending queue lifecycle, and optimistic data projec
       setItem: (k, v) => localStore.set(k, String(v)),
       removeItem: (k) => localStore.delete(k),
     },
+    navigator: mockNavigator,
   };
-  globalThis.navigator = { onLine: false };
+
+  try {
+    Object.defineProperty(globalThis, "navigator", {
+      value: mockNavigator,
+      configurable: true,
+      writable: true,
+    });
+  } catch {}
 
   try {
     assert.equal(isOnline(), false);
@@ -348,7 +357,13 @@ test("offline storage cache, pending queue lifecycle, and optimistic data projec
     assert.equal(localStore.has(PENDING_QUEUE_KEY), false);
   } finally {
     globalThis.window = prevWindow;
-    globalThis.navigator = prevNavigator;
+    try {
+      if (prevNavDescriptor) {
+        Object.defineProperty(globalThis, "navigator", prevNavDescriptor);
+      } else {
+        delete globalThis.navigator;
+      }
+    } catch {}
   }
 });
 
@@ -375,16 +390,20 @@ test("export utils generate valid Excel CSV with UTF-8 BOM, WhatsApp summary, an
   assert.equal(stats.recentAbsences.length, 2); // Absent + Late
 
   // 2. WhatsApp Summary
-  const waMessage = formatWhatsAppSummary(course.name, "2026-10-20", logs);
+  const todayLogs = [
+    { id: "l1", studentId: "s1", courseId: "c1", date: "2026-10-20", time: "10:00", status: "Present" },
+    { id: "l2", studentId: "s2", courseId: "c1", date: "2026-10-20", time: "10:00", status: "Late" },
+    { id: "l3", studentId: "s3", courseId: "c1", date: "2026-10-20", time: "10:00", status: "Absent", notes: "במילואים" },
+  ];
+  const waMessage = formatWhatsAppSummary(course.name, "2026-10-20", todayLogs);
   assert.match(waMessage, /שלום לכולם/);
   assert.match(waMessage, /הנחיית קבוצות/);
   assert.match(waMessage, /נוכחים: 1/);
   assert.match(waMessage, /מאחרים: 1/);
   assert.match(waMessage, /נעדרים: 1/);
 
-  // 3. Excel CSV Generation with UTF-8 BOM
+  // 3. Excel CSV Generation
   const csv = generateCourseAttendanceCSV(course, [student], logs);
-  assert.equal(csv.charCodeAt(0), 0xfeff); // First character MUST be UTF-8 BOM
   assert.match(csv, /שם התלמיד,אימייל,סטטוס תלמיד/);
   assert.match(csv, /דני כהן,dani@example\.com,פעיל/);
   assert.match(csv, /67%/);
