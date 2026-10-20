@@ -105,40 +105,71 @@ export default function Home() {
     });
   }, []);
 
-  useEffect(() => {
+useEffect(() => {
     if (!supabase) {
       setAuthReady(true);
       return;
     }
 
-    supabase.auth.getSession().then(({ data: { session: currentSession } }) => {
-      setSession(currentSession);
-      if (currentSession?.user?.email) {
-        setBiometricEnabled(hasBiometricEnabled(currentSession.user.email));
-        setBiometricUnlocked(isBiometricSessionUnlocked());
-      }
-      setAuthReady(true);
-    });
+    let mounted = true;
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, nextSession) => {
-      setSession(nextSession);
-      if (nextSession?.user?.email) {
-        setBiometricEnabled(hasBiometricEnabled(nextSession.user.email));
-        if (event === "SIGNED_IN" && !hasBiometricEnabled(nextSession.user.email)) {
-          setBiometricUnlocked(true);
-        } else {
+    // מגבלת זמן של 1.5 שניות - לא להישאר תקוע על טעינה
+    const timeout = setTimeout(() => {
+      if (mounted) {
+        setAuthReady(true);
+      }
+    }, 1500);
+
+    supabase.auth
+      .getSession()
+      .then(({ data }) => {
+        if (!mounted) return;
+        const currentSession = data?.session ?? null;
+        setSession(currentSession);
+        if (currentSession?.user?.email) {
+          setBiometricEnabled(hasBiometricEnabled(currentSession.user.email));
           setBiometricUnlocked(isBiometricSessionUnlocked());
         }
-      } else {
-        lockBiometricSession();
-        setBiometricUnlocked(false);
-      }
-      setAuthReady(true);
-    });
+      })
+      .catch((err) => {
+        console.warn("Supabase getSession failed:", err);
+      })
+      .finally(() => {
+        if (mounted) {
+          clearTimeout(timeout);
+          setAuthReady(true);
+        }
+      });
 
-    return () => subscription.unsubscribe();
+    let subscription: { unsubscribe: () => void } | null = null;
+    try {
+      const authRes = supabase.auth.onAuthStateChange((event, nextSession) => {
+        if (!mounted) return;
+        setSession(nextSession);
+        if (nextSession?.user?.email) {
+          setBiometricEnabled(hasBiometricEnabled(nextSession.user.email));
+          if (event === "SIGNED_IN" && !hasBiometricEnabled(nextSession.user.email)) {
+            setBiometricUnlocked(true);
+          } else {
+            setBiometricUnlocked(isBiometricSessionUnlocked());
+          }
+        } else {
+          lockBiometricSession();
+          setBiometricUnlocked(false);
+        }
+        setAuthReady(true);
+      });
+      subscription = authRes.data.subscription;
+    } catch (err) {
+      console.warn("onAuthStateChange subscription failed:", err);
+      setAuthReady(true);
+    }
+
+    return () => {
+      mounted = false;
+      clearTimeout(timeout);
+      subscription?.unsubscribe();
+    };
   }, []);
 
   useEffect(() => {
