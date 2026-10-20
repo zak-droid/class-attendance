@@ -91,10 +91,10 @@ export function Layout({
   }).format(new Date());
 
   return (
-    <div lang="he" dir="rtl" className="min-h-[100svh] bg-[#002B45] text-white">
-      <header className="border-b border-white/14 bg-[#002B45] px-5 pt-5 pb-4">
+    <div lang="he" dir="rtl" className="min-h-[100svh] w-full max-w-full overflow-x-hidden bg-[#002B45] text-white">
+      <header className="border-b border-white/14 bg-[#002B45] px-4 sm:px-5 pt-4 sm:pt-5 pb-3.5 sm:pb-4">
         <div className="mx-auto flex max-w-4xl items-center justify-between gap-3">
-          <div>
+          <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
               <p className="text-xs font-semibold text-[#B8D8E6]">{formattedDate}</p>
               {isOffline && (
@@ -112,20 +112,20 @@ export function Layout({
                 </button>
               )}
             </div>
-            <h1 className="text-2xl font-extrabold tracking-tight">{title}</h1>
-            <p className="mt-0.5 text-xs font-medium text-[#B8D8E6]">{userEmail}</p>
+            <h1 className="truncate text-xl sm:text-2xl font-extrabold tracking-tight">{title}</h1>
+            <p className="mt-0.5 truncate text-xs font-medium text-[#B8D8E6]" dir="ltr">{userEmail}</p>
           </div>
           <button
             type="button"
             onClick={onSignOut}
-            className="min-h-10 rounded-xl border border-white/15 bg-[#005580] px-3.5 py-1.5 text-xs font-extrabold text-white hover:bg-[#005580]/80"
+            className="shrink-0 min-h-10 rounded-xl border border-white/15 bg-[#005580] px-3.5 py-1.5 text-xs font-extrabold text-white hover:bg-[#005580]/80"
           >
             התנתקות
           </button>
         </div>
       </header>
 
-      <main className="mx-auto max-w-4xl px-5 pt-5 pb-[calc(7.25rem+env(safe-area-inset-bottom))]">
+      <main className="mx-auto w-full max-w-4xl px-4 sm:px-5 pt-4 sm:pt-5 pb-[calc(7.25rem+env(safe-area-inset-bottom))]">
         {children}
       </main>
 
@@ -387,7 +387,7 @@ export function StudentActionBottomSheet({
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-0 sm:items-center sm:p-4">
-      <div className="w-full max-w-md rounded-t-3xl border-t border-white/14 bg-[#002B45] p-6 text-white sm:rounded-3xl">
+      <div className="w-full max-w-md rounded-t-[28px] border-t border-white/14 bg-[#002B45] p-5 pb-[calc(1.5rem+env(safe-area-inset-bottom))] text-white max-h-[92svh] overflow-y-auto sm:rounded-3xl sm:border sm:p-6">
         <div className="flex items-center justify-between border-b border-white/14 pb-3">
           <h3 dir="auto" className="text-lg font-extrabold">
             {student.name}
@@ -463,75 +463,88 @@ export function StudentQuickCardModal({
       : "bg-[#FEE2E2] text-[#991B1B] border-[#DC2626]/30";
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-      <div className="w-full max-w-md rounded-3xl border border-white/15 bg-[#002B45] p-6 text-white shadow-2xl">
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={`כרטיס תלמיד עבור ${student.name}`}
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-0 sm:items-center sm:p-4"
+    >
+      <div className="w-full max-w-md rounded-t-[28px] border-t border-white/15 bg-[#002B45] p-5 pb-[calc(1.5rem+env(safe-area-inset-bottom))] text-white shadow-2xl max-h-[92svh] overflow-y-auto sm:rounded-3xl sm:border sm:p-6">
         <div className="flex items-start justify-between border-b border-white/14 pb-3">
-          <div>
+          <div className="min-w-0 flex-1">
             <span className="text-[11px] font-extrabold uppercase tracking-wider text-[#00A6A6]">
               כרטיס תלמיד/ה
             </span>
-            <h2 dir="auto" className="text-xl font-extrabold text-white">
+            <h2 dir="auto" className="truncate text-xl font-extrabold text-white">
               {student.name}
             </h2>
-            {courseName && <p className="text-xs text-[#B8D8E6]">{courseName}</p>}
-            {student.email && <p className="text-xs text-[#94A3B8]" dir="ltr">{student.email}</p>}
+            {courseName && <p className="truncate text-xs text-[#B8D8E6]">{courseName}</p>}
+            {student.email && (
+              <p className="truncate text-xs text-[#94A3B8]" dir="ltr">
+                {student.email}
+              </p>
+            )}
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg bg-white/10 px-2.5 py-1 text-xs font-bold text-[#B8D8E6] hover:bg-white/20 hover:text-white"
+            className="shrink-0 rounded-xl bg-white/10 px-3 py-1.5 text-xs font-bold text-[#B8D8E6] transition hover:bg-white/20 hover:text-white"
           >
             ✕ סגור
           </button>
         </div>
 
         {/* Attendance rate highlight */}
-        <div className="mt-4 flex items-center justify-between rounded-2xl border border-white/10 bg-[#003859] p-4">
-          <div>
+        <div className="mt-3.5 flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-[#003859] p-3.5 sm:p-4">
+          <div className="min-w-0 flex-1">
             <p className="text-xs font-bold text-[#B8D8E6]">אחוז נוכחות מצטבר בקורס</p>
             <p className="text-[11px] text-slate-400">
               {totalSessions} מפגשים נרשמו עד כה
             </p>
           </div>
-          <div className={`rounded-xl border px-3.5 py-1.5 text-center font-extrabold ${rateColor}`}>
+          <div className={`shrink-0 rounded-xl border px-3.5 py-1.5 text-center font-extrabold ${rateColor}`}>
             <span className="text-xl">{attendancePercentage}%</span>
           </div>
         </div>
 
         {/* 4-Stat breakdown */}
-        <div className="mt-3 grid grid-cols-4 gap-2 text-center">
+        <div className="mt-3 grid grid-cols-4 gap-1.5 text-center sm:gap-2">
           <div className="rounded-xl border border-white/10 bg-[#005580] p-2">
             <p className="text-[10px] font-bold text-[#B8D8E6]">נוכח</p>
-            <p className="text-lg font-black text-[#86EFAC]">{presentCount}</p>
+            <p className="text-base font-black text-[#86EFAC] sm:text-lg">{presentCount}</p>
           </div>
           <div className="rounded-xl border border-white/10 bg-[#005580] p-2">
             <p className="text-[10px] font-bold text-[#B8D8E6]">מאחר</p>
-            <p className="text-lg font-black text-[#FDE047]">{lateCount}</p>
+            <p className="text-base font-black text-[#FDE047] sm:text-lg">{lateCount}</p>
           </div>
           <div className="rounded-xl border border-white/10 bg-[#005580] p-2">
             <p className="text-[10px] font-bold text-[#B8D8E6]">נעדר</p>
-            <p className="text-lg font-black text-[#FCA5A5]">{absentCount}</p>
+            <p className="text-base font-black text-[#FCA5A5] sm:text-lg">{absentCount}</p>
           </div>
           <div className="rounded-xl border border-white/10 bg-[#005580] p-2">
             <p className="text-[10px] font-bold text-[#B8D8E6]">מוצדק</p>
-            <p className="text-lg font-black text-[#93C5FD]">{excusedCount}</p>
+            <p className="text-base font-black text-[#93C5FD] sm:text-lg">{excusedCount}</p>
           </div>
         </div>
 
         {/* Recent absences / logs */}
-        <div className="mt-4">
-          <p className="text-xs font-bold text-[#B8D8E6] mb-2">היעדרויות ואיחורים אחרונים:</p>
+        <div className="mt-3.5">
+          <p className="mb-2 text-xs font-bold text-[#B8D8E6]">היעדרויות ואיחורים אחרונים:</p>
           {recentAbsences.length === 0 ? (
             <p className="rounded-xl bg-white/5 p-3 text-xs text-[#86EFAC]">
               ✨ אין היעדרויות או איחורים רשומים לתלמיד זה
             </p>
           ) : (
-            <div className="space-y-1.5 max-h-36 overflow-y-auto">
+            <div className="max-h-36 space-y-1.5 overflow-y-auto">
               {recentAbsences.map((ab, idx) => (
-                <div key={idx} className="flex items-center justify-between rounded-xl bg-white/5 px-3 py-2 text-xs">
-                  <span className="font-bold text-slate-200">מפגש {ab.date}</span>
-                  <div className="flex items-center gap-2">
-                    {ab.notes && <span className="text-[11px] text-[#B8D8E6] truncate max-w-32">{ab.notes}</span>}
+                <div key={idx} className="flex items-center justify-between gap-2 rounded-xl bg-white/5 px-3 py-2 text-xs">
+                  <span className="shrink-0 font-bold text-slate-200">מפגש {ab.date}</span>
+                  <div className="flex min-w-0 items-center gap-2">
+                    {ab.notes && (
+                      <span className="max-w-28 truncate text-[11px] text-[#B8D8E6] sm:max-w-36">
+                        {ab.notes}
+                      </span>
+                    )}
                     <StatusBadge status={ab.status} />
                   </div>
                 </div>
@@ -543,7 +556,7 @@ export function StudentQuickCardModal({
         <button
           type="button"
           onClick={onClose}
-          className="mt-5 min-h-11 w-full rounded-xl bg-[#00A6A6] px-4 text-xs font-extrabold text-white transition hover:bg-[#00B3A4]"
+          className="mt-4 min-h-12 w-full rounded-xl bg-[#00A6A6] px-4 text-sm font-extrabold text-white transition hover:bg-[#00B3A4]"
         >
           סיום צפייה
         </button>
@@ -567,17 +580,17 @@ export function FinishAttendanceBar({
   const excusedCount = logs.filter((l) => l.status === "Excused").length;
 
   return (
-    <div className="fixed inset-x-0 bottom-0 z-40 border-t border-white/14 bg-[#002B45]/95 px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] backdrop-blur">
-      <div className="mx-auto flex max-w-md items-center justify-between gap-2.5">
-        <p className="text-[11px] font-bold text-[#B8D8E6]">
+    <div className="fixed inset-x-0 bottom-0 z-40 border-t border-white/14 bg-[#002B45]/95 px-4 pt-2.5 pb-[calc(0.75rem+env(safe-area-inset-bottom))] backdrop-blur">
+      <div className="mx-auto flex max-w-md flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-[11px] font-bold text-[#B8D8E6] text-center sm:text-right">
           נוכחים {presentCount} · מאחרים {lateCount} · נעדרים {absentCount} · מוצדקים {excusedCount}
         </p>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 w-full sm:w-auto">
           {onShareWhatsApp && (
             <button
               type="button"
               onClick={onShareWhatsApp}
-              className="min-h-11 rounded-xl bg-[#25D366] px-3 text-xs font-extrabold text-white hover:bg-[#20BD5A] transition flex items-center gap-1"
+              className="flex min-h-11 shrink-0 items-center justify-center gap-1.5 rounded-xl bg-[#25D366] px-3.5 text-xs font-extrabold text-white transition hover:bg-[#20BD5A]"
               title="שיתוף סיכום נוכחות לווטסאפ"
             >
               <span>💬</span>
@@ -587,7 +600,7 @@ export function FinishAttendanceBar({
           <button
             type="button"
             onClick={onFinish}
-            className="min-h-11 rounded-xl bg-[#00A6A6] px-4 text-sm font-extrabold text-white hover:bg-[#00B3A4]"
+            className="min-h-11 flex-1 sm:flex-initial rounded-xl bg-[#00A6A6] px-5 text-sm font-extrabold text-white transition hover:bg-[#00B3A4]"
           >
             סיום נוכחות
           </button>
@@ -607,11 +620,20 @@ export function Modal({
   children: ReactNode;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-      <div className="w-full max-w-md rounded-3xl border border-white/14 bg-white p-6 text-[#0F172A] shadow-xl">
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={title}
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-0 sm:items-center sm:p-4"
+    >
+      <div className="w-full max-w-md rounded-t-[28px] border-t border-slate-200 bg-white p-5 pb-[calc(1.5rem+env(safe-area-inset-bottom))] text-[#0F172A] shadow-2xl max-h-[92svh] overflow-y-auto sm:rounded-3xl sm:border sm:p-6">
         <div className="flex items-center justify-between border-b border-slate-200 pb-3">
           <h2 className="text-lg font-extrabold">{title}</h2>
-          <button type="button" onClick={onClose} className="text-xs font-bold text-[#475569]">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg p-1 text-xs font-bold text-[#475569] hover:text-[#0F172A]"
+          >
             סגירה
           </button>
         </div>
@@ -658,9 +680,9 @@ export function BiometricLockScreen({
     <main
       lang="he"
       dir="rtl"
-      className="min-h-[100svh] bg-[#002B45] px-5 py-8 text-right text-white flex items-center justify-center"
+      className="min-h-[100svh] w-full max-w-full overflow-x-hidden bg-[#002B45] px-4 py-6 sm:px-5 sm:py-8 text-right text-white flex items-center justify-center"
     >
-      <section className="w-full max-w-md rounded-[24px] border border-white/14 bg-[#005580] p-6 shadow-[0_24px_64px_rgba(0,18,27,0.35)] sm:p-8">
+      <section className="w-full max-w-md rounded-[24px] border border-white/14 bg-[#005580] p-5 sm:p-8 shadow-[0_24px_64px_rgba(0,18,27,0.35)]">
         <div
           className="mb-5 flex h-14 w-14 items-center justify-center rounded-2xl border border-white/14 bg-[#002B45] text-[#00A6A6]"
           aria-hidden="true"
@@ -688,7 +710,7 @@ export function BiometricLockScreen({
 
         <h1 className="text-2xl font-extrabold tracking-tight text-white">כניסה מהירה</h1>
         <p className="mt-1.5 text-sm font-medium text-[#B8D8E6]">
-          מחובר/ת כ- <span dir="ltr" className="font-bold text-white">{email}</span>
+          מחובר/ת כ- <span dir="ltr" className="font-bold text-white break-all">{email}</span>
         </p>
 
         {error && (
