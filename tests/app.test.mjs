@@ -439,3 +439,23 @@ test("teacher enhancements UI contracts in components and page", () => {
   assert.match(page, /דוחות וייצוא נתונים/);
   assert.match(components, /ייצוא ל-Excel/);
 });
+
+test("mobile hardware and gesture back button navigation lifecycle contract", () => {
+  const page = read("app/page.tsx");
+  const components = read("app/components.tsx");
+
+  // Popstate history listener and safe push/back helpers
+  assert.match(page, /addEventListener\("popstate"/);
+  assert.match(page, /safePushHistory/);
+  assert.match(page, /safeBackHistory/);
+  assert.match(page, /closeQuickCard/);
+  assert.match(page, /closeAttendanceModal/);
+  assert.match(page, /closeStudentAddSheet/);
+  assert.match(page, /closeModal/);
+  assert.match(page, /exitActiveSession/);
+  assert.match(page, /exitMoreSubView/);
+  assert.match(page, /handleTabChange/);
+
+  // Backdrop click dismiss support
+  assert.match(components, /onClick=\{onClose\}/);
+});
