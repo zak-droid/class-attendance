@@ -1,6 +1,15 @@
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { supabase } from "./supabase";
-import type { AppData, AttendanceLog, Course, Student } from "./types";
+import type { AppData, AttendanceLog, AttendanceStatus, Course, Student } from "./types";
+import {
+  applyPendingActionsToData,
+  getCachedAppData,
+  getPendingQueue,
+  isOnline,
+  queuePendingAction,
+  removePendingAction,
+  saveCachedAppData,
+} from "./offline-storage";
 
 function client() {
   if (!supabase) throw new Error("The shared database is not configured yet.");
@@ -8,60 +17,70 @@ function client() {
 }
 
 export async function fetchAppData(): Promise<AppData> {
-  const db = client();
-  const [coursesResult, studentsResult, attendanceResult] = await Promise.all([
-    db.from("courses").select("id,name,description,active").order("name"),
-    db.from("students").select("id,name,email,course_id,active").order("name"),
-    db.from("attendance_logs").select("id,student_id,course_id,date,time,status,notes,marked_by").order("date", { ascending: false }),
-  ]);
+  // Offline-first fast fallback
+  if (!isOnline()) {
+    const cached = getCachedAppData();
+    if (cached) {
+      return applyPendingActionsToData(cached);
+    }
+  }
 
-  const error = coursesResult.error ?? studentsResult.error ?? attendanceResult.error;
-  if (error) throw error;
+  try {
+    const db = client();
+    const [coursesResult, studentsResult, attendanceResult] = await Promise.all([
+      db.from("courses").select("id,name,description,active").order("name"),
+      db.from("students").select("id,name,email,course_id,active").order("name"),
+      db.from("attendance_logs").select("id,student_id,course_id,date,time,status,notes,marked_by").order("date", { ascending: false }),
+    ]);
 
-  return {
-    courses: (coursesResult.data ?? []).map((row) => ({
-      id: row.id,
-      name: row.name,
-      description: row.description ?? undefined,
-      active: row.active,
-    })),
-    students: (studentsResult.data ?? []).map((row) => ({
-      id: row.id,
-      name: row.name,
-      email: row.email ?? undefined,
-      courseId: row.course_id,
-      active: row.active,
-    })),
-    attendance: (attendanceResult.data ?? []).map((row) => ({
-      id: row.id,
-      studentId: row.student_id,
-      courseId: row.course_id,
-      date: row.date,
-      time: row.time,
-      status: row.status,
-      notes: row.notes ?? undefined,
-      markedBy: row.marked_by ?? undefined,
-    })) as AttendanceLog[],
-  };
+    const error = coursesResult.error ?? studentsResult.error ?? attendanceResult.error;
+    if (error) throw error;
+
+    const freshData: AppData = {
+      courses: (coursesResult.data ?? []).map((row) => ({
+        id: row.id,
+        name: row.name,
+        description: row.description ?? undefined,
+        active: row.active,
+      })),
+      students: (studentsResult.data ?? []).map((row) => ({
+        id: row.id,
+        name: row.name,
+        email: row.email ?? undefined,
+        courseId: row.course_id,
+        active: row.active,
+      })),
+      attendance: (attendanceResult.data ?? []).map((row) => ({
+        id: row.id,
+        studentId: row.student_id,
+        courseId: row.course_id,
+        date: row.date,
+        time: row.time,
+        status: row.status,
+        notes: row.notes ?? undefined,
+        markedBy: row.marked_by ?? undefined,
+      })) as AttendanceLog[],
+    };
+
+    saveCachedAppData(freshData);
+    return applyPendingActionsToData(freshData);
+  } catch (error) {
+    // If network failure occurs, fall back to locally cached data
+    const cached = getCachedAppData();
+    if (cached) {
+      console.warn("Using offline cached data due to network error:", error);
+      return applyPendingActionsToData(cached);
+    }
+    throw error;
+  }
 }
 
 export async function saveCourse(course: Course): Promise<void> {
   const { error } = await client().from("courses").upsert({
     id: course.id,
     name: course.name,
-    description: course.description || null,
+    description: course.description ?? null,
     active: course.active,
-  });
-  if (error) throw error;
-}
-
-export async function saveStudent(student: Student): Promise<void> {
-  const { error } = await client().from("students").upsert({
-    id: student.id,
-    name: student.name,
-    email: student.email || null,
-    course_id: student.courseId,
-    active: student.active,
   });
   if (error) throw error;
 }
@@ -71,42 +90,125 @@ export async function setCourseActive(courseId: string, active: boolean): Promis
   if (error) throw error;
 }
 
+export async function saveStudent(student: Student): Promise<void> {
+  const { error } = await client().from("students").upsert({
+    id: student.id,
+    name: student.name,
+    email: student.email ?? null,
+    course_id: student.courseId,
+    active: student.active,
+  });
+  if (error) throw error;
+}
+
 export async function setStudentActive(studentId: string, active: boolean): Promise<void> {
   const { error } = await client().from("students").update({ active }).eq("id", studentId);
   if (error) throw error;
 }
 
-export async function updateAttendanceLog(logId: string, updates: Partial<Pick<AttendanceLog, "status" | "notes">>): Promise<void> {
-  const { error } = await client().from("attendance_logs").update(updates).eq("id", logId);
-  if (error) throw error;
+export async function createTodayAttendance(courseId: string, date: string, time: string): Promise<void> {
+  if (!isOnline()) {
+    queuePendingAction({
+      type: "create_attendance",
+      courseId,
+      date,
+      time,
+    });
+    return;
+  }
+
+  try {
+    const { error } = await client().rpc("start_attendance", {
+      p_course_id: courseId,
+      p_date: date,
+      p_time: time,
+    });
+    if (error) throw error;
+  } catch (err) {
+    queuePendingAction({
+      type: "create_attendance",
+      courseId,
+      date,
+      time,
+    });
+  }
 }
 
-export async function createTodayAttendance(courseId: string, date: string, time: string): Promise<number> {
-  const { data, error } = await client().rpc("start_attendance", {
-    p_course_id: courseId,
-    p_date: date,
-    p_time: time,
-  });
-  if (error) throw error;
-  return Number(data ?? 0);
+export async function updateAttendanceLog(
+  id: string,
+  patch: { status?: AttendanceStatus; notes?: string }
+): Promise<void> {
+  if (!isOnline()) {
+    queuePendingAction({
+      type: "update_attendance",
+      logId: id,
+      patch,
+    });
+    return;
+  }
+
+  try {
+    const payload: Record<string, unknown> = {};
+    if (patch.status !== undefined) payload.status = patch.status;
+    if (patch.notes !== undefined) payload.notes = patch.notes || null;
+    const { error } = await client().from("attendance_logs").update(payload).eq("id", id);
+    if (error) throw error;
+  } catch (err) {
+    queuePendingAction({
+      type: "update_attendance",
+      logId: id,
+      patch,
+    });
+  }
 }
 
-export function subscribeToSharedData(onChange: () => void): () => void {
+export async function syncPendingQueue(): Promise<number> {
+  const queue = getPendingQueue();
+  if (queue.length === 0 || !isOnline()) return 0;
+
+  let syncedCount = 0;
   const db = client();
-  let timer: ReturnType<typeof setTimeout> | null = null;
-  const refreshSoon = () => {
-    if (timer) clearTimeout(timer);
-    timer = setTimeout(onChange, 150);
-  };
-  const channel: RealtimeChannel = db
-    .channel("class-attendance-shared-data")
-    .on("postgres_changes", { event: "*", schema: "public", table: "courses" }, refreshSoon)
-    .on("postgres_changes", { event: "*", schema: "public", table: "students" }, refreshSoon)
-    .on("postgres_changes", { event: "*", schema: "public", table: "attendance_logs" }, refreshSoon)
+
+  for (const action of queue) {
+    try {
+      if (action.type === "update_attendance") {
+        const payload: Record<string, unknown> = {};
+        if (action.patch.status !== undefined) payload.status = action.patch.status;
+        if (action.patch.notes !== undefined) payload.notes = action.patch.notes || null;
+        const { error } = await db.from("attendance_logs").update(payload).eq("id", action.logId);
+        if (!error) {
+          removePendingAction(action.id);
+          syncedCount += 1;
+        }
+      } else if (action.type === "create_attendance") {
+        const { error } = await db.rpc("start_attendance", {
+          p_course_id: action.courseId,
+          p_date: action.date,
+          p_time: action.time,
+        });
+        if (!error) {
+          removePendingAction(action.id);
+          syncedCount += 1;
+        }
+      }
+    } catch {
+      // Keep in queue for next sync retry
+    }
+  }
+
+  return syncedCount;
+}
+
+export function subscribeToSharedData(onRemoteChange: () => void): () => void {
+  if (!supabase) return () => {};
+  const channel: RealtimeChannel = supabase
+    .channel("attendance-app-changes")
+    .on("postgres_changes", { event: "*", schema: "public" }, () => {
+      onRemoteChange();
+    })
     .subscribe();
 
   return () => {
-    if (timer) clearTimeout(timer);
-    void db.removeChannel(channel);
+    void supabase.removeChannel(channel);
   };
 }

@@ -22,6 +22,7 @@ import {
   setCourseActive,
   setStudentActive,
   subscribeToSharedData,
+  syncPendingQueue,
   updateAttendanceLog,
 } from "./cloud-data";
 import {
@@ -33,8 +34,17 @@ import {
   Modal,
   StatusBadge,
   StudentActionBottomSheet,
+  StudentQuickCardModal,
   SummaryCards,
 } from "./components";
+import {
+  calculateStudentAttendanceStats,
+  downloadCSV,
+  formatWhatsAppSummary,
+  generateCourseAttendanceCSV,
+  openWhatsAppShare,
+} from "./export-utils";
+import { getPendingQueue, isOnline } from "./offline-storage";
 import { prepareStudentImport } from "./student-import";
 import { supabase } from "./supabase";
 import type { AppData, AppTab, AttendanceStatus, Course, Student } from "./types";
@@ -74,6 +84,13 @@ export default function Home() {
   const [moreView, setMoreView] = useState<"menu" | "courses" | "students">("menu");
   const [studentAddSheetOpen, setStudentAddSheetOpen] = useState(false);
 
+  // Student Quick Card modal
+  const [quickCardStudent, setQuickCardStudent] = useState<Student | null>(null);
+
+  // Offline & sync state
+  const [isOffline, setIsOffline] = useState(() => !isOnline());
+  const [pendingSyncCount, setPendingSyncCount] = useState(() => getPendingQueue().length);
+
   // Biometric state
   const [biometricSupported, setBiometricSupported] = useState(false);
   const [biometricEnabled, setBiometricEnabled] = useState(false);
@@ -92,6 +109,7 @@ export default function Home() {
     try {
       const nextData = await fetchAppData();
       setData(nextData);
+      setPendingSyncCount(getPendingQueue().length);
     } catch (error) {
       setDataError(error instanceof Error ? error.message : "שגיאה בטעינת הנתונים");
     } finally {
@@ -99,13 +117,53 @@ export default function Home() {
     }
   }, []);
 
+  // Sync and connection status listener
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsOffline(false);
+      notify("החיבור לאינטרנט חזר! מסנכרן פעולות ממתינות...");
+      void syncPendingQueue().then((synced) => {
+        setPendingSyncCount(getPendingQueue().length);
+        if (synced > 0) {
+          notify(`סונכרנו בהצלחה ${synced} פעולות לשרת.`);
+          void refreshData();
+        }
+      });
+    };
+
+    const handleOffline = () => {
+      setIsOffline(true);
+      notify("עברת למצב לא מקוון. שינויים יישמרו במכשיר ויסונכרנו כשתחזור הקליטה.");
+    };
+
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, [notify, refreshData]);
+
+  const handleManualSync = useCallback(async () => {
+    notify("מסנכרן שינויים עם מסד הנתונים...");
+    const synced = await syncPendingQueue();
+    setPendingSyncCount(getPendingQueue().length);
+    if (synced > 0) {
+      notify(`סונכרנו ${synced} שינויים בהצלחה.`);
+      await refreshData();
+    } else {
+      notify("כל הנתונים מסונכרנים ומעודכנים.");
+    }
+  }, [notify, refreshData]);
+
   useEffect(() => {
     void isBiometricAvailable().then((available) => {
       setBiometricSupported(available);
     });
   }, []);
 
-useEffect(() => {
+  useEffect(() => {
     if (!supabase) {
       setAuthReady(true);
       return;
@@ -113,7 +171,7 @@ useEffect(() => {
 
     let mounted = true;
 
-    // מגבלת זמן של 1.5 שניות - לא להישאר תקוע על טעינה
+    // Safety timeout: Never stay stuck on loading screen longer than 1.5 seconds
     const timeout = setTimeout(() => {
       if (mounted) {
         setAuthReady(true);
@@ -160,8 +218,7 @@ useEffect(() => {
         setAuthReady(true);
       });
       subscription = authRes.data.subscription;
-    } catch (err) {
-      console.warn("onAuthStateChange subscription failed:", err);
+    } catch {
       setAuthReady(true);
     }
 
@@ -174,13 +231,12 @@ useEffect(() => {
 
   useEffect(() => {
     if (!session) return;
-    if (biometricEnabled && !biometricUnlocked) return;
     void refreshData();
     const unsubscribe = subscribeToSharedData(() => {
       void refreshData();
     });
-    return () => unsubscribe();
-  }, [session, biometricEnabled, biometricUnlocked, refreshData]);
+    return unsubscribe;
+  }, [session, refreshData]);
 
   const userEmail = session?.user?.email ?? "";
 
@@ -242,6 +298,30 @@ useEffect(() => {
     [today, refreshData, notify]
   );
 
+  // WhatsApp Share Handler
+  const handleShareWhatsApp = useCallback(
+    (courseId?: string) => {
+      const targetCourseId = courseId || activeSessionCourseId;
+      if (!targetCourseId) return;
+      const course = data.courses.find((c) => c.id === targetCourseId);
+      if (!course) return;
+      const logs = todayLogs.filter((l) => l.courseId === targetCourseId);
+      const text = formatWhatsAppSummary(course.name, today, logs);
+      openWhatsAppShare(text);
+    },
+    [activeSessionCourseId, data.courses, todayLogs, today]
+  );
+
+  // Excel (CSV) Export Handler
+  const handleExportCourseCSV = useCallback(
+    (course: Course) => {
+      const csv = generateCourseAttendanceCSV(course, data.students, data.attendance);
+      downloadCSV(`attendance_${course.name}_${today}`, csv);
+      notify(`דוח Excel (CSV) עבור ${course.name} הורד בהצלחה.`);
+    },
+    [data.students, data.attendance, today, notify]
+  );
+
   if (!authReady) {
     return (
       <main lang="he" dir="rtl" className="app-bg grid min-h-[100svh] place-items-center text-sm font-bold text-[#B8D8E6]">
@@ -287,6 +367,9 @@ useEffect(() => {
       userEmail={userEmail || "מורה"}
       onSignOut={handleSignOut}
       attendanceActive={Boolean(activeSessionCourseId)}
+      isOffline={isOffline}
+      pendingSyncCount={pendingSyncCount}
+      onSyncNow={handleManualSync}
     >
       {dataLoading && (
         <p className="mb-3 text-xs font-bold text-[#B8D8E6]">טוען נתונים...</p>
@@ -391,21 +474,33 @@ useEffect(() => {
                         </span>
                       </div>
 
-                      <button
-                        type="button"
-                        disabled={studentCount === 0}
-                        onClick={() => {
-                          if (!startedToday) void startAttendance(course.id);
-                          else {
-                            setTodayFilter("all");
-                            setSessionReadOnly(completed);
-                            setActiveSessionCourseId(course.id);
-                          }
-                        }}
-                        className="mt-5 min-h-12 w-full rounded-xl bg-[#00A6A6] px-4 text-sm font-extrabold text-white transition hover:bg-[#00B3A4] disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/[0.45]"
-                      >
-                        {studentCount === 0 ? "אין תלמידים רשומים" : actionLabel}
-                      </button>
+                      <div className="mt-5 flex items-center gap-2">
+                        <button
+                          type="button"
+                          disabled={studentCount === 0}
+                          onClick={() => {
+                            if (!startedToday) void startAttendance(course.id);
+                            else {
+                              setTodayFilter("all");
+                              setSessionReadOnly(completed);
+                              setActiveSessionCourseId(course.id);
+                            }
+                          }}
+                          className="min-h-12 flex-1 rounded-xl bg-[#00A6A6] px-4 text-sm font-extrabold text-white transition hover:bg-[#00B3A4] disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/[0.45]"
+                        >
+                          {studentCount === 0 ? "אין תלמידים רשומים" : actionLabel}
+                        </button>
+                        {startedToday && (
+                          <button
+                            type="button"
+                            onClick={() => handleShareWhatsApp(course.id)}
+                            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#25D366] text-white hover:bg-[#20BD5A] transition"
+                            title="שיתוף סיכום לווטסאפ"
+                          >
+                            💬
+                          </button>
+                        )}
+                      </div>
                     </article>
                   );
                 })}
@@ -468,6 +563,7 @@ useEffect(() => {
                   onOpen={() => {
                     if (!sessionReadOnly) setSelectedAttendanceId(log.id);
                   }}
+                  onViewCard={() => setQuickCardStudent(student)}
                 />
               );
             })}
@@ -480,6 +576,7 @@ useEffect(() => {
               setActiveSessionCourseId(null);
               notify("הנוכחות להיום הושלמה.");
             }}
+            onShareWhatsApp={() => handleShareWhatsApp(activeSessionCourseId)}
           />
         </section>
       )}
@@ -534,13 +631,23 @@ useEffect(() => {
                   key={student.id}
                   className="flex items-center justify-between rounded-2xl border border-white/14 bg-[#005580] px-4 py-3"
                 >
-                  <div>
-                    <p dir="auto" className="font-bold text-white">
-                      {student.name}
-                    </p>
-                    <p className="text-xs text-[#B8D8E6]">
-                      {student.active ? "פעיל" : "לא פעיל"}
-                    </p>
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setQuickCardStudent(student)}
+                      aria-label="כרטיס תלמיד"
+                      className="flex h-8 w-8 items-center justify-center rounded-xl bg-white/10 text-xs font-bold text-[#B8D8E6] transition hover:bg-[#00A6A6] hover:text-white"
+                    >
+                      ℹ️
+                    </button>
+                    <div>
+                      <p dir="auto" className="font-bold text-white">
+                        {student.name}
+                      </p>
+                      <p className="text-xs text-[#B8D8E6]">
+                        {student.active ? "פעיל" : "לא פעיל"}
+                      </p>
+                    </div>
                   </div>
                   <StudentActions
                     student={student}
@@ -661,6 +768,35 @@ useEffect(() => {
                 </div>
               </MoreGroup>
 
+              {/* Data Export & Reports Group */}
+              <MoreGroup title="דוחות וייצוא נתונים">
+                <div className="p-4 space-y-3">
+                  <p className="text-xs text-[#B8D8E6]">
+                    ייצוא דוחות נוכחות מלאים בפורמט Excel (CSV) תואם עברית עבור המזכירות וההנהלה:
+                  </p>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {data.courses
+                      .filter((c) => c.active)
+                      .map((course) => (
+                        <button
+                          key={course.id}
+                          type="button"
+                          onClick={() => handleExportCourseCSV(course)}
+                          className="flex items-center justify-between rounded-xl border border-white/14 bg-[#002B45] p-3 text-right hover:bg-[#005580] transition"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <p dir="auto" className="truncate text-xs font-bold text-white">
+                              {course.name}
+                            </p>
+                            <p className="text-[11px] text-[#00E5E5]">הורדת דוח Excel (CSV)</p>
+                          </div>
+                          <span className="text-lg mr-2">📊</span>
+                        </button>
+                      ))}
+                  </div>
+                </div>
+              </MoreGroup>
+
               <MoreGroup title="ניהול מערכת">
                 <MoreAction
                   title="ניהול קורסים"
@@ -683,10 +819,9 @@ useEffect(() => {
                   }
                 />
                 <MoreAction
-                  title="הגדרות מערכת"
-                  description="הגדרות נוספות"
-                  disabled
-                  badge="בקרוב"
+                  title="סנכרון נתונים ידני"
+                  description={`ממתינים לסנכרון: ${pendingSyncCount} פעולות`}
+                  onClick={() => void handleManualSync()}
                 />
               </MoreGroup>
 
@@ -704,16 +839,104 @@ useEffect(() => {
               </MoreGroup>
             </>
           ) : (
-            <div>
+            <div className="space-y-4">
               <button
                 type="button"
                 aria-label="חזרה לתפריט"
                 onClick={() => setMoreView("menu")}
-                className="mb-4 flex items-center gap-2 text-sm font-extrabold text-[#B8D8E6] hover:text-white"
+                className="flex items-center gap-2 text-sm font-extrabold text-[#B8D8E6] hover:text-white"
               >
                 <span>→</span>
                 <span>חזרה לתפריט ראשי</span>
               </button>
+
+              {moreView === "courses" && (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-extrabold text-white">ניהול קורסים</h3>
+                    <button
+                      type="button"
+                      onClick={() => setModal({ type: "course" })}
+                      className="min-h-10 rounded-xl bg-[#00A6A6] px-4 text-xs font-extrabold text-white hover:bg-[#00B3A4]"
+                    >
+                      + הוספת כיתה חדשה
+                    </button>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {data.courses.map((course) => {
+                      const studentCount = data.students.filter(
+                        (s) => s.courseId === course.id && s.active
+                      ).length;
+                      return (
+                        <CourseCard
+                          key={course.id}
+                          course={course}
+                          studentCount={studentCount}
+                          startedToday={todayLogs.some((l) => l.courseId === course.id)}
+                          completedToday={completedCourseIds.has(course.id)}
+                          onStart={() => {
+                            setActiveSessionCourseId(course.id);
+                            setTab("today");
+                          }}
+                          onEdit={() => setModal({ type: "course", course })}
+                          onToggleActive={() =>
+                            void setCourseActive(course.id, !course.active).then(refreshData)
+                          }
+                          onExportCSV={() => handleExportCourseCSV(course)}
+                        />
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {moreView === "students" && (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-extrabold text-white">רשימת תלמידים</h3>
+                    <button
+                      type="button"
+                      onClick={() => setStudentAddSheetOpen(true)}
+                      className="min-h-10 rounded-xl bg-[#00A6A6] px-4 text-xs font-extrabold text-white hover:bg-[#00B3A4]"
+                    >
+                      + הוספת תלמיד
+                    </button>
+                  </div>
+                  <div className="space-y-2">
+                    {data.students.map((student) => (
+                      <div
+                        key={student.id}
+                        className="flex items-center justify-between rounded-2xl border border-white/14 bg-[#005580] px-4 py-3"
+                      >
+                        <div className="flex items-center gap-3">
+                          <button
+                            type="button"
+                            onClick={() => setQuickCardStudent(student)}
+                            className="flex h-8 w-8 items-center justify-center rounded-xl bg-white/10 text-xs font-bold text-[#B8D8E6] transition hover:bg-[#00A6A6] hover:text-white"
+                          >
+                            ℹ️
+                          </button>
+                          <div>
+                            <p dir="auto" className="font-bold text-white">
+                              {student.name}
+                            </p>
+                            <p className="text-xs text-[#B8D8E6]">
+                              {data.courses.find((c) => c.id === student.courseId)?.name || ""}
+                            </p>
+                          </div>
+                        </div>
+                        <StudentActions
+                          student={student}
+                          onEdit={() => setModal({ type: "student", student })}
+                          onToggleActive={() =>
+                            void setStudentActive(student.id, !student.active).then(refreshData)
+                          }
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </section>
@@ -725,12 +948,27 @@ useEffect(() => {
           student={selectedStudent}
           onClose={() => setSelectedAttendanceId(null)}
           onStatusChange={(status) => {
-            void updateAttendanceLog(selectedLog.id, { status }).then(refreshData);
+            void updateAttendanceLog(selectedLog.id, { status }).then(() => {
+              setPendingSyncCount(getPendingQueue().length);
+              void refreshData();
+            });
             setSelectedAttendanceId(null);
           }}
           onNotesChange={(notes) => {
-            void updateAttendanceLog(selectedLog.id, { notes }).then(refreshData);
+            void updateAttendanceLog(selectedLog.id, { notes }).then(() => {
+              setPendingSyncCount(getPendingQueue().length);
+              void refreshData();
+            });
           }}
+        />
+      )}
+
+      {/* Student Quick Card Modal */}
+      {quickCardStudent && (
+        <StudentQuickCardModal
+          stats={calculateStudentAttendanceStats(quickCardStudent, data.attendance)}
+          courseName={data.courses.find((c) => c.id === quickCardStudent.courseId)?.name}
+          onClose={() => setQuickCardStudent(null)}
         />
       )}
 
@@ -744,6 +982,51 @@ useEffect(() => {
         />
       )}
 
+      {modal?.type === "course" && (
+        <Modal
+          title={modal.course ? "עריכת כיתה" : "הוספת כיתה חדשה"}
+          onClose={() => setModal(null)}
+        >
+          <CourseForm
+            course={modal.course}
+            onSave={async (name, description) => {
+              await saveCourse({
+                id: modal.course?.id ?? makeId(),
+                name,
+                description,
+                active: modal.course?.active ?? true,
+              });
+              await refreshData();
+              setModal(null);
+            }}
+          />
+        </Modal>
+      )}
+
+      {modal?.type === "student" && (
+        <Modal
+          title={modal.student ? "עריכת פרטי תלמיד/ה" : "הוספת תלמיד/ה"}
+          onClose={() => setModal(null)}
+        >
+          <StudentForm
+            courses={data.courses}
+            student={modal.student}
+            initialCourseId={modal.initialCourseId ?? data.courses[0]?.id ?? ""}
+            onSave={async (name, email, courseId) => {
+              await saveStudent({
+                id: modal.student?.id ?? makeId(),
+                name,
+                email,
+                courseId,
+                active: modal.student?.active ?? true,
+              });
+              await refreshData();
+              setModal(null);
+            }}
+          />
+        </Modal>
+      )}
+
       <div
         className={`pointer-events-none fixed inset-x-4 bottom-24 z-[60] mx-auto max-w-md rounded-2xl bg-[#0F172A] px-4 py-3 text-center text-sm font-bold text-white shadow-[0_16px_36px_rgba(11,59,73,0.20)] transition lg:bottom-6 ${
           toast ? "translate-y-0 opacity-100" : "translate-y-3 opacity-0"
@@ -754,6 +1037,116 @@ useEffect(() => {
         {toast}
       </div>
     </Layout>
+  );
+}
+
+function CourseForm({
+  course,
+  onSave,
+}: {
+  course?: Course;
+  onSave: (name: string, description?: string) => Promise<void>;
+}) {
+  const [name, setName] = useState(course?.name ?? "");
+  const [description, setDescription] = useState(course?.description ?? "");
+
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (name.trim()) void onSave(name.trim(), description.trim() || undefined);
+      }}
+      className="space-y-4"
+    >
+      <label className="block text-xs font-bold text-[#475569]">
+        שם הכיתה
+        <input
+          type="text"
+          required
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          className="mt-1 w-full rounded-xl border border-[#CBD5E1] p-2.5 text-sm font-semibold"
+        />
+      </label>
+      <label className="block text-xs font-bold text-[#475569]">
+        תיאור קצר (רשות)
+        <input
+          type="text"
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          className="mt-1 w-full rounded-xl border border-[#CBD5E1] p-2.5 text-sm font-semibold"
+        />
+      </label>
+      <button type="submit" className={`${primaryButton} w-full`}>
+        שמירת כיתה
+      </button>
+    </form>
+  );
+}
+
+function StudentForm({
+  courses,
+  student,
+  initialCourseId,
+  onSave,
+}: {
+  courses: Course[];
+  student?: Student;
+  initialCourseId: string;
+  onSave: (name: string, email: string | undefined, courseId: string) => Promise<void>;
+}) {
+  const [name, setName] = useState(student?.name ?? "");
+  const [email, setEmail] = useState(student?.email ?? "");
+  const [courseId, setCourseId] = useState(student?.courseId ?? initialCourseId);
+
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (name.trim() && courseId) {
+          void onSave(name.trim(), email.trim() || undefined, courseId);
+        }
+      }}
+      className="space-y-4"
+    >
+      <label className="block text-xs font-bold text-[#475569]">
+        כיתה
+        <select
+          value={courseId}
+          onChange={(e) => setCourseId(e.target.value)}
+          className="mt-1 w-full rounded-xl border border-[#CBD5E1] p-2.5 text-sm font-semibold"
+        >
+          {courses.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.name}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="block text-xs font-bold text-[#475569]">
+        שם מלא
+        <input
+          type="text"
+          required
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          className="mt-1 w-full rounded-xl border border-[#CBD5E1] p-2.5 text-sm font-semibold"
+        />
+      </label>
+      <label className="block text-xs font-bold text-[#475569]">
+        אימייל (רשות)
+        <input
+          type="email"
+          dir="ltr"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          className="mt-1 w-full rounded-xl border border-[#CBD5E1] p-2.5 text-left text-sm font-semibold"
+        />
+      </label>
+      <button type="submit" className={`${primaryButton} w-full`}>
+        שמירת פרטים
+      </button>
+    </form>
   );
 }
 

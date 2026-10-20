@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import type { AppTab, AttendanceLog, AttendanceStatus, Course, Student } from "./types";
+import type { StudentAttendanceStats } from "./export-utils";
 
 export const statusLabels: Record<AttendanceStatus, string> = {
   Present: "נוכח",
@@ -67,6 +68,9 @@ export function Layout({
   onSignOut,
   attendanceActive = false,
   title = "ניהול נוכחות",
+  isOffline = false,
+  pendingSyncCount = 0,
+  onSyncNow,
   children,
 }: {
   tab: AppTab;
@@ -75,6 +79,9 @@ export function Layout({
   onSignOut: () => void;
   attendanceActive?: boolean;
   title?: string;
+  isOffline?: boolean;
+  pendingSyncCount?: number;
+  onSyncNow?: () => void;
   children: ReactNode;
 }) {
   const formattedDate = new Intl.DateTimeFormat("he-IL", {
@@ -88,7 +95,23 @@ export function Layout({
       <header className="border-b border-white/14 bg-[#002B45] px-5 pt-5 pb-4">
         <div className="mx-auto flex max-w-4xl items-center justify-between gap-3">
           <div>
-            <p className="text-xs font-semibold text-[#B8D8E6]">{formattedDate}</p>
+            <div className="flex items-center gap-2">
+              <p className="text-xs font-semibold text-[#B8D8E6]">{formattedDate}</p>
+              {isOffline && (
+                <span className="rounded-full bg-[#FEF3C7] px-2 py-0.5 text-[11px] font-extrabold text-[#92400E]">
+                  מצב לא מקוון
+                </span>
+              )}
+              {!isOffline && pendingSyncCount > 0 && onSyncNow && (
+                <button
+                  type="button"
+                  onClick={onSyncNow}
+                  className="rounded-full border border-[#00A6A6]/40 bg-[#00A6A6]/20 px-2.5 py-0.5 text-[11px] font-extrabold text-[#00E5E5] transition hover:bg-[#00A6A6]/30"
+                >
+                  סנכרון ({pendingSyncCount})
+                </button>
+              )}
+            </div>
             <h1 className="text-2xl font-extrabold tracking-tight">{title}</h1>
             <p className="mt-0.5 text-xs font-medium text-[#B8D8E6]">{userEmail}</p>
           </div>
@@ -190,6 +213,7 @@ export function CourseCard({
   onEdit,
   onToggleActive,
   onViewStudents,
+  onExportCSV,
 }: {
   course: Course;
   studentCount: number;
@@ -199,6 +223,7 @@ export function CourseCard({
   onEdit?: () => void;
   onToggleActive?: () => void;
   onViewStudents?: () => void;
+  onExportCSV?: () => void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const stateLabel = completedToday
@@ -231,14 +256,68 @@ export function CourseCard({
         >
           {completedToday ? "צפייה בסיכום" : startedToday ? "המשך נוכחות" : "התחלת נוכחות"}
         </button>
-        {(onEdit || onToggleActive || onViewStudents) && (
-          <button
-            type="button"
-            onClick={() => setMenuOpen((prev) => !prev)}
-            className="min-h-11 rounded-xl border border-white/14 bg-[#002B45] px-3 text-xs font-bold text-[#B8D8E6]"
-          >
-            •••
-          </button>
+        {(onEdit || onToggleActive || onViewStudents || onExportCSV) && (
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setMenuOpen((prev) => !prev)}
+              className="min-h-11 rounded-xl border border-white/14 bg-[#002B45] px-3 text-xs font-bold text-[#B8D8E6]"
+            >
+              •••
+            </button>
+            {menuOpen && (
+              <div className="absolute left-0 bottom-full mb-1 z-30 min-w-44 rounded-xl border border-white/14 bg-[#002B45] p-1.5 shadow-2xl">
+                {onViewStudents && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      onViewStudents();
+                    }}
+                    className="block w-full rounded-lg px-3 py-2 text-right text-xs font-bold text-white hover:bg-[#005580]"
+                  >
+                    צפייה בתלמידים
+                  </button>
+                )}
+                {onExportCSV && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      onExportCSV();
+                    }}
+                    className="block w-full rounded-lg px-3 py-2 text-right text-xs font-bold text-[#00E5E5] hover:bg-[#005580]"
+                  >
+                    📊 ייצוא ל-Excel (CSV)
+                  </button>
+                )}
+                {onEdit && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      onEdit();
+                    }}
+                    className="block w-full rounded-lg px-3 py-2 text-right text-xs font-bold text-white hover:bg-[#005580]"
+                  >
+                    עריכת כיתה
+                  </button>
+                )}
+                {onToggleActive && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      onToggleActive();
+                    }}
+                    className="block w-full rounded-lg px-3 py-2 text-right text-xs font-bold text-[#F87171] hover:bg-[#005580]"
+                  >
+                    {course.active ? "העברה לארכיון" : "שחזור כיתה"}
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
         )}
       </div>
     </article>
@@ -249,29 +328,45 @@ export function AttendanceStudentRow({
   log,
   student,
   onOpen,
+  onViewCard,
 }: {
   log: AttendanceLog;
   student: Student;
   onOpen: () => void;
+  onViewCard?: () => void;
 }) {
   return (
-    <button
-      type="button"
-      onClick={onOpen}
-      className="flex min-h-14 w-full items-center justify-between gap-3 rounded-2xl border border-white/14 bg-[#005580] px-4 py-3 text-right text-white transition hover:bg-[#005580]/90"
-    >
-      <div className="min-w-0 flex-1">
-        <p dir="auto" className="truncate text-base font-bold">
-          {student.name}
-        </p>
-        {log.notes && (
-          <p className="mt-0.5 truncate text-xs font-medium text-[#B8D8E6]">
-            הערה: {log.notes}
-          </p>
+    <div className="flex min-h-14 w-full items-center justify-between gap-3 rounded-2xl border border-white/14 bg-[#005580] px-4 py-3 text-right text-white transition hover:bg-[#005580]/90">
+      <div className="flex min-w-0 flex-1 items-center gap-2.5">
+        {onViewCard && (
+          <button
+            type="button"
+            onClick={onViewCard}
+            aria-label={`כרטיס תלמיד עבור ${student.name}`}
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-white/10 text-xs font-bold text-[#B8D8E6] transition hover:bg-[#00A6A6] hover:text-white"
+          >
+            ℹ️
+          </button>
         )}
+        <button
+          type="button"
+          onClick={onOpen}
+          className="min-w-0 flex-1 text-right focus:outline-none"
+        >
+          <p dir="auto" className="truncate text-base font-bold">
+            {student.name}
+          </p>
+          {log.notes && (
+            <p className="mt-0.5 truncate text-xs font-medium text-[#B8D8E6]">
+              הערה: {log.notes}
+            </p>
+          )}
+        </button>
       </div>
-      <StatusBadge status={log.status} />
-    </button>
+      <button type="button" onClick={onOpen} className="shrink-0 focus:outline-none">
+        <StatusBadge status={log.status} />
+      </button>
+    </div>
   );
 }
 
@@ -349,12 +444,122 @@ export function StudentActionBottomSheet({
   );
 }
 
+export function StudentQuickCardModal({
+  stats,
+  courseName,
+  onClose,
+}: {
+  stats: StudentAttendanceStats;
+  courseName?: string;
+  onClose: () => void;
+}) {
+  const { student, totalSessions, presentCount, lateCount, absentCount, excusedCount, attendancePercentage, recentAbsences } = stats;
+
+  const rateColor =
+    attendancePercentage >= 80
+      ? "bg-[#DCFCE7] text-[#166534] border-[#16A34A]/30"
+      : attendancePercentage >= 70
+      ? "bg-[#FEF3C7] text-[#92400E] border-[#F59E0B]/30"
+      : "bg-[#FEE2E2] text-[#991B1B] border-[#DC2626]/30";
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+      <div className="w-full max-w-md rounded-3xl border border-white/15 bg-[#002B45] p-6 text-white shadow-2xl">
+        <div className="flex items-start justify-between border-b border-white/14 pb-3">
+          <div>
+            <span className="text-[11px] font-extrabold uppercase tracking-wider text-[#00A6A6]">
+              כרטיס תלמיד/ה
+            </span>
+            <h2 dir="auto" className="text-xl font-extrabold text-white">
+              {student.name}
+            </h2>
+            {courseName && <p className="text-xs text-[#B8D8E6]">{courseName}</p>}
+            {student.email && <p className="text-xs text-[#94A3B8]" dir="ltr">{student.email}</p>}
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg bg-white/10 px-2.5 py-1 text-xs font-bold text-[#B8D8E6] hover:bg-white/20 hover:text-white"
+          >
+            ✕ סגור
+          </button>
+        </div>
+
+        {/* Attendance rate highlight */}
+        <div className="mt-4 flex items-center justify-between rounded-2xl border border-white/10 bg-[#003859] p-4">
+          <div>
+            <p className="text-xs font-bold text-[#B8D8E6]">אחוז נוכחות מצטבר בקורס</p>
+            <p className="text-[11px] text-slate-400">
+              {totalSessions} מפגשים נרשמו עד כה
+            </p>
+          </div>
+          <div className={`rounded-xl border px-3.5 py-1.5 text-center font-extrabold ${rateColor}`}>
+            <span className="text-xl">{attendancePercentage}%</span>
+          </div>
+        </div>
+
+        {/* 4-Stat breakdown */}
+        <div className="mt-3 grid grid-cols-4 gap-2 text-center">
+          <div className="rounded-xl border border-white/10 bg-[#005580] p-2">
+            <p className="text-[10px] font-bold text-[#B8D8E6]">נוכח</p>
+            <p className="text-lg font-black text-[#86EFAC]">{presentCount}</p>
+          </div>
+          <div className="rounded-xl border border-white/10 bg-[#005580] p-2">
+            <p className="text-[10px] font-bold text-[#B8D8E6]">מאחר</p>
+            <p className="text-lg font-black text-[#FDE047]">{lateCount}</p>
+          </div>
+          <div className="rounded-xl border border-white/10 bg-[#005580] p-2">
+            <p className="text-[10px] font-bold text-[#B8D8E6]">נעדר</p>
+            <p className="text-lg font-black text-[#FCA5A5]">{absentCount}</p>
+          </div>
+          <div className="rounded-xl border border-white/10 bg-[#005580] p-2">
+            <p className="text-[10px] font-bold text-[#B8D8E6]">מוצדק</p>
+            <p className="text-lg font-black text-[#93C5FD]">{excusedCount}</p>
+          </div>
+        </div>
+
+        {/* Recent absences / logs */}
+        <div className="mt-4">
+          <p className="text-xs font-bold text-[#B8D8E6] mb-2">היעדרויות ואיחורים אחרונים:</p>
+          {recentAbsences.length === 0 ? (
+            <p className="rounded-xl bg-white/5 p-3 text-xs text-[#86EFAC]">
+              ✨ אין היעדרויות או איחורים רשומים לתלמיד זה
+            </p>
+          ) : (
+            <div className="space-y-1.5 max-h-36 overflow-y-auto">
+              {recentAbsences.map((ab, idx) => (
+                <div key={idx} className="flex items-center justify-between rounded-xl bg-white/5 px-3 py-2 text-xs">
+                  <span className="font-bold text-slate-200">מפגש {ab.date}</span>
+                  <div className="flex items-center gap-2">
+                    {ab.notes && <span className="text-[11px] text-[#B8D8E6] truncate max-w-32">{ab.notes}</span>}
+                    <StatusBadge status={ab.status} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <button
+          type="button"
+          onClick={onClose}
+          className="mt-5 min-h-11 w-full rounded-xl bg-[#00A6A6] px-4 text-xs font-extrabold text-white transition hover:bg-[#00B3A4]"
+        >
+          סיום צפייה
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function FinishAttendanceBar({
   logs,
   onFinish,
+  onShareWhatsApp,
 }: {
   logs: AttendanceLog[];
   onFinish: () => void;
+  onShareWhatsApp?: () => void;
 }) {
   const presentCount = logs.filter((l) => l.status === "Present").length;
   const lateCount = logs.filter((l) => l.status === "Late").length;
@@ -363,17 +568,30 @@ export function FinishAttendanceBar({
 
   return (
     <div className="fixed inset-x-0 bottom-0 z-40 border-t border-white/14 bg-[#002B45]/95 px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] backdrop-blur">
-      <div className="mx-auto flex max-w-md items-center justify-between gap-3">
-        <p className="text-xs font-bold text-[#B8D8E6]">
+      <div className="mx-auto flex max-w-md items-center justify-between gap-2.5">
+        <p className="text-[11px] font-bold text-[#B8D8E6]">
           נוכחים {presentCount} · מאחרים {lateCount} · נעדרים {absentCount} · מוצדקים {excusedCount}
         </p>
-        <button
-          type="button"
-          onClick={onFinish}
-          className="min-h-11 rounded-xl bg-[#00A6A6] px-5 text-sm font-extrabold text-white hover:bg-[#00B3A4]"
-        >
-          סיום נוכחות
-        </button>
+        <div className="flex items-center gap-2">
+          {onShareWhatsApp && (
+            <button
+              type="button"
+              onClick={onShareWhatsApp}
+              className="min-h-11 rounded-xl bg-[#25D366] px-3 text-xs font-extrabold text-white hover:bg-[#20BD5A] transition flex items-center gap-1"
+              title="שיתוף סיכום נוכחות לווטסאפ"
+            >
+              <span>💬</span>
+              <span>וואטסאפ</span>
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={onFinish}
+            className="min-h-11 rounded-xl bg-[#00A6A6] px-4 text-sm font-extrabold text-white hover:bg-[#00B3A4]"
+          >
+            סיום נוכחות
+          </button>
+        </div>
       </div>
     </div>
   );
