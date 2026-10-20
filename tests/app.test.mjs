@@ -20,6 +20,23 @@ import {
   uint8ArrayToBase64Url,
   verifyBiometric,
 } from "../app/biometric.ts";
+import {
+  CACHE_STORAGE_KEY,
+  PENDING_QUEUE_KEY,
+  applyPendingActionsToData,
+  clearPendingQueue,
+  getCachedAppData,
+  getPendingQueue,
+  isOnline,
+  queuePendingAction,
+  removePendingAction,
+  saveCachedAppData,
+} from "../app/offline-storage.ts";
+import {
+  calculateStudentAttendanceStats,
+  formatWhatsAppSummary,
+  generateCourseAttendanceCSV,
+} from "../app/export-utils.ts";
 
 function read(relativePath) {
   return fs.readFileSync(path.resolve(relativePath), "utf8");
@@ -270,4 +287,136 @@ test("bulk student import parses rows, validates emails, and skips course duplic
   assert.equal(preview.duplicates.length, 3);
   assert.equal(preview.invalid.length, 1);
   assert.match(preview.invalid[0].reason, /כתובת ה?אימייל (לא|אינה) תקינה/);
+});
+
+test("offline storage cache, pending queue lifecycle, and optimistic data projection", () => {
+  const localStore = new Map();
+  const prevWindow = globalThis.window;
+  const prevNavigator = globalThis.navigator;
+
+  globalThis.window = {
+    localStorage: {
+      getItem: (k) => (localStore.has(k) ? localStore.get(k) : null),
+      setItem: (k, v) => localStore.set(k, String(v)),
+      removeItem: (k) => localStore.delete(k),
+    },
+  };
+  globalThis.navigator = { onLine: false };
+
+  try {
+    assert.equal(isOnline(), false);
+
+    const sampleData = {
+      courses: [{ id: "c1", name: "קורס א", active: true }],
+      students: [{ id: "s1", name: "תלמיד 1", courseId: "c1", active: true }],
+      attendance: [
+        {
+          id: "log1",
+          studentId: "s1",
+          courseId: "c1",
+          date: "2026-10-20",
+          time: "10:00",
+          status: "Present",
+        },
+      ],
+    };
+
+    // Cache saving and retrieval
+    saveCachedAppData(sampleData);
+    const cached = getCachedAppData();
+    assert.deepEqual(cached, sampleData);
+
+    // Queue pending attendance update
+    assert.equal(getPendingQueue().length, 0);
+    const queuedAction = queuePendingAction({
+      type: "update_attendance",
+      logId: "log1",
+      patch: { status: "Absent", notes: "חולה" },
+    });
+    assert.equal(getPendingQueue().length, 1);
+
+    // Apply pending projection onto cached data
+    const projectedData = applyPendingActionsToData(cached);
+    assert.equal(projectedData.attendance[0].status, "Absent");
+    assert.equal(projectedData.attendance[0].notes, "חולה");
+
+    // Remove from queue and clear
+    removePendingAction(queuedAction.id);
+    assert.equal(getPendingQueue().length, 0);
+
+    clearPendingQueue();
+    assert.equal(localStore.has(PENDING_QUEUE_KEY), false);
+  } finally {
+    globalThis.window = prevWindow;
+    globalThis.navigator = prevNavigator;
+  }
+});
+
+test("export utils generate valid Excel CSV with UTF-8 BOM, WhatsApp summary, and accurate attendance stats", () => {
+  const student = { id: "s1", name: "דני כהן", email: "dani@example.com", courseId: "c1", active: true };
+  const course = { id: "c1", name: "הנחיית קבוצות", active: true };
+
+  const logs = [
+    { id: "l1", studentId: "s1", courseId: "c1", date: "2026-10-01", time: "10:00", status: "Present" },
+    { id: "l2", studentId: "s1", courseId: "c1", date: "2026-10-08", time: "10:00", status: "Late" },
+    { id: "l3", studentId: "s1", courseId: "c1", date: "2026-10-15", time: "10:00", status: "Absent", notes: "במילואים" },
+    { id: "l4", studentId: "s1", courseId: "c1", date: "2026-10-22", time: "10:00", status: "Excused" },
+  ];
+
+  // 1. Student Stats calculation
+  const stats = calculateStudentAttendanceStats(student, logs);
+  assert.equal(stats.totalSessions, 4);
+  assert.equal(stats.presentCount, 1);
+  assert.equal(stats.lateCount, 1);
+  assert.equal(stats.absentCount, 1);
+  assert.equal(stats.excusedCount, 1);
+  // (1 present + 1 late) / (4 total - 1 excused) = 2/3 = 67%
+  assert.equal(stats.attendancePercentage, 67);
+  assert.equal(stats.recentAbsences.length, 2); // Absent + Late
+
+  // 2. WhatsApp Summary
+  const waMessage = formatWhatsAppSummary(course.name, "2026-10-20", logs);
+  assert.match(waMessage, /שלום לכולם/);
+  assert.match(waMessage, /הנחיית קבוצות/);
+  assert.match(waMessage, /נוכחים: 1/);
+  assert.match(waMessage, /מאחרים: 1/);
+  assert.match(waMessage, /נעדרים: 1/);
+
+  // 3. Excel CSV Generation with UTF-8 BOM
+  const csv = generateCourseAttendanceCSV(course, [student], logs);
+  assert.equal(csv.charCodeAt(0), 0xfeff); // First character MUST be UTF-8 BOM
+  assert.match(csv, /שם התלמיד,אימייל,סטטוס תלמיד/);
+  assert.match(csv, /דני כהן,dani@example\.com,פעיל/);
+  assert.match(csv, /67%/);
+  assert.match(csv, /מפגש 2026-10-01/);
+});
+
+test("teacher enhancements UI contracts in components and page", () => {
+  const page = read("app/page.tsx");
+  const components = read("app/components.tsx");
+  const cloudData = read("app/cloud-data.ts");
+
+  // Offline integration
+  assert.match(cloudData, /saveCachedAppData/);
+  assert.match(cloudData, /getCachedAppData/);
+  assert.match(cloudData, /syncPendingQueue/);
+  assert.match(page, /isOffline/);
+  assert.match(page, /pendingSyncCount/);
+  assert.match(components, /מצב לא מקוון/);
+
+  // WhatsApp Summary
+  assert.match(page, /handleShareWhatsApp/);
+  assert.match(components, /onShareWhatsApp/);
+  assert.match(components, /וואטסאפ/);
+
+  // Student Quick Card
+  assert.match(page, /quickCardStudent/);
+  assert.match(components, /StudentQuickCardModal/);
+  assert.match(components, /כרטיס תלמיד\/ה/);
+  assert.match(components, /אחוז נוכחות מצטבר בקורס/);
+
+  // Excel CSV Export
+  assert.match(page, /handleExportCourseCSV/);
+  assert.match(page, /דוחות וייצוא נתונים/);
+  assert.match(components, /ייצוא ל-Excel/);
 });
