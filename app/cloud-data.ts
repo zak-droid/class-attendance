@@ -200,8 +200,9 @@ export async function syncPendingQueue(): Promise<number> {
 }
 
 export function subscribeToSharedData(onRemoteChange: () => void): () => void {
-  if (!supabase) return () => {};
-  const channel: RealtimeChannel = supabase
+  const db = supabase;
+  if (!db) return () => {};
+  const channel: RealtimeChannel = db
     .channel("attendance-app-changes")
     .on("postgres_changes", { event: "*", schema: "public" }, () => {
       onRemoteChange();
@@ -209,6 +210,6 @@ export function subscribeToSharedData(onRemoteChange: () => void): () => void {
     .subscribe();
 
   return () => {
-    void supabase.removeChannel(channel);
+    void db.removeChannel(channel);
   };
 }
