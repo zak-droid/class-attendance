@@ -601,12 +601,12 @@ export default function Home() {
               value={studentSearch}
               onChange={(e) => setStudentSearch(e.target.value)}
               placeholder="חיפוש תלמיד/ה..."
-              className="min-h-11 flex-1 rounded-xl border border-white/14 bg-white px-3.5 text-sm font-semibold text-[#0F172A]"
+              className="min-h-11 min-w-0 flex-1 rounded-xl border border-white/14 bg-white px-3.5 text-sm font-semibold text-[#0F172A]"
             />
             <select
               value={studentCourse}
               onChange={(e) => setStudentCourse(e.target.value)}
-              className="min-h-11 rounded-xl border border-white/14 bg-[#005580] px-3 text-xs font-bold text-white"
+              className="min-h-11 max-w-[130px] sm:max-w-[180px] shrink-0 truncate rounded-xl border border-white/14 bg-[#005580] px-3 text-xs font-bold text-white"
             >
               <option value="all">כל הכיתות</option>
               {data.courses.map((course) => (
@@ -629,22 +629,22 @@ export default function Home() {
               .map((student) => (
                 <div
                   key={student.id}
-                  className="flex items-center justify-between rounded-2xl border border-white/14 bg-[#005580] px-4 py-3"
+                  className="flex min-h-14 w-full items-center justify-between gap-3 rounded-2xl border border-white/14 bg-[#005580] px-4 py-3"
                 >
-                  <div className="flex items-center gap-3">
+                  <div className="flex min-w-0 flex-1 items-center gap-2.5">
                     <button
                       type="button"
                       onClick={() => setQuickCardStudent(student)}
                       aria-label="כרטיס תלמיד"
-                      className="flex h-8 w-8 items-center justify-center rounded-xl bg-white/10 text-xs font-bold text-[#B8D8E6] transition hover:bg-[#00A6A6] hover:text-white"
+                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-white/10 text-xs font-bold text-[#B8D8E6] transition hover:bg-[#00A6A6] hover:text-white"
                     >
                       ℹ️
                     </button>
-                    <div>
-                      <p dir="auto" className="font-bold text-white">
+                    <div className="min-w-0 flex-1">
+                      <p dir="auto" className="truncate font-bold text-white">
                         {student.name}
                       </p>
-                      <p className="text-xs text-[#B8D8E6]">
+                      <p className="truncate text-xs text-[#B8D8E6]">
                         {student.active ? "פעיל" : "לא פעיל"}
                       </p>
                     </div>
@@ -906,21 +906,22 @@ export default function Home() {
                     {data.students.map((student) => (
                       <div
                         key={student.id}
-                        className="flex items-center justify-between rounded-2xl border border-white/14 bg-[#005580] px-4 py-3"
+                        className="flex min-h-14 w-full items-center justify-between gap-3 rounded-2xl border border-white/14 bg-[#005580] px-4 py-3"
                       >
-                        <div className="flex items-center gap-3">
+                        <div className="flex min-w-0 flex-1 items-center gap-2.5">
                           <button
                             type="button"
                             onClick={() => setQuickCardStudent(student)}
-                            className="flex h-8 w-8 items-center justify-center rounded-xl bg-white/10 text-xs font-bold text-[#B8D8E6] transition hover:bg-[#00A6A6] hover:text-white"
+                            aria-label="כרטיס תלמיד"
+                            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-white/10 text-xs font-bold text-[#B8D8E6] transition hover:bg-[#00A6A6] hover:text-white"
                           >
                             ℹ️
                           </button>
-                          <div>
-                            <p dir="auto" className="font-bold text-white">
+                          <div className="min-w-0 flex-1">
+                            <p dir="auto" className="truncate font-bold text-white">
                               {student.name}
                             </p>
-                            <p className="text-xs text-[#B8D8E6]">
+                            <p className="truncate text-xs text-[#B8D8E6]">
                               {data.courses.find((c) => c.id === student.courseId)?.name || ""}
                             </p>
                           </div>
