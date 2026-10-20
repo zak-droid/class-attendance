@@ -386,8 +386,14 @@ export function StudentActionBottomSheet({
   const [notes, setNotes] = useState(log.notes ?? "");
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-0 sm:items-center sm:p-4">
-      <div className="w-full max-w-md rounded-t-[28px] border-t border-white/14 bg-[#002B45] p-5 pb-[calc(1.5rem+env(safe-area-inset-bottom))] text-white max-h-[92svh] overflow-y-auto sm:rounded-3xl sm:border sm:p-6">
+    <div
+      onClick={onClose}
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-0 sm:items-center sm:p-4"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-md rounded-t-[28px] border-t border-white/14 bg-[#002B45] p-5 pb-[calc(1.5rem+env(safe-area-inset-bottom))] text-white max-h-[92svh] overflow-y-auto sm:rounded-3xl sm:border sm:p-6"
+      >
         <div className="flex items-center justify-between border-b border-white/14 pb-3">
           <h3 dir="auto" className="text-lg font-extrabold">
             {student.name}
@@ -467,9 +473,13 @@ export function StudentQuickCardModal({
       role="dialog"
       aria-modal="true"
       aria-label={`כרטיס תלמיד עבור ${student.name}`}
+      onClick={onClose}
       className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-0 sm:items-center sm:p-4"
     >
-      <div className="w-full max-w-md rounded-t-[28px] border-t border-white/15 bg-[#002B45] p-5 pb-[calc(1.5rem+env(safe-area-inset-bottom))] text-white shadow-2xl max-h-[92svh] overflow-y-auto sm:rounded-3xl sm:border sm:p-6">
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-md rounded-t-[28px] border-t border-white/15 bg-[#002B45] p-5 pb-[calc(1.5rem+env(safe-area-inset-bottom))] text-white shadow-2xl max-h-[92svh] overflow-y-auto sm:rounded-3xl sm:border sm:p-6"
+      >
         <div className="flex items-start justify-between border-b border-white/14 pb-3">
           <div className="min-w-0 flex-1">
             <span className="text-[11px] font-extrabold uppercase tracking-wider text-[#00A6A6]">
@@ -624,9 +634,13 @@ export function Modal({
       role="dialog"
       aria-modal="true"
       aria-label={title}
+      onClick={onClose}
       className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-0 sm:items-center sm:p-4"
     >
-      <div className="w-full max-w-md rounded-t-[28px] border-t border-slate-200 bg-white p-5 pb-[calc(1.5rem+env(safe-area-inset-bottom))] text-[#0F172A] shadow-2xl max-h-[92svh] overflow-y-auto sm:rounded-3xl sm:border sm:p-6">
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-md rounded-t-[28px] border-t border-slate-200 bg-white p-5 pb-[calc(1.5rem+env(safe-area-inset-bottom))] text-[#0F172A] shadow-2xl max-h-[92svh] overflow-y-auto sm:rounded-3xl sm:border sm:p-6"
+      >
         <div className="flex items-center justify-between border-b border-slate-200 pb-3">
           <h2 className="text-lg font-extrabold">{title}</h2>
           <button
