@@ -119,8 +119,7 @@ export function openWhatsAppShare(text: string): void {
 
 function escapeCsvCell(cell: string | number): string {
   const str = String(cell ?? "");
-  if (str.includes(",") || str.includes('"') || str.includes("
-")) {
+  if (str.includes(",") || str.includes('"') || str.includes("\n")) {
     return `"${str.replace(/"/g, '""')}"`;
   }
   return str;
@@ -177,8 +176,7 @@ export function generateCourseAttendanceCSV(
   }
 
   // UTF-8 BOM prefix (﻿) ensures Hebrew characters render properly in Microsoft Excel
-  return "﻿" + rows.map((r) => r.join(",")).join("
-");
+  return "﻿" + rows.map((r) => r.join(",")).join("\n");
 }
 
 export function downloadCSV(filename: string, csvContent: string): void {
