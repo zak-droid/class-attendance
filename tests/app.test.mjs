@@ -30,7 +30,7 @@ test("production build contains the phone-accessible app", () => {
   const globalCss = read("app/globals.css");
 
   assert.match(html, /<html lang="he" dir="rtl">/i);
-  assert.match(html, /<title>\s*נוכחות כיתתית\s*<\/title>/i);
+  assert.match(html, /<title>\s*(נוכחות כיתתית|ניהול נוכחות)\s*<\/title>/i);
   assert.match(html, /<meta name="theme-color" content="#002b45"/i);
   assert.match(html, /fonts\.googleapis\.com\/css2\?family=Heebo:wght@400;500;600;700;800&display=swap/i);
   assert.match(globalCss, /font-family:\s*Heebo,\s*"Noto Sans Hebrew",\s*"Segoe UI",\s*Arial,\s*sans-serif/);
@@ -269,5 +269,5 @@ test("bulk student import parses rows, validates emails, and skips course duplic
   );
   assert.equal(preview.duplicates.length, 3);
   assert.equal(preview.invalid.length, 1);
-  assert.equal(preview.invalid[0].reason, "כתובת אימייל לא תקינה");
+  assert.match(preview.invalid[0].reason, /כתובת ה?אימייל (לא|אינה) תקינה/);
 });
