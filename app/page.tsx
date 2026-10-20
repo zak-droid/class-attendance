@@ -103,6 +103,182 @@ export default function Home() {
     toastTimer.current = setTimeout(() => setToast(""), 3000);
   }, []);
 
+  // Navigation & hardware/gesture Back button support
+  const navStateRef = useRef({
+    tab,
+    activeSessionCourseId,
+    moreView,
+    selectedAttendanceId,
+    studentAddSheetOpen,
+    quickCardStudent,
+    modal,
+  });
+
+  useEffect(() => {
+    navStateRef.current = {
+      tab,
+      activeSessionCourseId,
+      moreView,
+      selectedAttendanceId,
+      studentAddSheetOpen,
+      quickCardStudent,
+      modal,
+    };
+  }, [
+    tab,
+    activeSessionCourseId,
+    moreView,
+    selectedAttendanceId,
+    studentAddSheetOpen,
+    quickCardStudent,
+    modal,
+  ]);
+
+  const safePushHistory = useCallback((layer: string) => {
+    try {
+      if (typeof window !== "undefined" && window.history?.pushState) {
+        window.history.pushState({ appNav: true, layer }, "");
+      }
+    } catch {
+      // Ignore history pushState errors
+    }
+  }, []);
+
+  const safeBackHistory = useCallback((fallback: () => void) => {
+    try {
+      if (typeof window !== "undefined" && window.history?.state?.appNav) {
+        window.history.back();
+        return;
+      }
+    } catch {
+      // Ignore history back errors
+    }
+    fallback();
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const onPopState = () => {
+      const state = navStateRef.current;
+
+      // Layer 1: Modals & Bottom Sheets (highest priority)
+      if (state.quickCardStudent) {
+        setQuickCardStudent(null);
+        return;
+      }
+      if (state.modal) {
+        setModal(null);
+        return;
+      }
+      if (state.studentAddSheetOpen) {
+        setStudentAddSheetOpen(false);
+        return;
+      }
+      if (state.selectedAttendanceId) {
+        setSelectedAttendanceId(null);
+        return;
+      }
+
+      // Layer 2: Sub-views (Active attendance session, More sub-views)
+      if (state.activeSessionCourseId) {
+        setActiveSessionCourseId(null);
+        return;
+      }
+      if (state.tab === "more" && state.moreView !== "menu") {
+        setMoreView("menu");
+        return;
+      }
+
+      // Layer 3: Main Navigation Tabs (return to Today home tab)
+      if (state.tab !== "today") {
+        setTab("today");
+        return;
+      }
+    };
+
+    window.addEventListener("popstate", onPopState);
+    return () => {
+      window.removeEventListener("popstate", onPopState);
+    };
+  }, []);
+
+  const handleTabChange = useCallback(
+    (nextTab: AppTab) => {
+      if (nextTab === navStateRef.current.tab) return;
+      if (nextTab !== "today" && navStateRef.current.tab === "today") {
+        safePushHistory(`tab-${nextTab}`);
+      } else if (nextTab === "today" && typeof window !== "undefined" && window.history.state?.appNav) {
+        safeBackHistory(() => setTab("today"));
+        return;
+      }
+      setTab(nextTab);
+    },
+    [safePushHistory, safeBackHistory]
+  );
+
+  const handleOpenMoreView = useCallback(
+    (view: "courses" | "students") => {
+      safePushHistory(`more-${view}`);
+      setMoreView(view);
+    },
+    [safePushHistory]
+  );
+
+  const exitMoreSubView = useCallback(() => {
+    safeBackHistory(() => setMoreView("menu"));
+  }, [safeBackHistory]);
+
+  const exitActiveSession = useCallback(() => {
+    safeBackHistory(() => setActiveSessionCourseId(null));
+  }, [safeBackHistory]);
+
+  const handleOpenQuickCard = useCallback(
+    (student: Student) => {
+      safePushHistory("quick-card");
+      setQuickCardStudent(student);
+    },
+    [safePushHistory]
+  );
+
+  const closeQuickCard = useCallback(() => {
+    safeBackHistory(() => setQuickCardStudent(null));
+  }, [safeBackHistory]);
+
+  const handleOpenAttendanceModal = useCallback(
+    (logId: string) => {
+      safePushHistory("attendance-edit");
+      setSelectedAttendanceId(logId);
+    },
+    [safePushHistory]
+  );
+
+  const closeAttendanceModal = useCallback(() => {
+    safeBackHistory(() => setSelectedAttendanceId(null));
+  }, [safeBackHistory]);
+
+  const handleOpenStudentAddSheet = useCallback(() => {
+    safePushHistory("add-student");
+    setStudentAddSheetOpen(true);
+  }, [safePushHistory]);
+
+  const closeStudentAddSheet = useCallback(() => {
+    safeBackHistory(() => setStudentAddSheetOpen(false));
+  }, [safeBackHistory]);
+
+  const handleOpenModal = useCallback(
+    (nextModal: ModalState) => {
+      safePushHistory("modal");
+      setModal(nextModal);
+    },
+    [safePushHistory]
+  );
+
+  const closeModal = useCallback(() => {
+    safeBackHistory(() => setModal(null));
+  }, [safeBackHistory]);
+
+
   const refreshData = useCallback(async () => {
     setDataLoading(true);
     setDataError("");
@@ -289,6 +465,7 @@ export default function Home() {
         await refreshData();
         setTodayFilter("all");
         setSessionReadOnly(false);
+        safePushHistory("session");
         setActiveSessionCourseId(courseId);
         notify("כל התלמידים סומנו כנוכחים. סמנו רק חריגים.");
       } catch (error) {
@@ -363,7 +540,7 @@ export default function Home() {
   return (
     <Layout
       tab={tab}
-      onTabChange={setTab}
+      onTabChange={handleTabChange}
       userEmail={userEmail || "מורה"}
       onSignOut={handleSignOut}
       attendanceActive={Boolean(activeSessionCourseId)}
@@ -483,6 +660,7 @@ export default function Home() {
                             else {
                               setTodayFilter("all");
                               setSessionReadOnly(completed);
+                              safePushHistory("session");
                               setActiveSessionCourseId(course.id);
                             }
                           }}
@@ -522,7 +700,7 @@ export default function Home() {
           <div className="flex items-center justify-between">
             <button
               type="button"
-              onClick={() => setActiveSessionCourseId(null)}
+              onClick={exitActiveSession}
               className="text-xs font-extrabold text-[#B8D8E6] hover:text-white"
             >
               → חזרה להיום
@@ -561,9 +739,9 @@ export default function Home() {
                   log={log}
                   student={student}
                   onOpen={() => {
-                    if (!sessionReadOnly) setSelectedAttendanceId(log.id);
+                    if (!sessionReadOnly) handleOpenAttendanceModal(log.id);
                   }}
-                  onViewCard={() => setQuickCardStudent(student)}
+                  onViewCard={() => handleOpenQuickCard(student)}
                 />
               );
             })}
@@ -573,7 +751,7 @@ export default function Home() {
             logs={activeSessionLogs}
             onFinish={() => {
               setCompletedCourseIds((prev) => new Set(prev).add(activeSessionCourseId));
-              setActiveSessionCourseId(null);
+              exitActiveSession();
               notify("הנוכחות להיום הושלמה.");
             }}
             onShareWhatsApp={() => handleShareWhatsApp(activeSessionCourseId)}
@@ -588,7 +766,7 @@ export default function Home() {
             <h2 className="text-xl font-extrabold text-white">תלמידים</h2>
             <button
               type="button"
-              onClick={() => setStudentAddSheetOpen(true)}
+              onClick={handleOpenStudentAddSheet}
               className="min-h-11 rounded-xl bg-[#00A6A6] px-4 text-xs font-extrabold text-white hover:bg-[#00B3A4]"
             >
               + הוספת תלמיד חדש
@@ -634,7 +812,7 @@ export default function Home() {
                   <div className="flex min-w-0 flex-1 items-center gap-2.5">
                     <button
                       type="button"
-                      onClick={() => setQuickCardStudent(student)}
+                      onClick={() => handleOpenQuickCard(student)}
                       aria-label="כרטיס תלמיד"
                       className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-white/10 text-xs font-bold text-[#B8D8E6] transition hover:bg-[#00A6A6] hover:text-white"
                     >
@@ -652,7 +830,7 @@ export default function Home() {
                   <StudentActions
                     student={student}
                     onEdit={() =>
-                      setModal({
+                      handleOpenModal({
                         type: "student",
                         student,
                         initialCourseId: studentCourse === "all" ? student.courseId : studentCourse,
@@ -801,18 +979,18 @@ export default function Home() {
                 <MoreAction
                   title="ניהול קורסים"
                   description="הוספה, עריכה והגדרת כיתות במערכת"
-                  onClick={() => setMoreView("courses")}
+                  onClick={() => handleOpenMoreView("courses")}
                 />
                 <MoreAction
                   title="ניהול תלמידים"
                   description="הוספה, שיוך לכיתות וייבוא תלמידים"
-                  onClick={() => setMoreView("students")}
+                  onClick={() => handleOpenMoreView("students")}
                 />
                 <MoreAction
                   title="ייבוא תלמידים"
                   description="ייבוא מרוכז של תלמידים מרשימה"
                   onClick={() =>
-                    setModal({
+                    handleOpenModal({
                       type: "import",
                       initialCourseId: studentCourse === "all" ? data.courses[0]?.id : studentCourse,
                     })
@@ -843,7 +1021,7 @@ export default function Home() {
               <button
                 type="button"
                 aria-label="חזרה לתפריט"
-                onClick={() => setMoreView("menu")}
+                onClick={exitMoreSubView}
                 className="flex items-center gap-2 text-sm font-extrabold text-[#B8D8E6] hover:text-white"
               >
                 <span>→</span>
@@ -856,7 +1034,7 @@ export default function Home() {
                     <h3 className="text-lg font-extrabold text-white">ניהול קורסים</h3>
                     <button
                       type="button"
-                      onClick={() => setModal({ type: "course" })}
+                      onClick={() => handleOpenModal({ type: "course" })}
                       className="min-h-10 rounded-xl bg-[#00A6A6] px-4 text-xs font-extrabold text-white hover:bg-[#00B3A4]"
                     >
                       + הוספת כיתה חדשה
@@ -875,10 +1053,11 @@ export default function Home() {
                           startedToday={todayLogs.some((l) => l.courseId === course.id)}
                           completedToday={completedCourseIds.has(course.id)}
                           onStart={() => {
+                            safePushHistory("session");
                             setActiveSessionCourseId(course.id);
                             setTab("today");
                           }}
-                          onEdit={() => setModal({ type: "course", course })}
+                          onEdit={() => handleOpenModal({ type: "course", course })}
                           onToggleActive={() =>
                             void setCourseActive(course.id, !course.active).then(refreshData)
                           }
@@ -896,7 +1075,7 @@ export default function Home() {
                     <h3 className="text-lg font-extrabold text-white">רשימת תלמידים</h3>
                     <button
                       type="button"
-                      onClick={() => setStudentAddSheetOpen(true)}
+                      onClick={handleOpenStudentAddSheet}
                       className="min-h-10 rounded-xl bg-[#00A6A6] px-4 text-xs font-extrabold text-white hover:bg-[#00B3A4]"
                     >
                       + הוספת תלמיד
@@ -911,7 +1090,7 @@ export default function Home() {
                         <div className="flex min-w-0 flex-1 items-center gap-2.5">
                           <button
                             type="button"
-                            onClick={() => setQuickCardStudent(student)}
+                            onClick={() => handleOpenQuickCard(student)}
                             aria-label="כרטיס תלמיד"
                             className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-white/10 text-xs font-bold text-[#B8D8E6] transition hover:bg-[#00A6A6] hover:text-white"
                           >
@@ -928,7 +1107,7 @@ export default function Home() {
                         </div>
                         <StudentActions
                           student={student}
-                          onEdit={() => setModal({ type: "student", student })}
+                          onEdit={() => handleOpenModal({ type: "student", student })}
                           onToggleActive={() =>
                             void setStudentActive(student.id, !student.active).then(refreshData)
                           }
@@ -947,13 +1126,13 @@ export default function Home() {
         <StudentActionBottomSheet
           log={selectedLog}
           student={selectedStudent}
-          onClose={() => setSelectedAttendanceId(null)}
+          onClose={closeAttendanceModal}
           onStatusChange={(status) => {
             void updateAttendanceLog(selectedLog.id, { status }).then(() => {
               setPendingSyncCount(getPendingQueue().length);
               void refreshData();
             });
-            setSelectedAttendanceId(null);
+            closeAttendanceModal();
           }}
           onNotesChange={(notes) => {
             void updateAttendanceLog(selectedLog.id, { notes }).then(() => {
@@ -969,7 +1148,7 @@ export default function Home() {
         <StudentQuickCardModal
           stats={calculateStudentAttendanceStats(quickCardStudent, data.attendance)}
           courseName={data.courses.find((c) => c.id === quickCardStudent.courseId)?.name}
-          onClose={() => setQuickCardStudent(null)}
+          onClose={closeQuickCard}
         />
       )}
 
@@ -978,7 +1157,7 @@ export default function Home() {
           courses={data.courses}
           students={data.students}
           initialCourseId={studentCourse === "all" ? data.courses[0]?.id ?? "" : studentCourse}
-          onClose={() => setStudentAddSheetOpen(false)}
+          onClose={closeStudentAddSheet}
           onSaved={refreshData}
         />
       )}
@@ -986,7 +1165,7 @@ export default function Home() {
       {modal?.type === "course" && (
         <Modal
           title={modal.course ? "עריכת כיתה" : "הוספת כיתה חדשה"}
-          onClose={() => setModal(null)}
+          onClose={closeModal}
         >
           <CourseForm
             course={modal.course}
@@ -998,7 +1177,7 @@ export default function Home() {
                 active: modal.course?.active ?? true,
               });
               await refreshData();
-              setModal(null);
+              closeModal();
             }}
           />
         </Modal>
@@ -1007,7 +1186,7 @@ export default function Home() {
       {modal?.type === "student" && (
         <Modal
           title={modal.student ? "עריכת פרטי תלמיד/ה" : "הוספת תלמיד/ה"}
-          onClose={() => setModal(null)}
+          onClose={closeModal}
         >
           <StudentForm
             courses={data.courses}
@@ -1022,10 +1201,20 @@ export default function Home() {
                 active: modal.student?.active ?? true,
               });
               await refreshData();
-              setModal(null);
+              closeModal();
             }}
           />
         </Modal>
+      )}
+
+      {modal?.type === "import" && (
+        <AddStudentBottomSheet
+          courses={data.courses}
+          students={data.students}
+          initialCourseId={modal.initialCourseId ?? (studentCourse === "all" ? data.courses[0]?.id ?? "" : studentCourse)}
+          onClose={closeModal}
+          onSaved={refreshData}
+        />
       )}
 
       <div
