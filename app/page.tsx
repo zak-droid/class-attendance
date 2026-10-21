@@ -1464,6 +1464,8 @@ export default function Home() {
                             setSelectedTasksCourseId(course.id);
                             setMoreView("tasks");
                           }}
+                          onViewAIAnalysis={() => void handleOpenAIAnalysis(course)}
+                          onEditSyllabus={() => handleOpenSyllabusModal(course)}
                         />
                       );
                     })}

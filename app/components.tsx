@@ -230,6 +230,8 @@ export function CourseCard({
   onViewStudents,
   onExportCSV,
   onViewTasks,
+  onViewAIAnalysis,
+  onEditSyllabus,
 }: {
   course: Course;
   studentCount: number;
