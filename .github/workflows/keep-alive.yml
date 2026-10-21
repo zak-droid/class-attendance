@@ -1,0 +1,18 @@
+name: Supabase Keep-Alive
+
+on:
+  schedule:
+    # רץ אוטומטית כל 3 ימים בשעה 06:00 UTC
+    - cron: '0 6 */3 * *'
+  workflow_dispatch: # מאפשר הפעלה ידנית מתי שרוצים
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Supabase Database
+        run: |
+          response=$(curl -s -o /dev/null -w "%{http_code}" \
+            -H "apikey: sb_publishable_nk_U2ZoSiQ-oRvg5sVlsFA_OLPLh-cj" \
+            "https://yjztwkabtooxxedrqmrq.supabase.co/rest/v1/")
+          echo "Supabase response code: $response"

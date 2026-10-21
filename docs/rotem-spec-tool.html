@@ -1,0 +1,1105 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>שאלון אפיון מערכת – מודול מעקב ובקרת קורס למנחים</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <style>
+    body {
+      font-family: 'Heebo', sans-serif;
+    }
+    input[type="radio"]:checked + label {
+      border-color: #00A6A6;
+      background-color: rgba(0, 166, 166, 0.08);
+    }
+    input[type="checkbox"]:checked + label {
+      border-color: #00A6A6;
+      background-color: rgba(0, 166, 166, 0.08);
+    }
+    @media print {
+      body {
+        background: #ffffff !important;
+        color: #000000 !important;
+      }
+      .no-print {
+        display: none !important;
+      }
+      .print-only {
+        display: block !important;
+      }
+    }
+  </style>
+</head>
+<body class="bg-[#002B45] text-slate-100 min-h-screen antialiased flex flex-col justify-between selection:bg-[#00A6A6] selection:text-white">
+
+  <!-- Header -->
+  <header class="border-b border-white/10 bg-[#001D30]/90 backdrop-blur sticky top-0 z-30 px-4 py-3 sm:py-4">
+    <div class="max-w-3xl mx-auto flex items-center justify-between gap-4">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-[#00A6A6] text-white flex items-center justify-center font-black text-xl shadow-md shadow-[#00A6A6]/20">
+          ✓
+        </div>
+        <div>
+          <h1 class="text-base sm:text-lg font-extrabold text-white leading-tight">שאלון אפיון – מודול מעקב ובקרת קורס</h1>
+          <p class="text-xs text-[#B8D8E6]">איסוף דרישות ומענה מנחים לקראת פיתוח</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-2">
+        <button id="reset-btn" type="button" class="text-xs text-slate-300 hover:text-white bg-white/5 hover:bg-white/10 border border-white/15 px-3 py-1.5 rounded-lg transition">
+          איפוס
+        </button>
+        <span id="save-status" class="text-[11px] text-[#00A6A6] font-semibold bg-[#00A6A6]/10 border border-[#00A6A6]/20 px-2 py-1 rounded-md hidden sm:inline-block">
+          נשמר אוטומטית
+        </span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Progress Bar Container -->
+  <div class="bg-[#001929] border-b border-white/5 sticky top-[57px] sm:top-[65px] z-20">
+    <div class="max-w-3xl mx-auto px-4 py-2 flex items-center justify-between text-xs">
+      <div class="flex items-center gap-2">
+        <span class="font-bold text-white" id="step-indicator">שלב 1 מתוך 6</span>
+        <span class="text-slate-400" id="step-title-indicator">• פרטי מנחה</span>
+      </div>
+      <div class="flex items-center gap-2">
+        <div class="w-24 sm:w-36 h-2 bg-white/10 rounded-full overflow-hidden">
+          <div id="progress-bar-fill" class="h-full bg-gradient-to-r from-[#00A6A6] to-[#38BDF8] transition-all duration-300" style="width: 16%;"></div>
+        </div>
+        <span class="text-[11px] text-slate-300 font-mono" id="progress-percent">16%</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Stepper Tabs -->
+  <nav class="max-w-3xl mx-auto px-4 pt-4 overflow-x-auto no-scrollbar w-full" aria-label="שלבי השאלון">
+    <div class="flex items-center gap-1.5 min-w-max pb-1">
+      <button type="button" data-step="1" class="step-tab flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition border border-transparent bg-[#00A6A6] text-white">
+        <span>1</span><span>פרטים</span>
+      </button>
+      <button type="button" data-step="2" class="step-tab flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition border border-white/10 bg-white/5 text-slate-300 hover:text-white">
+        <span>2</span><span>נוכחות וזכאות</span>
+      </button>
+      <button type="button" data-step="3" class="step-tab flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition border border-white/10 bg-white/5 text-slate-300 hover:text-white">
+        <span>3</span><span>מטלות חובה</span>
+      </button>
+      <button type="button" data-step="4" class="step-tab flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition border border-white/10 bg-white/5 text-slate-300 hover:text-white">
+        <span>4</span><span>תיעוד שיעורים</span>
+      </button>
+      <button type="button" data-step="5" class="step-tab flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition border border-white/10 bg-white/5 text-slate-300 hover:text-white">
+        <span>5</span><span>בקרת AI</span>
+      </button>
+      <button type="button" data-step="6" class="step-tab flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition border border-white/10 bg-white/5 text-slate-300 hover:text-white">
+        <span>6</span><span>סיכום והפקה</span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- Main Content Form -->
+  <main class="max-w-3xl mx-auto px-4 py-6 w-full flex-grow">
+    <form id="spec-form" onsubmit="return false;" class="space-y-6">
+
+      <!-- STEP 1: Introduction & Instructor details -->
+      <section id="step-pane-1" class="step-pane bg-[#003859] border border-white/15 rounded-2xl p-5 sm:p-7 shadow-xl space-y-5">
+        <div class="border-b border-white/10 pb-4">
+          <span class="inline-block px-2.5 py-0.5 rounded-md text-[11px] font-extrabold uppercase tracking-wider bg-[#00A6A6]/20 text-[#00E5E5] border border-[#00A6A6]/30 mb-2">שלב 1</span>
+          <h2 class="text-xl sm:text-2xl font-extrabold text-white">שלום רותם, ברוך הבא לשאלון האפיון!</h2>
+          <p class="text-sm text-[#B8D8E6] mt-1.5 leading-relaxed">
+            השאלון הבא מיועד לדייק את הדרישות שהעלית לפיתוח מודול מעקב ובקרת קורסים למנחים. כל התשובות נשמרות אוטומטית בדפדפן, ובסיום יופק מסמך מסודר ומרוכז שתוכל לשלוח אלינו בלחיצה אחת.
+          </p>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label for="instructor-name" class="block text-xs font-bold text-slate-200 mb-1.5">שם המנחה / ממלא השאלון</label>
+            <input type="text" id="instructor-name" name="instructorName" value="רותם" class="w-full bg-[#002B45] border border-white/20 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-slate-400 focus:outline-none focus:border-[#00A6A6] focus:ring-1 focus:ring-[#00A6A6]">
+          </div>
+          <div>
+            <label for="instructor-email" class="block text-xs font-bold text-slate-200 mb-1.5">כתובת אימייל</label>
+            <input type="email" id="instructor-email" name="instructorEmail" value="rotman555@gmail.com" class="w-full bg-[#002B45] border border-white/20 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-slate-400 focus:outline-none focus:border-[#00A6A6] focus:ring-1 focus:ring-[#00A6A6] text-left" dir="ltr">
+          </div>
+        </div>
+
+        <div>
+          <label for="course-name-example" class="block text-xs font-bold text-slate-200 mb-1.5">שם הקורס / התוכנית הנוכחית (דוגמה)</label>
+          <input type="text" id="course-name-example" name="courseNameExample" placeholder="למשל: הנחיית קבוצות מחזור ט'" class="w-full bg-[#002B45] border border-white/20 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-slate-400 focus:outline-none focus:border-[#00A6A6] focus:ring-1 focus:ring-[#00A6A6]">
+        </div>
+
+        <div class="rounded-xl bg-[#00263D] border border-white/10 p-4 text-xs text-[#B8D8E6] leading-relaxed">
+          💡 <strong class="text-white">טיפ:</strong> הזמן המשוער למילוי השאלון הוא כ-4 דקות. בסיום תוכל להעתיק את הסיכום או לשלוח אותו ישירות בווטסאפ או במייל.
+        </div>
+      </section>
+
+      <!-- STEP 2: Attendance and Certificate Eligibility -->
+      <section id="step-pane-2" class="step-pane hidden bg-[#003859] border border-white/15 rounded-2xl p-5 sm:p-7 shadow-xl space-y-6">
+        <div class="border-b border-white/10 pb-4">
+          <span class="inline-block px-2.5 py-0.5 rounded-md text-[11px] font-extrabold uppercase tracking-wider bg-[#00A6A6]/20 text-[#00E5E5] border border-[#00A6A6]/30 mb-2">שלב 2</span>
+          <h2 class="text-xl sm:text-2xl font-extrabold text-white">מודול נוכחות ורף זכאות לתעודה</h2>
+          <p class="text-sm text-[#B8D8E6] mt-1">הגדרת חישוב אחוזי הנוכחות והתנאים הפדגוגיים לזכאות</p>
+        </div>
+
+        <!-- Q 1.1 -->
+        <div class="space-y-2">
+          <p class="text-sm font-bold text-white">1. מהו אחוז הנוכחות המינימלי הנדרש לקבלת תעודה בסיום הקורס?</p>
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+            <div>
+              <input type="radio" id="att-80" name="attendanceThreshold" value="80" checked class="hidden peer">
+              <label for="att-80" class="flex flex-col items-center justify-center p-3 rounded-xl border border-white/15 bg-[#00263D] hover:bg-white/5 cursor-pointer text-center text-sm font-bold transition peer-checked:border-[#00A6A6] peer-checked:bg-[#00A6A6]/15 peer-checked:text-[#00E5E5]">
+                <span class="text-lg">80%</span>
+                <span class="text-[11px] text-slate-300 font-normal">ברירת מחדל</span>
+              </label>
+            </div>
+            <div>
+              <input type="radio" id="att-75" name="attendanceThreshold" value="75" class="hidden peer">
+              <label for="att-75" class="flex flex-col items-center justify-center p-3 rounded-xl border border-white/15 bg-[#00263D] hover:bg-white/5 cursor-pointer text-center text-sm font-bold transition peer-checked:border-[#00A6A6] peer-checked:bg-[#00A6A6]/15 peer-checked:text-[#00E5E5]">
+                <span class="text-lg">75%</span>
+                <span class="text-[11px] text-slate-300 font-normal">גמיש יותר</span>
+              </label>
+            </div>
+            <div>
+              <input type="radio" id="att-85" name="attendanceThreshold" value="85" class="hidden peer">
+              <label for="att-85" class="flex flex-col items-center justify-center p-3 rounded-xl border border-white/15 bg-[#00263D] hover:bg-white/5 cursor-pointer text-center text-sm font-bold transition peer-checked:border-[#00A6A6] peer-checked:bg-[#00A6A6]/15 peer-checked:text-[#00E5E5]">
+                <span class="text-lg">85%</span>
+                <span class="text-[11px] text-slate-300 font-normal">מחמיר</span>
+              </label>
+            </div>
+            <div>
+              <input type="radio" id="att-custom" name="attendanceThreshold" value="custom" class="hidden peer">
+              <label for="att-custom" class="flex flex-col items-center justify-center p-3 rounded-xl border border-white/15 bg-[#00263D] hover:bg-white/5 cursor-pointer text-center text-sm font-bold transition peer-checked:border-[#00A6A6] peer-checked:bg-[#00A6A6]/15 peer-checked:text-[#00E5E5]">
+                <span class="text-lg">אחר</span>
+                <span class="text-[11px] text-slate-300 font-normal">הגדרה אישית</span>
+              </label>
+            </div>
+          </div>
+          <div id="att-custom-box" class="hidden pt-1.5">
+            <input type="text" id="att-custom-val" placeholder="ציין את האחוז הנדרש (למשל: 70% או 90%)" class="w-full bg-[#002B45] border border-white/20 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:border-[#00A6A6]">
+          </div>
+        </div>
+
+        <!-- Q 1.2 -->
+        <div class="space-y-2">
+          <p class="text-sm font-bold text-white">2. כיצד לחשב סטטוס "איחר" (Late) בשקלול הנוכחות?</p>
+          <div class="space-y-2">
+            <div>
+              <input type="radio" id="late-full" name="lateCalculation" value="נחשב כנוכחות מלאה" checked class="hidden peer">
+              <label for="late-full" class="flex items-center justify-between p-3 rounded-xl border border-white/15 bg-[#00263D] hover:bg-white/5 cursor-pointer transition text-sm peer-checked:border-[#00A6A6] peer-checked:bg-[#00A6A6]/15">
+                <span class="font-medium text-white">נחשב כנוכח באופן מלא (1.0)</span>
+                <span class="text-xs text-[#00E5E5]">מומלץ</span>
+              </label>
+            </div>
+            <div>
+              <input type="radio" id="late-half" name="lateCalculation" value="נחשב כחצי נוכחות (0.5)" class="hidden peer">
+              <label for="late-half" class="flex items-center justify-between p-3 rounded-xl border border-white/15 bg-[#00263D] hover:bg-white/5 cursor-pointer transition text-sm peer-checked:border-[#00A6A6] peer-checked:bg-[#00A6A6]/15">
+                <span class="font-medium text-white">נחשב כחצי נוכחות (0.5 מפגש)</span>
+                <span class="text-xs text-slate-400">משוקלל</span>
+              </label>
+            </div>
+            <div>
+              <input type="radio" id="late-absent" name="lateCalculation" value="נחשב כהיעדרות מלאה" class="hidden peer">
+              <label for="late-absent" class="flex items-center justify-between p-3 rounded-xl border border-white/15 bg-[#00263D] hover:bg-white/5 cursor-pointer transition text-sm peer-checked:border-[#00A6A6] peer-checked:bg-[#00A6A6]/15">
+                <span class="font-medium text-white">נחשב כהיעדרות</span>
+                <span class="text-xs text-slate-400">קפדני</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- Q 1.3 -->
+        <div class="space-y-2">
+          <p class="text-sm font-bold text-white">3. כיצד לחשב סטטוס "מאושר / היעדרות מוצדקת" (Excused)?</p>
+          <div class="space-y-2">
+            <div>
+              <input type="radio" id="excused-ignore" name="excusedCalculation" value="מוחרג מהחישוב (לא מוריד אחוזים)" checked class="hidden peer">
+              <label for="excused-ignore" class="flex items-center justify-between p-3 rounded-xl border border-white/15 bg-[#00263D] hover:bg-white/5 cursor-pointer transition text-sm peer-checked:border-[#00A6A6] peer-checked:bg-[#00A6A6]/15">
+                <span class="font-medium text-white">השיעור מוחרג מהספירה (אינו פוגע באחוז הזכאות של התלמיד)</span>
+                <span class="text-xs text-[#00E5E5]">הוגן ורווח</span>
+              </label>
+            </div>
+            <div>
+              <input type="radio" id="excused-present" name="excusedCalculation" value="נספר כנוכח מלא" class="hidden peer">
+              <label for="excused-present" class="flex items-center justify-between p-3 rounded-xl border border-white/15 bg-[#00263D] hover:bg-white/5 cursor-pointer transition text-sm peer-checked:border-[#00A6A6] peer-checked:bg-[#00A6A6]/15">
+                <span class="font-medium text-white">נספר כנוכח רגיל</span>
+                <span class="text-xs text-slate-400">קרדיט מלא</span>
+              </label>
+            </div>
+            <div>
+              <input type="radio" id="excused-absent" name="excusedCalculation" value="נספר כהיעדרות רגילה" class="hidden peer">
+              <label for="excused-absent" class="flex items-center justify-between p-3 rounded-xl border border-white/15 bg-[#00263D] hover:bg-white/5 cursor-pointer transition text-sm peer-checked:border-[#00A6A6] peer-checked:bg-[#00A6A6]/15">
+                <span class="font-medium text-white">נספר כהיעדרות (רק מצוין שהיה אישור)</span>
+                <span class="text-xs text-slate-400">מחמיר</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- Q 1.4 -->
+        <div class="space-y-2">
+          <p class="text-sm font-bold text-white">4. תצוגת הזכאות במהלך הקורס (כאשר הקורס עדיין מתקיים):</p>
+          <div class="space-y-2">
+            <div>
+              <input type="radio" id="mid-progress" name="midCourseDisplay" value="אחוז נוכחות עד כה + התראה על סיכון לזכאות" checked class="hidden peer">
+              <label for="mid-progress" class="flex items-center justify-between p-3 rounded-xl border border-white/15 bg-[#00263D] hover:bg-white/5 cursor-pointer transition text-sm peer-checked:border-[#00A6A6] peer-checked:bg-[#00A6A6]/15">
+                <span class="font-medium text-white">הצגת אחוז נוכחות עד כה + התראה באדום על תלמיד בסיכון לנשירה מזכאות</span>
+                <span class="text-xs text-[#00E5E5]">ערך מקסימלי</span>
+              </label>
+            </div>
+            <div>
+              <input type="radio" id="mid-only-end" name="midCourseDisplay" value="הצגת זכאות סופית רק במפגש האחרון" class="hidden peer">
+              <label for="mid-only-end" class="flex items-center justify-between p-3 rounded-xl border border-white/15 bg-[#00263D] hover:bg-white/5 cursor-pointer transition text-sm peer-checked:border-[#00A6A6] peer-checked:bg-[#00A6A6]/15">
+                <span class="font-medium text-white">חישוב זכאות סופית רק בסיום כל מפגשי הקורס</span>
+                <span class="text-xs text-slate-400">בסיסי</span>
+              </label>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- STEP 3: Mandatory Assignments -->
+      <section id="step-pane-3" class="step-pane hidden bg-[#003859] border border-white/15 rounded-2xl p-5 sm:p-7 shadow-xl space-y-6">
+        <div class="border-b border-white/10 pb-4">
+          <span class="inline-block px-2.5 py-0.5 rounded-md text-[11px] font-extrabold uppercase tracking-wider bg-[#00A6A6]/20 text-[#00E5E5] border border-[#00A6A6]/30 mb-2">שלב 3</span>
+          <h2 class="text-xl sm:text-2xl font-extrabold text-white">מודול מעקב חובות הקורס (מטלות חובה)</h2>
+          <p class="text-sm text-[#B8D8E6] mt-1">אפיון מעקב אחר "הנחיית עמיתים" ו"פרקטיקום" לקראת תעודה</p>
+        </div>
+
+        <!-- Q 2.1 -->
+        <div class="space-y-2">
+          <p class="text-sm font-bold text-white">1. האם שתי המטלות (הנחיית עמיתים + פרקטיקום) הן קבועות בכל הקורסים?</p>
+          <div class="space-y-2">
+            <div>
+              <input type="radio" id="tasks-fixed" name="tasksStructure" value="קבוע: תמיד בדיוק 2 המטלות הללו" checked class="hidden peer">
+              <label for="tasks-fixed" class="flex items-center justify-between p-3 rounded-xl border border-white/15 bg-[#00263D] hover:bg-white/5 cursor-pointer transition text-sm peer-checked:border-[#00A6A6] peer-checked:bg-[#00A6A6]/15">
+                <span class="font-medium text-white">כן, אלו שתי מטלות החובה הקבועות בכל הקורסים כרגע</span>
+                <span class="text-xs text-[#00E5E5]">פשוט ומהיר</span>
+              </label>
+            </div>
+            <div>
+              <input type="radio" id="tasks-dynamic" name="tasksStructure" value="גמיש: אפשרות להוסיף מטלות שונות לפי קורס" class="hidden peer">
+              <label for="tasks-dynamic" class="flex items-center justify-between p-3 rounded-xl border border-white/15 bg-[#00263D] hover:bg-white/5 cursor-pointer transition text-sm peer-checked:border-[#00A6A6] peer-checked:bg-[#00A6A6]/15">
+                <span class="font-medium text-white">נרצה בעתיד גמישות להוסיף או להגדיר מטלות שונות בכל קורס</span>
+                <span class="text-xs text-slate-400">מודולרי</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- Q 2.2 -->
+        <div class="space-y-2">
+          <p class="text-sm font-bold text-white">2. מה נדרש לתעד לכל תלמיד עבור כל מטלה? (ניתן לסמן כמה)</p>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            <div>
+              <input type="checkbox" id="task-data-status" name="taskFields" value="סטטוס ביצוע (בוצע / לא בוצע)" checked class="hidden peer">
+              <label for="task-data-status" class="flex items-center gap-2 p-3 rounded-xl border border-white/15 bg-[#00263D] hover:bg-white/5 cursor-pointer transition text-sm peer-checked:border-[#00A6A6] peer-checked:bg-[#00A6A6]/15 peer-checked:text-[#00E5E5]">
+                <span>☑️</span>
+                <span class="font-medium">סטטוס ביצוע מהיר (V/X)</span>
+              </label>
+            </div>
+            <div>
+              <input type="checkbox" id="task-data-date" name="taskFields" value="תאריך ביצוע/הגשה" checked class="hidden peer">
+              <label for="task-data-date" class="flex items-center gap-2 p-3 rounded-xl border border-white/15 bg-[#00263D] hover:bg-white/5 cursor-pointer transition text-sm peer-checked:border-[#00A6A6] peer-checked:bg-[#00A6A6]/15 peer-checked:text-[#00E5E5]">
+                <span>📅</span>
+                <span class="font-medium">תאריך ביצוע / הצגה</span>
+              </label>
+            </div>
+            <div>
+              <input type="checkbox" id="task-data-notes" name="taskFields" value="הערה/משוב טקסטואלי חופשי" checked class="hidden peer">
+              <label for="task-data-notes" class="flex items-center gap-2 p-3 rounded-xl border border-white/15 bg-[#00263D] hover:bg-white/5 cursor-pointer transition text-sm peer-checked:border-[#00A6A6] peer-checked:bg-[#00A6A6]/15 peer-checked:text-[#00E5E5]">
+                <span>📝</span>
+                <span class="font-medium">הערה קצרה או משוב מהמנחה</span>
+              </label>
+            </div>
+            <div>
+              <input type="checkbox" id="task-data-grade" name="taskFields" value="ציון מספרי/איכותי" class="hidden peer">
+              <label for="task-data-grade" class="flex items-center gap-2 p-3 rounded-xl border border-white/15 bg-[#00263D] hover:bg-white/5 cursor-pointer transition text-sm peer-checked:border-[#00A6A6] peer-checked:bg-[#00A6A6]/15 peer-checked:text-[#00E5E5]">
+                <span>🎯</span>
+                <span class="font-medium">ציון מספרי (אם רלוונטי)</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- Q 2.3 -->
+        <div class="space-y-2">
+          <p class="text-sm font-bold text-white">3. חוויית העדכון של המנחה (איך הכי נוח לסמן?):</p>
+          <div class="space-y-2">
+            <div>
+              <input type="radio" id="ux-table" name="taskUpdateUx" value="טבלה מרכזת עם צ'קבוקסים מהירים לכל הכיתה" checked class="hidden peer">
+              <label for="ux-table" class="flex items-center justify-between p-3 rounded-xl border border-white/15 bg-[#00263D] hover:bg-white/5 cursor-pointer transition text-sm peer-checked:border-[#00A6A6] peer-checked:bg-[#00A6A6]/15">
+                <span class="font-medium text-white">מסך ריכוז כיתתי: טבלה שבה לוחצים ישירות על שם התלמיד ומסמנים V</span>
+                <span class="text-xs text-[#00E5E5]">מהיר ביותר</span>
+              </label>
+            </div>
+            <div>
+              <input type="radio" id="ux-modal" name="taskUpdateUx" value="פתיחת חלונית נפרדת לכל תלמיד" class="hidden peer">
+              <label for="ux-modal" class="flex items-center justify-between p-3 rounded-xl border border-white/15 bg-[#00263D] hover:bg-white/5 cursor-pointer transition text-sm peer-checked:border-[#00A6A6] peer-checked:bg-[#00A6A6]/15">
+                <span class="font-medium text-white">לחיצה על כרטיס תלמיד ופתיחת חלונית עדכון עם פרטים מלאים</span>
+                <span class="text-xs text-slate-400">מפורט</span>
+              </label>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- STEP 4: Lesson & Content Logging -->
+      <section id="step-pane-4" class="step-pane hidden bg-[#003859] border border-white/15 rounded-2xl p-5 sm:p-7 shadow-xl space-y-6">
+        <div class="border-b border-white/10 pb-4">
+          <span class="inline-block px-2.5 py-0.5 rounded-md text-[11px] font-extrabold uppercase tracking-wider bg-[#00A6A6]/20 text-[#00E5E5] border border-[#00A6A6]/30 mb-2">שלב 4</span>
+          <h2 class="text-xl sm:text-2xl font-extrabold text-white">מודול ניהול ותיעוד תכנים</h2>
+          <p class="text-sm text-[#B8D8E6] mt-1">יומן שיעורים שבועי, מניעת חזרתיות וארכיון מפגשים</p>
+        </div>
+
+        <!-- Q 3.1 -->
+        <div class="space-y-2">
+          <p class="text-sm font-bold text-white">1. איזה מידע המנחה מזין בכל שבוע ביומן השיעור? (סמן מה שנחוץ)</p>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            <div>
+              <input type="checkbox" id="lesson-topic" name="lessonFields" value="נושא המפגש (כותרת קצרה)" checked class="hidden peer">
+              <label for="lesson-topic" class="flex items-center gap-2 p-3 rounded-xl border border-white/15 bg-[#00263D] hover:bg-white/5 cursor-pointer transition text-sm peer-checked:border-[#00A6A6] peer-checked:bg-[#00A6A6]/15 peer-checked:text-[#00E5E5]">
+                <span>📌</span>
+                <span class="font-medium">נושא המפגש (כותרת קצרה)</span>
+              </label>
+            </div>
+            <div>
+              <input type="checkbox" id="lesson-summary" name="lessonFields" value="תקציר התוכן שהועבר" checked class="hidden peer">
+              <label for="lesson-summary" class="flex items-center gap-2 p-3 rounded-xl border border-white/15 bg-[#00263D] hover:bg-white/5 cursor-pointer transition text-sm peer-checked:border-[#00A6A6] peer-checked:bg-[#00A6A6]/15 peer-checked:text-[#00E5E5]">
+                <span>📋</span>
+                <span class="font-medium">פירוט התכנים שנלמדו</span>
+              </label>
+            </div>
+            <div>
+              <input type="checkbox" id="lesson-instructor" name="lessonFields" value="שם/אימייל המנחה שהעביר" checked class="hidden peer">
+              <label for="lesson-instructor" class="flex items-center gap-2 p-3 rounded-xl border border-white/15 bg-[#00263D] hover:bg-white/5 cursor-pointer transition text-sm peer-checked:border-[#00A6A6] peer-checked:bg-[#00A6A6]/15 peer-checked:text-[#00E5E5]">
+                <span>👤</span>
+                <span class="font-medium">זיהוי המנחה שלימד (אוטומטי מהחשבון)</span>
+              </label>
+            </div>
+            <div>
+              <input type="checkbox" id="lesson-homework" name="lessonFields" value="משימות / חומרי קריאה לשבוע הבא" checked class="hidden peer">
+              <label for="lesson-homework" class="flex items-center gap-2 p-3 rounded-xl border border-white/15 bg-[#00263D] hover:bg-white/5 cursor-pointer transition text-sm peer-checked:border-[#00A6A6] peer-checked:bg-[#00A6A6]/15 peer-checked:text-[#00E5E5]">
+                <span>📖</span>
+                <span class="font-medium">משימות לשבוע הבא</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- Q 3.2 -->
+        <div class="space-y-2">
+          <p class="text-sm font-bold text-white">2. האם באותו קורס יכולים ללמד מנחים שונים בסבב?</p>
+          <div class="space-y-2">
+            <div>
+              <input type="radio" id="team-yes" name="multiInstructor" value="כן, מספר מנחים מלמדים לסירוגין באותו קורס" checked class="hidden peer">
+              <label for="team-yes" class="flex items-center justify-between p-3 rounded-xl border border-white/15 bg-[#00263D] hover:bg-white/5 cursor-pointer transition text-sm peer-checked:border-[#00A6A6] peer-checked:bg-[#00A6A6]/15">
+                <span class="font-medium text-white">כן, מנחים מתחלפים לפעמים וקריטי לראות מה המנחה הקודם לימד</span>
+                <span class="text-xs text-[#00E5E5]">קבוצתי</span>
+              </label>
+            </div>
+            <div>
+              <input type="radio" id="team-no" name="multiInstructor" value="לא, לרוב מנחה יחיד לכל כיתה" class="hidden peer">
+              <label for="team-no" class="flex items-center justify-between p-3 rounded-xl border border-white/15 bg-[#00263D] hover:bg-white/5 cursor-pointer transition text-sm peer-checked:border-[#00A6A6] peer-checked:bg-[#00A6A6]/15">
+                <span class="font-medium text-white">לא, לרוב יש מנחה אחד קבוע שמלווה את הכיתה</span>
+                <span class="text-xs text-slate-400">יחיד</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- Q 3.3 -->
+        <div class="space-y-2">
+          <p class="text-sm font-bold text-white">3. עריכת תכנים בדיעבד (רטרואקטיבית):</p>
+          <div class="space-y-2">
+            <div>
+              <input type="radio" id="edit-anytime" name="retroactiveEditing" value="עריכה חופשית בכל עת" checked class="hidden peer">
+              <label for="edit-anytime" class="flex items-center justify-between p-3 rounded-xl border border-white/15 bg-[#00263D] hover:bg-white/5 cursor-pointer transition text-sm peer-checked:border-[#00A6A6] peer-checked:bg-[#00A6A6]/15">
+                <span class="font-medium text-white">המנחה יכול לעדכן ולתקן סיכומי שיעור קודמים בכל עת</span>
+                <span class="text-xs text-[#00E5E5]">מומלץ</span>
+              </label>
+            </div>
+            <div>
+              <input type="radio" id="edit-locked" name="retroactiveEditing" value="נעילה אוטומטית לאחר סיום השבוע" class="hidden peer">
+              <label for="edit-locked" class="flex items-center justify-between p-3 rounded-xl border border-white/15 bg-[#00263D] hover:bg-white/5 cursor-pointer transition text-sm peer-checked:border-[#00A6A6] peer-checked:bg-[#00A6A6]/15">
+                <span class="font-medium text-white">נעילת השיעור לעריכה לאחר שהסתיים השבוע (רק צפייה)</span>
+                <span class="text-xs text-slate-400">ארכיוני</span>
+              </label>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- STEP 5: Smart AI Syllabus Monitor -->
+      <section id="step-pane-5" class="step-pane hidden bg-[#003859] border border-white/15 rounded-2xl p-5 sm:p-7 shadow-xl space-y-6">
+        <div class="border-b border-white/10 pb-4">
+          <span class="inline-block px-2.5 py-0.5 rounded-md text-[11px] font-extrabold uppercase tracking-wider bg-[#00A6A6]/20 text-[#00E5E5] border border-[#00A6A6]/30 mb-2">שלב 5</span>
+          <h2 class="text-xl sm:text-2xl font-extrabold text-white">מודול בקרה חכם מבוסס AI</h2>
+          <p class="text-sm text-[#B8D8E6] mt-1">הצלבה בין הסילבוס המקורי לתכנים שנלמדו בפועל והמלצות לקראת השיעור הבא</p>
+        </div>
+
+        <!-- Q 4.1 -->
+        <div class="space-y-2">
+          <p class="text-sm font-bold text-white">1. באיזה פורמט קיים הסילבוס כיום?</p>
+          <div class="space-y-2">
+            <div>
+              <input type="radio" id="syl-text" name="syllabusFormat" value="טקסט חופשי או רשימת נושאים פשוטה" checked class="hidden peer">
+              <label for="syl-text" class="flex items-center justify-between p-3 rounded-xl border border-white/15 bg-[#00263D] hover:bg-white/5 cursor-pointer transition text-sm peer-checked:border-[#00A6A6] peer-checked:bg-[#00A6A6]/15">
+                <span class="font-medium text-white">טקסט חופשי / ראשי פרקים (העתק-הדבק לתוך תיבת טקסט בהגדרות הקורס)</span>
+                <span class="text-xs text-[#00E5E5]">הכי נוח וישיר</span>
+              </label>
+            </div>
+            <div>
+              <input type="radio" id="syl-doc" name="syllabusFormat" value="קובץ Word / PDF להעלאה" class="hidden peer">
+              <label for="syl-doc" class="flex items-center justify-between p-3 rounded-xl border border-white/15 bg-[#00263D] hover:bg-white/5 cursor-pointer transition text-sm peer-checked:border-[#00A6A6] peer-checked:bg-[#00A6A6]/15">
+                <span class="font-medium text-white">מסמך Word או PDF (העלאת קובץ שהמערכת תקרא)</span>
+                <span class="text-xs text-slate-400">קובץ</span>
+              </label>
+            </div>
+            <div>
+              <input type="radio" id="syl-table" name="syllabusFormat" value="טבלה מוגדרת מראש לפי מפגשים (1 עד N)" class="hidden peer">
+              <label for="syl-table" class="flex items-center justify-between p-3 rounded-xl border border-white/15 bg-[#00263D] hover:bg-white/5 cursor-pointer transition text-sm peer-checked:border-[#00A6A6] peer-checked:bg-[#00A6A6]/15">
+                <span class="font-medium text-white">טבלה מובנית לפי מספר מפגש (מפגש 1, מפגש 2...)</span>
+                <span class="text-xs text-slate-400">מובנה</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- Q 4.2 -->
+        <div class="space-y-2">
+          <p class="text-sm font-bold text-white">2. מה הפלט העיקרי שאתה מצפה לקבל מהבינה המלאכותית? (סמן מה שחשוב)</p>
+          <div class="space-y-2">
+            <div>
+              <input type="checkbox" id="ai-gap" name="aiOutputs" value="הדגשת נושאים מהסילבוס שטרם הועברו ביחס לשלב הקורס" checked class="hidden peer">
+              <label for="ai-gap" class="flex items-center gap-2 p-3 rounded-xl border border-white/15 bg-[#00263D] hover:bg-white/5 cursor-pointer transition text-sm peer-checked:border-[#00A6A6] peer-checked:bg-[#00A6A6]/15 peer-checked:text-[#00E5E5]">
+                <span>⚠️</span>
+                <span class="font-medium">התראה והדגשה על נושאים מהסילבוס שפוספסו או טרם נלמדו לפי הקצב</span>
+              </label>
+            </div>
+            <div>
+              <input type="checkbox" id="ai-recommend" name="aiOutputs" value="המלצות ממוקדות למפגש הבא (מה כדאי להשלים)" checked class="hidden peer">
+              <label for="ai-recommend" class="flex items-center gap-2 p-3 rounded-xl border border-white/15 bg-[#00263D] hover:bg-white/5 cursor-pointer transition text-sm peer-checked:border-[#00A6A6] peer-checked:bg-[#00A6A6]/15 peer-checked:text-[#00E5E5]">
+                <span>💡</span>
+                <span class="font-medium">המלצות קונקרטיות למנחה: "במפגש הבא מומלץ להשלים את נושא X"</span>
+              </label>
+            </div>
+            <div>
+              <input type="checkbox" id="ai-repeat" name="aiOutputs" value="זיהוי ומניעת חזרתיות מיותרת על חומר שכבר נלמד" checked class="hidden peer">
+              <label for="ai-repeat" class="flex items-center gap-2 p-3 rounded-xl border border-white/15 bg-[#00263D] hover:bg-white/5 cursor-pointer transition text-sm peer-checked:border-[#00A6A6] peer-checked:bg-[#00A6A6]/15 peer-checked:text-[#00E5E5]">
+                <span>🔄</span>
+                <span class="font-medium">התרעה אם מנחה מלמד חומר שכבר הועבר בשבועות קודמים</span>
+              </label>
+            </div>
+            <div>
+              <input type="checkbox" id="ai-percent" name="aiOutputs" value="מד אחוז כיסוי סילבוס כללי (למשל: 65% מהסילבוס כוסה)" checked class="hidden peer">
+              <label for="ai-percent" class="flex items-center gap-2 p-3 rounded-xl border border-white/15 bg-[#00263D] hover:bg-white/5 cursor-pointer transition text-sm peer-checked:border-[#00A6A6] peer-checked:bg-[#00A6A6]/15 peer-checked:text-[#00E5E5]">
+                <span>📊</span>
+                <span class="font-medium">מד התקדמות כללי: % כיסוי הסילבוס הכולל</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- Q 4.3 -->
+        <div class="space-y-2">
+          <p class="text-sm font-bold text-white">3. מתי הכי מתאים שה-AI ינתח ויציג את ההמלצות?</p>
+          <div class="space-y-2">
+            <div>
+              <input type="radio" id="ai-trigger-btn" name="aiTrigger" value="בלחיצה יזומה על כפתור בדיקת סילבוס" checked class="hidden peer">
+              <label for="ai-trigger-btn" class="flex items-center justify-between p-3 rounded-xl border border-white/15 bg-[#00263D] hover:bg-white/5 cursor-pointer transition text-sm peer-checked:border-[#00A6A6] peer-checked:bg-[#00A6A6]/15">
+                <span class="font-medium text-white">בלחיצה יזומה על כפתור "בדיקת התקדמות מול סילבוס" (חוסך משאבים ומהיר)</span>
+                <span class="text-xs text-[#00E5E5]">מומלץ</span>
+              </label>
+            </div>
+            <div>
+              <input type="radio" id="ai-trigger-auto" name="aiTrigger" value="אוטומטית בסיום כל רישום שיעור" class="hidden peer">
+              <label for="ai-trigger-auto" class="flex items-center justify-between p-3 rounded-xl border border-white/15 bg-[#00263D] hover:bg-white/5 cursor-pointer transition text-sm peer-checked:border-[#00A6A6] peer-checked:bg-[#00A6A6]/15">
+                <span class="font-medium text-white">אוטומטית בכל פעם שהמנחה שומר שיעור שבועי</span>
+                <span class="text-xs text-slate-400">אוטומטי</span>
+              </label>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- STEP 6: Reports, Export & Summary -->
+      <section id="step-pane-6" class="step-pane hidden bg-[#003859] border border-white/15 rounded-2xl p-5 sm:p-7 shadow-xl space-y-6">
+        <div class="border-b border-white/10 pb-4">
+          <span class="inline-block px-2.5 py-0.5 rounded-md text-[11px] font-extrabold uppercase tracking-wider bg-[#00A6A6]/20 text-[#00E5E5] border border-[#00A6A6]/30 mb-2">שלב 6</span>
+          <h2 class="text-xl sm:text-2xl font-extrabold text-white">הפקת דוחות וייצוא נתונים</h2>
+          <p class="text-sm text-[#B8D8E6] mt-1">איך תרצו להציג ולהעביר את דוח הזכאות לתעודה בסיום הקורס</p>
+        </div>
+
+        <!-- Q 5.1 -->
+        <div class="space-y-2">
+          <p class="text-sm font-bold text-white">1. אילו אפשרויות ייצוא וצפייה נדרשות עבור דוח הזכאות לתעודה?</p>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            <div>
+              <input type="checkbox" id="rep-screen" name="reportFormats" value="מסך ייעודי באפליקציה (אינדיקציה ירוק/אדום)" checked class="hidden peer">
+              <label for="rep-screen" class="flex items-center gap-2 p-3 rounded-xl border border-white/15 bg-[#00263D] hover:bg-white/5 cursor-pointer transition text-sm peer-checked:border-[#00A6A6] peer-checked:bg-[#00A6A6]/15 peer-checked:text-[#00E5E5]">
+                <span>📱</span>
+                <span class="font-medium">צפייה נוחה באפליקציה בנייד</span>
+              </label>
+            </div>
+            <div>
+              <input type="checkbox" id="rep-excel" name="reportFormats" value="ייצוא לקובץ Excel / CSV" checked class="hidden peer">
+              <label for="rep-excel" class="flex items-center gap-2 p-3 rounded-xl border border-white/15 bg-[#00263D] hover:bg-white/5 cursor-pointer transition text-sm peer-checked:border-[#00A6A6] peer-checked:bg-[#00A6A6]/15 peer-checked:text-[#00E5E5]">
+                <span>📊</span>
+                <span class="font-medium">ייצוא קובץ Excel / CSV להנהלה</span>
+              </label>
+            </div>
+            <div>
+              <input type="checkbox" id="rep-pdf" name="reportFormats" value="הדפסה / שמירה כ-PDF" checked class="hidden peer">
+              <label for="rep-pdf" class="flex items-center gap-2 p-3 rounded-xl border border-white/15 bg-[#00263D] hover:bg-white/5 cursor-pointer transition text-sm peer-checked:border-[#00A6A6] peer-checked:bg-[#00A6A6]/15 peer-checked:text-[#00E5E5]">
+                <span>🖨️</span>
+                <span class="font-medium">הדפסה ושמירה כ-PDF</span>
+              </label>
+            </div>
+            <div>
+              <input type="checkbox" id="rep-share" name="reportFormats" value="שיתוף קישור או סיכום מהיר" class="hidden peer">
+              <label for="rep-share" class="flex items-center gap-2 p-3 rounded-xl border border-white/15 bg-[#00263D] hover:bg-white/5 cursor-pointer transition text-sm peer-checked:border-[#00A6A6] peer-checked:bg-[#00A6A6]/15 peer-checked:text-[#00E5E5]">
+                <span>🔗</span>
+                <span class="font-medium">שיתוף מהיר בווטסאפ או במייל</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- Q 5.2 -->
+        <div class="space-y-2">
+          <label for="free-notes" class="block text-sm font-bold text-white">2. הערות, רעיונות נוספים או דגשים מיוחדים של רותם:</label>
+          <textarea id="free-notes" name="freeNotes" rows="3" placeholder="כתוב כאן כל נקודה, רעיון או דגש נוסף שחשוב לך שנשים לב אליו בפיתוח המודול..." class="w-full bg-[#002B45] border border-white/20 rounded-xl p-3.5 text-sm text-white placeholder-slate-400 focus:outline-none focus:border-[#00A6A6] focus:ring-1 focus:ring-[#00A6A6]"></textarea>
+        </div>
+
+        <!-- Summary & Generate Button Area -->
+        <div class="pt-3 border-t border-white/10 space-y-4">
+          <div class="flex flex-col sm:flex-row gap-3">
+            <button id="generate-summary-btn" type="button" class="flex-1 bg-[#00A6A6] hover:bg-[#00B3A4] text-white font-extrabold px-6 py-3.5 rounded-xl text-base shadow-lg shadow-[#00A6A6]/25 transition flex items-center justify-center gap-2">
+              <span>📄</span>
+              <span>הפקת מסמך סיכום מסודר</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Generated Result Section (Hidden until generated) -->
+        <div id="summary-result-container" class="hidden space-y-4 pt-4 border-t border-white/10">
+          <div class="flex items-center justify-between">
+            <h3 class="text-base font-extrabold text-[#00E5E5] flex items-center gap-2">
+              <span>✓</span>
+              <span>המסמך המסכם מוכן לשליחה:</span>
+            </h3>
+            <span class="text-xs text-slate-300">תשובות מעודכנות</span>
+          </div>
+
+          <div class="relative">
+            <pre id="summary-text-output" class="bg-[#001D30] border border-white/15 rounded-xl p-4 text-xs font-mono text-slate-200 overflow-x-auto whitespace-pre-wrap max-h-96 select-all leading-relaxed"></pre>
+          </div>
+
+          <!-- Action Buttons for sharing/copying -->
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+            <button id="copy-summary-btn" type="button" class="bg-[#00A6A6] hover:bg-[#00B3A4] text-white font-bold px-4 py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 transition">
+              <span>📋</span>
+              <span id="copy-btn-text">העתקת המסמך</span>
+            </button>
+            <button id="whatsapp-share-btn" type="button" class="bg-[#25D366] hover:bg-[#20BD5A] text-white font-bold px-4 py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 transition">
+              <span>💬</span>
+              <span>שליחה בוואטסאפ</span>
+            </button>
+            <button id="download-doc-btn" type="button" class="bg-white/10 hover:bg-white/15 text-white border border-white/20 font-bold px-4 py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 transition">
+              <span>💾</span>
+              <span>הורדת קובץ Markdown</span>
+            </button>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- Navigation Footer (Previous / Next Buttons) -->
+      <div class="flex items-center justify-between gap-3 pt-4">
+        <button id="prev-step-btn" type="button" class="invisible bg-white/10 hover:bg-white/15 text-slate-200 font-bold px-5 py-2.5 rounded-xl text-sm transition flex items-center gap-2">
+          <span>→</span>
+          <span>הקודם</span>
+        </button>
+
+        <button id="next-step-btn" type="button" class="bg-[#00A6A6] hover:bg-[#00B3A4] text-white font-extrabold px-6 py-2.5 rounded-xl text-sm shadow-md shadow-[#00A6A6]/20 transition flex items-center gap-2">
+          <span id="next-btn-text">הבא: נוכחות וזכאות</span>
+          <span>←</span>
+        </button>
+      </div>
+
+    </form>
+  </main>
+
+  <!-- In-Page Toast Notification (replaces alert) -->
+  <div id="toast" class="fixed bottom-5 left-1/2 -translate-x-1/2 bg-[#001D30] text-white border border-[#00A6A6] px-4 py-2.5 rounded-xl shadow-2xl text-xs font-bold flex items-center gap-2 transition-all duration-300 opacity-0 pointer-events-none z-50">
+    <span id="toast-icon">✓</span>
+    <span id="toast-msg">הודעה</span>
+  </div>
+
+  <!-- In-Page Reset Modal (replaces confirm) -->
+  <div id="reset-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm hidden flex items-center justify-center p-4 z-50">
+    <div class="bg-[#003859] border border-white/20 rounded-2xl p-6 max-w-sm w-full text-right shadow-2xl space-y-4">
+      <h3 class="text-base font-extrabold text-white">לאפס את כל התשובות?</h3>
+      <p class="text-xs text-slate-300 leading-relaxed">פעולה זו תמחק את כל הנתונים שהזנת ותחזיר את השאלון לברירות המחדל.</p>
+      <div class="flex items-center justify-end gap-2.5 pt-2">
+        <button id="cancel-reset-btn" type="button" class="px-4 py-2 rounded-xl text-xs font-bold bg-white/10 text-slate-200 hover:bg-white/20 transition">ביטול</button>
+        <button id="confirm-reset-btn" type="button" class="px-4 py-2 rounded-xl text-xs font-extrabold bg-[#EF4444] text-white hover:bg-[#DC2626] transition">כן, אפס שאלון</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="border-t border-white/10 bg-[#001929] px-4 py-3 text-center text-xs text-slate-400">
+    מערכת ניהול ובקרת נוכחות כיתתית • אפליקציה למנחים
+  </footer>
+
+  <script>
+    // App State & Configuration
+    const TOTAL_STEPS = 6;
+    let currentStep = 1;
+    const STORAGE_KEY = "rotem_spec_questionnaire_v1";
+
+    const stepTitles = {
+      1: "פרטי מנחה",
+      2: "נוכחות וזכאות",
+      3: "מטלות חובה",
+      4: "תיעוד שיעורים",
+      5: "בקרת AI",
+      6: "סיכום והפקה"
+    };
+
+    // DOM Elements
+    const progressBarFill = document.getElementById("progress-bar-fill");
+    const progressPercent = document.getElementById("progress-percent");
+    const stepIndicator = document.getElementById("step-indicator");
+    const stepTitleIndicator = document.getElementById("step-title-indicator");
+    const prevBtn = document.getElementById("prev-step-btn");
+    const nextBtn = document.getElementById("next-step-btn");
+    const nextBtnText = document.getElementById("next-btn-text");
+    const tabs = document.querySelectorAll(".step-tab");
+    const panes = document.querySelectorAll(".step-pane");
+    const attCustomRadio = document.getElementById("att-custom");
+    const attCustomBox = document.getElementById("att-custom-box");
+    const generateSummaryBtn = document.getElementById("generate-summary-btn");
+    const summaryResultContainer = document.getElementById("summary-result-container");
+    const summaryTextOutput = document.getElementById("summary-text-output");
+    const copySummaryBtn = document.getElementById("copy-summary-btn");
+    const copyBtnText = document.getElementById("copy-btn-text");
+    const whatsappShareBtn = document.getElementById("whatsapp-share-btn");
+    const downloadDocBtn = document.getElementById("download-doc-btn");
+    const toast = document.getElementById("toast");
+    const toastMsg = document.getElementById("toast-msg");
+    const resetBtn = document.getElementById("reset-btn");
+    const resetModal = document.getElementById("reset-modal");
+    const cancelResetBtn = document.getElementById("cancel-reset-btn");
+    const confirmResetBtn = document.getElementById("confirm-reset-btn");
+
+    function showToast(message, icon = "✓") {
+      toastMsg.textContent = message;
+      document.getElementById("toast-icon").textContent = icon;
+      toast.classList.remove("opacity-0", "pointer-events-none");
+      setTimeout(() => {
+        toast.classList.add("opacity-0", "pointer-events-none");
+      }, 2500);
+    }
+
+    function updateStepView(step) {
+      currentStep = step;
+      panes.forEach((pane, idx) => {
+        if (idx + 1 === step) {
+          pane.classList.remove("hidden");
+        } else {
+          pane.classList.add("hidden");
+        }
+      });
+
+      tabs.forEach((tab) => {
+        const tabStep = parseInt(tab.dataset.step, 10);
+        if (tabStep === step) {
+          tab.className = "step-tab flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition border border-transparent bg-[#00A6A6] text-white";
+        } else if (tabStep < step) {
+          tab.className = "step-tab flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition border border-[#00A6A6]/30 bg-[#00A6A6]/10 text-[#00E5E5]";
+        } else {
+          tab.className = "step-tab flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition border border-white/10 bg-white/5 text-slate-300 hover:text-white";
+        }
+      });
+
+      // Update indicator & progress
+      const percent = Math.round((step / TOTAL_STEPS) * 100);
+      progressBarFill.style.width = percent + "%";
+      progressPercent.textContent = percent + "%";
+      stepIndicator.textContent = "שלב " + step + " מתוך " + TOTAL_STEPS;
+      stepTitleIndicator.textContent = "• " + stepTitles[step];
+
+      // Update nav buttons
+      if (step === 1) {
+        prevBtn.classList.add("invisible");
+      } else {
+        prevBtn.classList.remove("invisible");
+      }
+
+      if (step === TOTAL_STEPS) {
+        nextBtn.classList.add("hidden");
+      } else {
+        nextBtn.classList.remove("hidden");
+        nextBtnText.textContent = "הבא: " + stepTitles[step + 1];
+      }
+
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    // Custom Attendance Threshold Radio Toggle
+    document.querySelectorAll("input[name='attendanceThreshold']").forEach((radio) => {
+      radio.addEventListener("change", () => {
+        if (attCustomRadio.checked) {
+          attCustomBox.classList.remove("hidden");
+        } else {
+          attCustomBox.classList.add("hidden");
+        }
+        saveFormData();
+      });
+    });
+
+    // Handle Tab Clicks
+    tabs.forEach((tab) => {
+      tab.addEventListener("click", () => {
+        const targetStep = parseInt(tab.dataset.step, 10);
+        updateStepView(targetStep);
+      });
+    });
+
+    // Handle Next & Prev Buttons
+    nextBtn.addEventListener("click", () => {
+      if (currentStep < TOTAL_STEPS) {
+        updateStepView(currentStep + 1);
+      }
+    });
+
+    prevBtn.addEventListener("click", () => {
+      if (currentStep > 1) {
+        updateStepView(currentStep - 1);
+      }
+    });
+
+    // Collect Answers Object
+    function getFormData() {
+      const name = document.getElementById("instructor-name").value.trim() || "רותם";
+      const email = document.getElementById("instructor-email").value.trim() || "rotman555@gmail.com";
+      const course = document.getElementById("course-name-example").value.trim() || "הנחיית קבוצות";
+
+      // Attendance
+      let attVal = document.querySelector("input[name='attendanceThreshold']:checked")?.value || "80";
+      if (attVal === "custom") {
+        attVal = document.getElementById("att-custom-val").value.trim() || "מותאם אישית";
+      } else {
+        attVal = attVal + "%";
+      }
+      const lateCalc = document.querySelector("input[name='lateCalculation']:checked")?.value || "נחשב כנוכחות מלאה";
+      const excusedCalc = document.querySelector("input[name='excusedCalculation']:checked")?.value || "מוחרג מהספירה";
+      const midCourseDisp = document.querySelector("input[name='midCourseDisplay']:checked")?.value || "אחוז נוכחות עד כה + התראה";
+
+      // Tasks
+      const tasksStruct = document.querySelector("input[name='tasksStructure']:checked")?.value || "קבוע: בדיוק 2 המטלות";
+      const taskFieldsChecked = Array.from(document.querySelectorAll("input[name='taskFields']:checked")).map(cb => cb.value);
+      const taskUx = document.querySelector("input[name='taskUpdateUx']:checked")?.value || "טבלה מרכזת";
+
+      // Lessons
+      const lessonFieldsChecked = Array.from(document.querySelectorAll("input[name='lessonFields']:checked")).map(cb => cb.value);
+      const multiTeacher = document.querySelector("input[name='multiInstructor']:checked")?.value || "כן, מספר מנחים בסבב";
+      const retroEdit = document.querySelector("input[name='retroactiveEditing']:checked")?.value || "עריכה חופשית בכל עת";
+
+      // AI
+      const sylFormat = document.querySelector("input[name='syllabusFormat']:checked")?.value || "טקסט חופשי בהעתק-הדבק";
+      const aiOutputsChecked = Array.from(document.querySelectorAll("input[name='aiOutputs']:checked")).map(cb => cb.value);
+      const aiTriggerVal = document.querySelector("input[name='aiTrigger']:checked")?.value || "בלחיצה יזומה על כפתור";
+
+      // Reports
+      const reportFormatsChecked = Array.from(document.querySelectorAll("input[name='reportFormats']:checked")).map(cb => cb.value);
+      const freeNotes = document.getElementById("free-notes").value.trim();
+
+      return {
+        name,
+        email,
+        course,
+        attendance: {
+          threshold: attVal,
+          late: lateCalc,
+          excused: excusedCalc,
+          midCourse: midCourseDisp
+        },
+        tasks: {
+          structure: tasksStruct,
+          fields: taskFieldsChecked,
+          ux: taskUx
+        },
+        lessons: {
+          fields: lessonFieldsChecked,
+          multiTeacher,
+          retroEdit
+        },
+        ai: {
+          format: sylFormat,
+          outputs: aiOutputsChecked,
+          trigger: aiTriggerVal
+        },
+        reports: {
+          formats: reportFormatsChecked,
+          notes: freeNotes
+        },
+        savedAt: new Date().toISOString()
+      };
+    }
+
+    // Save state to localStorage
+    function saveFormData() {
+      try {
+        const data = getFormData();
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      } catch (e) {
+        // storage disabled or full
+      }
+    }
+
+    // Load state from localStorage
+    function loadSavedData() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return;
+        const data = JSON.parse(raw);
+
+        if (data.name) document.getElementById("instructor-name").value = data.name;
+        if (data.email) document.getElementById("instructor-email").value = data.email;
+        if (data.course) document.getElementById("course-name-example").value = data.course;
+
+        // Threshold
+        if (data.attendance?.threshold) {
+          const rawThresh = data.attendance.threshold.replace("%", "");
+          const matchRadio = document.querySelector(`input[name='attendanceThreshold'][value='${rawThresh}']`);
+          if (matchRadio) {
+            matchRadio.checked = true;
+          } else {
+            attCustomRadio.checked = true;
+            attCustomBox.classList.remove("hidden");
+            document.getElementById("att-custom-val").value = data.attendance.threshold;
+          }
+        }
+
+        // Late & excused
+        if (data.attendance?.late) {
+          const r = document.querySelector(`input[name='lateCalculation'][value='${data.attendance.late}']`);
+          if (r) r.checked = true;
+        }
+        if (data.attendance?.excused) {
+          const r = document.querySelector(`input[name='excusedCalculation'][value='${data.attendance.excused}']`);
+          if (r) r.checked = true;
+        }
+        if (data.attendance?.midCourse) {
+          const r = document.querySelector(`input[name='midCourseDisplay'][value='${data.attendance.midCourse}']`);
+          if (r) r.checked = true;
+        }
+
+        // Tasks
+        if (data.tasks?.structure) {
+          const r = document.querySelector(`input[name='tasksStructure'][value='${data.tasks.structure}']`);
+          if (r) r.checked = true;
+        }
+        if (data.tasks?.fields && Array.isArray(data.tasks.fields)) {
+          document.querySelectorAll("input[name='taskFields']").forEach(cb => {
+            cb.checked = data.tasks.fields.includes(cb.value);
+          });
+        }
+        if (data.tasks?.ux) {
+          const r = document.querySelector(`input[name='taskUpdateUx'][value='${data.tasks.ux}']`);
+          if (r) r.checked = true;
+        }
+
+        // Lessons
+        if (data.lessons?.fields && Array.isArray(data.lessons.fields)) {
+          document.querySelectorAll("input[name='lessonFields']").forEach(cb => {
+            cb.checked = data.lessons.fields.includes(cb.value);
+          });
+        }
+        if (data.lessons?.multiTeacher) {
+          const r = document.querySelector(`input[name='multiInstructor'][value='${data.lessons.multiTeacher}']`);
+          if (r) r.checked = true;
+        }
+        if (data.lessons?.retroEdit) {
+          const r = document.querySelector(`input[name='retroactiveEditing'][value='${data.lessons.retroEdit}']`);
+          if (r) r.checked = true;
+        }
+
+        // AI
+        if (data.ai?.format) {
+          const r = document.querySelector(`input[name='syllabusFormat'][value='${data.ai.format}']`);
+          if (r) r.checked = true;
+        }
+        if (data.ai?.outputs && Array.isArray(data.ai.outputs)) {
+          document.querySelectorAll("input[name='aiOutputs']").forEach(cb => {
+            cb.checked = data.ai.outputs.includes(cb.value);
+          });
+        }
+        if (data.ai?.trigger) {
+          const r = document.querySelector(`input[name='aiTrigger'][value='${data.ai.trigger}']`);
+          if (r) r.checked = true;
+        }
+
+        // Reports
+        if (data.reports?.formats && Array.isArray(data.reports.formats)) {
+          document.querySelectorAll("input[name='reportFormats']").forEach(cb => {
+            cb.checked = data.reports.formats.includes(cb.value);
+          });
+        }
+        if (data.reports?.notes) {
+          document.getElementById("free-notes").value = data.reports.notes;
+        }
+
+      } catch (e) {
+        // Parse error
+      }
+    }
+
+    // Attach auto-save to all inputs
+    document.getElementById("spec-form").addEventListener("input", saveFormData);
+    document.getElementById("spec-form").addEventListener("change", saveFormData);
+
+    // Build Markdown Document
+    function buildMarkdownDocument() {
+      const data = getFormData();
+      const dateStr = new Intl.DateTimeFormat('he-IL', { dateStyle: 'full', timeStyle: 'short' }).format(new Date());
+
+      return `# מסמך אפיון ודרישות: מודול מעקב ובקרת קורס למנחים
+**ממלא השאלון:** ${data.name} (${data.email})
+**קורס לדוגמה:** ${data.course}
+**תאריך מילוי:** ${dateStr}
+
+---
+
+## 1. מודול מעקב נוכחות ורף זכאות לתעודה
+* **רף נוכחות מינימלי לזכאות לתעודה:** ${data.attendance.threshold}
+* **שקלול איחור ("מאחר"):** ${data.attendance.late}
+* **שקלול היעדרות מוצדקת ("מאושר"):** ${data.attendance.excused}
+* **תצוגה במהלך הקורס:** ${data.attendance.midCourse}
+
+## 2. מודול מעקב חובות הקורס (הנחיית עמיתים ופרקטיקום)
+* **מבנה המטלות:** ${data.tasks.structure}
+* **שדות לתיעוד בכל מטלה:**
+${data.tasks.fields.map(f => `  - ${f}`).join("\n") || "  - ללא שדות נוספים"}
+* **חוויית עדכון למנחה:** ${data.tasks.ux}
+
+## 3. מודול ניהול ותיעוד תכנים (יומן שיעורים)
+* **שדות הנרשמים בכל שיעור:**
+${data.lessons.fields.map(f => `  - ${f}`).join("\n") || "  - ללא שדות"}
+* **עבודה בצוות מנחים:** ${data.lessons.multiTeacher}
+* **מדיניות עריכה בדיעבד:** ${data.lessons.retroEdit}
+
+## 4. מודול בקרה חכם מבוסס בינה מלאכותית (AI)
+* **פורמט הסילבוס במערכת:** ${data.ai.format}
+* **תובנות והתראות מבוקשות מה-AI:**
+${data.ai.outputs.map(o => `  - ${o}`).join("\n") || "  - ללא הגדרות ספציפיות"}
+* **תזמון הפעלת ה-AI:** ${data.ai.trigger}
+
+## 5. הפקת דוחות וייצוא נתונים
+* **ערוצי צפייה וייצוא:**
+${data.reports.formats.map(r => `  - ${r}`).join("\n") || "  - תצוגה במסך בלבד"}
+${data.reports.notes ? `\n## 6. דגשים והערות נוספות:\n${data.reports.notes}\n` : ""}
+---
+*מסמך זה נוצר באופן אוטומטי מתוך כלי האפיון האינטראקטיבי של מערכת הנוכחות.*`;
+    }
+
+    // Generate Summary Click
+    generateSummaryBtn.addEventListener("click", () => {
+      const doc = buildMarkdownDocument();
+      summaryTextOutput.textContent = doc;
+      summaryResultContainer.classList.remove("hidden");
+      showToast("מסמך הסיכום הופק בהצלחה!");
+      summaryResultContainer.scrollIntoView({ behavior: "smooth" });
+    });
+
+    // Copy to Clipboard Button
+    copySummaryBtn.addEventListener("click", () => {
+      const doc = buildMarkdownDocument();
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(doc).then(() => {
+          copyBtnText.textContent = "הועתק ללוח!";
+          showToast("המסמך הועתק ללוח בהצלחה!");
+          setTimeout(() => { copyBtnText.textContent = "העתקת המסמך"; }, 2500);
+        }).catch(() => {
+          fallbackCopyText(doc);
+        });
+      } else {
+        fallbackCopyText(doc);
+      }
+    });
+
+    function fallbackCopyText(text) {
+      const textArea = document.createElement("textarea");
+      textArea.value = text;
+      textArea.style.position = "fixed";
+      textArea.style.left = "-9999px";
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      try {
+        document.execCommand("copy");
+        copyBtnText.textContent = "הועתק ללוח!";
+        showToast("המסמך הועתק ללוח בהצלחה!");
+        setTimeout(() => { copyBtnText.textContent = "העתקת המסמך"; }, 2500);
+      } catch (err) {
+        showToast("אנא העתק ידנית מתוך התיבה", "⚠️");
+      }
+      document.body.removeChild(textArea);
+    }
+
+    // WhatsApp Share Button
+    whatsappShareBtn.addEventListener("click", () => {
+      const doc = buildMarkdownDocument();
+      const encoded = encodeURIComponent(doc);
+      const url = "https://api.whatsapp.com/send?text=" + encoded;
+      window.open(url, "_blank");
+    });
+
+    // Download Markdown File
+    downloadDocBtn.addEventListener("click", () => {
+      const doc = buildMarkdownDocument();
+      const blob = new Blob([doc], { type: "text/markdown;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "rotem-course-spec.md";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      showToast("קובץ הסיכום הורד למכשירך!");
+    });
+
+    // Reset Flow with In-page Modal
+    resetBtn.addEventListener("click", () => {
+      resetModal.classList.remove("hidden");
+    });
+
+    cancelResetBtn.addEventListener("click", () => {
+      resetModal.classList.add("hidden");
+    });
+
+    confirmResetBtn.addEventListener("click", () => {
+      try {
+        localStorage.removeItem(STORAGE_KEY);
+      } catch (e) {}
+      document.getElementById("spec-form").reset();
+      document.getElementById("instructor-name").value = "רותם";
+      document.getElementById("instructor-email").value = "rotman555@gmail.com";
+      attCustomBox.classList.add("hidden");
+      summaryResultContainer.classList.add("hidden");
+      resetModal.classList.add("hidden");
+      updateStepView(1);
+      showToast("השאלון אופס לברירות המחדל");
+    });
+
+    // Initialize
+    loadSavedData();
+    updateStepView(1);
+  </script>
+</body>
+</html>
