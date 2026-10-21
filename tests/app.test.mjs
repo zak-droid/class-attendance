@@ -505,3 +505,51 @@ test("mobile hardware and gesture back button navigation lifecycle contract", ()
   // Backdrop click dismiss support
   assert.match(components, /onClick=\{onClose\}/);
 });
+
+
+test("Phase 4.3 Gemini AI Syllabus Monitor and Lesson Logging contracts", () => {
+  const page = read("app/page.tsx");
+  const components = read("app/components.tsx");
+  const offlineStorage = read("app/offline-storage.ts");
+  const cloudData = read("app/cloud-data.ts");
+  const geminiAi = read("app/gemini-ai.ts");
+  const types = read("app/types.ts");
+
+  // Models & Storage
+  assert.match(types, /LessonLog/);
+  assert.match(types, /AISyllabusAnalysis/);
+  assert.match(types, /syllabus\?: string/);
+  assert.match(offlineStorage, /getStoredLessons/);
+  assert.match(offlineStorage, /upsertLessonLog/);
+  assert.match(offlineStorage, /getStoredCourseSyllabus/);
+  assert.match(offlineStorage, /saveStoredCourseSyllabus/);
+  assert.match(cloudData, /saveLessonLog/);
+  assert.match(cloudData, /saveCourseSyllabus/);
+
+  // Gemini AI module
+  assert.match(geminiAi, /gemini-1\.5-flash/);
+  assert.match(geminiAi, /analyzeCourseSyllabus/);
+  assert.match(geminiAi, /performHeuristicAnalysis/);
+  assert.match(geminiAi, /testGeminiApiKey/);
+  assert.match(geminiAi, /maskApiKey/);
+
+  // Components & UI Contracts
+  assert.match(components, /CourseSyllabusModal/);
+  assert.match(components, /LessonTopicModal/);
+  assert.match(components, /AISyllabusAnalysisModal/);
+  assert.match(components, /GeminiSettingsModal/);
+  assert.match(components, /מד כיסוי סילבוס כללי/);
+  assert.match(components, /המלצה ממוקדת למפגש הבא/);
+  assert.match(components, /זיהוי חזרתיות אפשרית בין מפגשים/);
+  assert.match(components, /בדיקת סילבוס \(AI\)/);
+
+  // Page Integration
+  assert.match(page, /handleOpenSyllabusModal/);
+  assert.match(page, /handleOpenLessonTopicModal/);
+  assert.match(page, /handleOpenAIAnalysis/);
+  assert.match(page, /handleSaveGeminiKey/);
+  assert.match(page, /נושא המפגש להיום/);
+  assert.match(page, /בינה מלאכותית \(Google Gemini\)/);
+  assert.match(page, /AISyllabusAnalysisModal/);
+  assert.match(page, /GeminiSettingsModal/);
+});
