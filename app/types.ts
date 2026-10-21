@@ -8,6 +8,7 @@ export interface Course {
   description?: string;
   active: boolean;
   isYearly?: boolean;
+  syllabus?: string;
 }
 
 export interface Student {
@@ -49,12 +50,35 @@ export interface StudentTaskSubmission {
   updatedAt?: string;
 }
 
+export interface LessonLog {
+  id: string;
+  courseId: string;
+  date: string;
+  topic: string;
+  summary?: string;
+  instructorEmail?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface AISyllabusAnalysis {
+  coveragePercent: number;
+  coveredTopics: string[];
+  pendingTopics: string[];
+  recommendationForNextLesson: string;
+  repetitionWarnings: string[];
+  analyzedAt: string;
+  usedGeminiAI: boolean;
+  rawSummary?: string;
+}
+
 export interface AppData {
   courses: Course[];
   students: Student[];
   attendance: AttendanceLog[];
   tasks?: CourseTask[];
   submissions?: StudentTaskSubmission[];
+  lessons?: LessonLog[];
 }
 
 export type AppTab = "today" | "students" | "history" | "more";

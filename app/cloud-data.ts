@@ -1,14 +1,18 @@
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { supabase } from "./supabase";
-import type { AppData, AttendanceLog, AttendanceStatus, Course, Student } from "./types";
+import type { AppData, AttendanceLog, AttendanceStatus, Course, LessonLog, Student } from "./types";
 import {
   applyPendingActionsToData,
   getCachedAppData,
   getPendingQueue,
+  getStoredCourseSyllabus,
+  getStoredLessons,
   isOnline,
   queuePendingAction,
   removePendingAction,
   saveCachedAppData,
+  saveStoredCourseSyllabus,
+  upsertLessonLog,
 } from "./offline-storage";
 
 function client() {
@@ -42,6 +46,7 @@ export async function fetchAppData(): Promise<AppData> {
         name: row.name,
         description: row.description ?? undefined,
         active: row.active,
+        syllabus: getStoredCourseSyllabus(row.id),
       })),
       students: (studentsResult.data ?? []).map((row) => ({
         id: row.id,
@@ -60,6 +65,7 @@ export async function fetchAppData(): Promise<AppData> {
         notes: row.notes ?? undefined,
         markedBy: row.marked_by ?? undefined,
       })) as AttendanceLog[],
+      lessons: getStoredLessons(),
     };
 
     saveCachedAppData(freshData);
@@ -76,6 +82,10 @@ export async function fetchAppData(): Promise<AppData> {
 }
 
 export async function saveCourse(course: Course): Promise<void> {
+  if (course.syllabus !== undefined) {
+    saveStoredCourseSyllabus(course.id, course.syllabus);
+  }
+
   const { error } = await client().from("courses").upsert({
     id: course.id,
     name: course.name,
@@ -83,6 +93,38 @@ export async function saveCourse(course: Course): Promise<void> {
     active: course.active,
   });
   if (error) throw error;
+}
+
+export async function saveCourseSyllabus(courseId: string, syllabus: string): Promise<void> {
+  saveStoredCourseSyllabus(courseId, syllabus);
+  // Optionally update in supabase if column exists
+  try {
+    if (supabase) {
+      await supabase.from("courses").update({ description: syllabus }).eq("id", courseId);
+    }
+  } catch {
+    // Silently continue if supabase update fails; local storage guarantees persistence
+  }
+}
+
+export async function saveLessonLog(lesson: LessonLog): Promise<LessonLog[]> {
+  const updated = upsertLessonLog(lesson);
+  // Optionally sync to supabase if table exists
+  try {
+    if (supabase && isOnline()) {
+      await supabase.from("lesson_logs").upsert({
+        id: lesson.id,
+        course_id: lesson.courseId,
+        date: lesson.date,
+        topic: lesson.topic,
+        summary: lesson.summary ?? null,
+        instructor_email: lesson.instructorEmail ?? null,
+      });
+    }
+  } catch {
+    // Silently continue if supabase table not ready
+  }
+  return updated;
 }
 
 export async function setCourseActive(courseId: string, active: boolean): Promise<void> {

@@ -2,14 +2,17 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import type {
+  AISyllabusAnalysis,
   AppTab,
   AttendanceLog,
   AttendanceStatus,
   Course,
   CourseTask,
+  LessonLog,
   Student,
   StudentTaskSubmission,
 } from "./types";
+import { testGeminiApiKey } from "./gemini-ai";
 import {
   calculateStudentAttendanceStats,
   calculateStudentCertificateEligibility,
@@ -238,6 +241,8 @@ export function CourseCard({
   onViewStudents?: () => void;
   onExportCSV?: () => void;
   onViewTasks?: () => void;
+  onViewAIAnalysis?: () => void;
+  onEditSyllabus?: () => void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const stateLabel = completedToday
@@ -270,7 +275,7 @@ export function CourseCard({
         >
           {completedToday ? "עריכת נוכחות להיום" : startedToday ? "המשך נוכחות" : "התחלת נוכחות"}
         </button>
-        {(onEdit || onToggleActive || onViewStudents || onExportCSV || onViewTasks) && (
+        {(onEdit || onToggleActive || onViewStudents || onExportCSV || onViewTasks || onViewAIAnalysis || onEditSyllabus) && (
           <div className="relative">
             <button
               type="button"
@@ -281,6 +286,18 @@ export function CourseCard({
             </button>
             {menuOpen && (
               <div className="absolute left-0 bottom-full mb-1 z-30 min-w-48 rounded-xl border border-white/14 bg-[#002B45] p-1.5 shadow-2xl">
+                {onViewAIAnalysis && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      onViewAIAnalysis();
+                    }}
+                    className="block w-full rounded-lg px-3 py-2 text-right text-xs font-bold text-[#38BDF8] hover:bg-[#005580]"
+                  >
+                    ✨ בדיקת סילבוס (AI)
+                  </button>
+                )}
                 {onViewTasks && (
                   <button
                     type="button"
@@ -291,6 +308,18 @@ export function CourseCard({
                     className="block w-full rounded-lg px-3 py-2 text-right text-xs font-bold text-[#00E5E5] hover:bg-[#005580]"
                   >
                     📋 מעקב חובות וזכאות לתעודה
+                  </button>
+                )}
+                {onEditSyllabus && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      onEditSyllabus();
+                    }}
+                    className="block w-full rounded-lg px-3 py-2 text-right text-xs font-bold text-white hover:bg-[#005580]"
+                  >
+                    📚 סילבוס הקורס
                   </button>
                 )}
                 {onViewStudents && (
@@ -1023,10 +1052,14 @@ export function FinishAttendanceBar({
   logs,
   onFinish,
   onShareWhatsApp,
+  currentTopic,
+  onEditTopic,
 }: {
   logs: AttendanceLog[];
   onFinish: () => void;
   onShareWhatsApp?: () => void;
+  currentTopic?: string;
+  onEditTopic?: () => void;
 }) {
   const presentCount = logs.filter((l) => l.status === "Present").length;
   const lateCount = logs.filter((l) => l.status === "Late").length;
@@ -1035,7 +1068,27 @@ export function FinishAttendanceBar({
 
   return (
     <div className="fixed inset-x-0 bottom-0 z-40 border-t border-white/14 bg-[#002B45]/95 px-4 pt-2.5 pb-[calc(0.75rem+env(safe-area-inset-bottom))] backdrop-blur">
-      <div className="mx-auto flex max-w-md flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+      <div className="mx-auto flex max-w-md flex-col gap-2">
+        {(currentTopic !== undefined || onEditTopic) && (
+          <div className="flex items-center justify-between gap-2 border-b border-white/10 pb-2">
+            <div className="min-w-0 flex-1 flex items-center gap-1.5 text-xs text-[#B8D8E6]">
+              <span>📌</span>
+              <span className="font-bold text-white truncate">
+                {currentTopic ? `נושא: ${currentTopic}` : "טרם תועד נושא למפגש זה"}
+              </span>
+            </div>
+            {onEditTopic && (
+              <button
+                type="button"
+                onClick={onEditTopic}
+                className="text-[11px] font-bold text-[#00E5E5] hover:underline shrink-0"
+              >
+                {currentTopic ? "שינוי נושא" : "+ תיעוד שיעור"}
+              </button>
+            )}
+          </div>
+        )}
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-[11px] font-bold text-[#B8D8E6] text-center sm:text-right">
           נוכחים {presentCount} · מאחרים {lateCount} · נעדרים {absentCount} · מוצדקים {excusedCount}
         </p>
@@ -1215,5 +1268,640 @@ export function BiometricLockScreen({
         </div>
       </section>
     </main>
+  );
+}
+
+
+export function CourseSyllabusModal({
+  course,
+  onClose,
+  onSave,
+}: {
+  course: Course;
+  onClose: () => void;
+  onSave: (syllabusText: string) => void;
+}) {
+  const [syllabus, setSyllabus] = useState(course.syllabus || "");
+
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const text = String(e.target?.result || "");
+      if (text.trim()) {
+        setSyllabus(text.trim());
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const loadExample = () => {
+    setSyllabus(`1. פתיחה, חוזה קבוצתי והגדרת מטרות אישיות וקבוצתיות
+2. שלבי התפתחות קבוצה ומודל טאקמן
+3. מיומנויות הקשבה פעילה ושיקוף בהנחיה
+4. דינמיקה קבוצתית וזיהוי תפקידים גלויים וסמויים בקבוצה
+5. התמודדות עם התנגדויות, קונפליקטים ומשתתפים מאתגרים
+6. משוב עמיתים וסגנונות תקשורת בין-אישית
+7. עמידה מול קהל, שפת גוף ונוכחות מנחה
+8. שילוב מתודולוגיות חווייתיות, קלפים וסימולציות
+9. פרקטיקום: סדנת הנחיית עמיתים בזמן אמת וניתוח אירועים
+10. סיכום תהליך, פרידה וטקס סיום והענקת תעודות`);
+  };
+
+  return (
+    <div
+      onClick={onClose}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-lg rounded-2xl border border-white/14 bg-[#002B45] p-5 text-white max-h-[92svh] overflow-y-auto sm:p-6 shadow-2xl text-right"
+      >
+        <div className="flex items-center justify-between border-b border-white/14 pb-3">
+          <div>
+            <h3 className="text-lg font-extrabold">סילבוס קורס: {course.name}</h3>
+            <p className="text-xs text-[#B8D8E6]">הגדרת ראשי הפרקים עבור מודול בקרת ה-AI</p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-xs font-bold text-[#B8D8E6] hover:text-white"
+          >
+            סגירה
+          </button>
+        </div>
+
+        <div className="mt-4 space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <label className="block text-xs font-bold text-[#B8D8E6]">
+              ראשי פרקים / רשימת נושאים:
+            </label>
+            <div className="flex items-center gap-2">
+              <label className="cursor-pointer rounded-lg border border-white/14 bg-white/5 px-2.5 py-1 text-[11px] font-bold text-[#38BDF8] hover:bg-white/10 transition">
+                <span>📁 העלאת קובץ</span>
+                <input
+                  type="file"
+                  accept=".txt,.md,.csv,.text"
+                  onChange={handleFileUpload}
+                  className="hidden"
+                />
+              </label>
+              <button
+                type="button"
+                onClick={loadExample}
+                className="rounded-lg border border-white/14 bg-white/5 px-2.5 py-1 text-[11px] font-bold text-[#00E5E5] hover:bg-white/10 transition"
+              >
+                טעינת דוגמה
+              </button>
+            </div>
+          </div>
+
+          <textarea
+            rows={10}
+            dir="auto"
+            value={syllabus}
+            onChange={(e) => setSyllabus(e.target.value)}
+            placeholder={`הדביקו כאן את נושאי הסילבוס, למשל:\n1. פתיחה וחוזה קבוצתי\n2. שלבי התפתחות קבוצה\n3. משוב עמיתים\n4. עמידה מול קהל\n5. פרקטיקום`}
+            className="w-full rounded-xl border border-white/20 bg-[#001D30] p-3.5 text-xs sm:text-sm font-mono text-white placeholder:text-slate-400 focus:border-[#00A6A6] focus:outline-none"
+          />
+
+          <p className="text-[11px] text-[#B8D8E6] leading-relaxed">
+            💡 <strong>טיפ:</strong> מודול ה-AI מצליב אוטומטית בין שורות הסילבוס לבין נושאי השיעורים שהמנחים רושמים בסיום כל מפגש, ומחשב את אחוז הכיסוי.
+          </p>
+
+          <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-white/10">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-xl border border-white/14 bg-white/5 px-4 py-2.5 text-xs font-bold text-slate-300 hover:text-white"
+            >
+              ביטול
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                onSave(syllabus.trim());
+                onClose();
+              }}
+              className="rounded-xl bg-[#00A6A6] px-5 py-2.5 text-xs font-extrabold text-white hover:bg-[#00B3A4] shadow-md shadow-[#00A6A6]/20"
+            >
+              שמירת סילבוס
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function LessonTopicModal({
+  course,
+  date,
+  existingLog,
+  currentUserEmail,
+  onClose,
+  onSave,
+}: {
+  course: Course;
+  date: string;
+  existingLog?: LessonLog;
+  currentUserEmail?: string;
+  onClose: () => void;
+  onSave: (topic: string, summary?: string) => void;
+}) {
+  const [topic, setTopic] = useState(existingLog?.topic || "");
+  const [summary, setSummary] = useState(existingLog?.summary || "");
+
+  return (
+    <div
+      onClick={onClose}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-md rounded-2xl border border-white/14 bg-[#002B45] p-5 text-white max-h-[92svh] overflow-y-auto sm:p-6 shadow-2xl text-right"
+      >
+        <div className="flex items-center justify-between border-b border-white/14 pb-3">
+          <div>
+            <h3 className="text-lg font-extrabold">תיעוד נושא השיעור</h3>
+            <p className="text-xs text-[#B8D8E6]">
+              {course.name} • מפגש {date}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-xs font-bold text-[#B8D8E6] hover:text-white"
+          >
+            סגירה
+          </button>
+        </div>
+
+        <div className="mt-4 space-y-3.5">
+          <div>
+            <label className="block text-xs font-bold text-white mb-1.5">
+              מה לימדנו במפגש זה? (נושא / ראשי פרקים):
+            </label>
+            <input
+              type="text"
+              dir="auto"
+              value={topic}
+              onChange={(e) => setTopic(e.target.value)}
+              placeholder="למשל: משוב עמיתים וסגנונות תקשורת"
+              className="w-full rounded-xl border border-white/20 bg-[#001D30] px-3.5 py-2.5 text-sm font-semibold text-white placeholder:text-slate-400 focus:border-[#00A6A6] focus:outline-none"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-[#B8D8E6] mb-1.5">
+              תקציר נוסף / הערות פדגוגיות (אופציונלי):
+            </label>
+            <textarea
+              rows={3}
+              dir="auto"
+              value={summary}
+              onChange={(e) => setSummary(e.target.value)}
+              placeholder="פרטים נוספים, תרגילים שבוצעו או משימות לשבוע הבא..."
+              className="w-full rounded-xl border border-white/20 bg-[#001D30] p-3 text-xs sm:text-sm font-medium text-white placeholder:text-slate-400 focus:border-[#00A6A6] focus:outline-none"
+            />
+          </div>
+
+          {currentUserEmail && (
+            <p className="text-[11px] text-slate-400">
+              מנחה מתעד: <span dir="ltr" className="text-slate-300 font-mono">{currentUserEmail}</span>
+            </p>
+          )}
+
+          <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-white/10">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-xl border border-white/14 bg-white/5 px-4 py-2.5 text-xs font-bold text-slate-300 hover:text-white"
+            >
+              ביטול
+            </button>
+            <button
+              type="button"
+              disabled={!topic.trim()}
+              onClick={() => {
+                onSave(topic.trim(), summary.trim() || undefined);
+                onClose();
+              }}
+              className="rounded-xl bg-[#00A6A6] px-5 py-2.5 text-xs font-extrabold text-white hover:bg-[#00B3A4] shadow-md shadow-[#00A6A6]/20 disabled:opacity-50"
+            >
+              שמירת שיעור
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function AISyllabusAnalysisModal({
+  course,
+  lessons,
+  analysis,
+  loading,
+  hasGeminiKey,
+  onReanalyze,
+  onEditSyllabus,
+  onOpenGeminiSettings,
+  onClose,
+}: {
+  course: Course;
+  lessons: LessonLog[];
+  analysis: AISyllabusAnalysis | null;
+  loading: boolean;
+  hasGeminiKey: boolean;
+  onReanalyze: () => void;
+  onEditSyllabus: () => void;
+  onOpenGeminiSettings: () => void;
+  onClose: () => void;
+}) {
+  const [activeTab, setActiveTab] = useState<"summary" | "topics">("summary");
+  const courseLessons = lessons.filter((l) => l.courseId === course.id);
+  const hasSyllabus = Boolean(course.syllabus && course.syllabus.trim());
+
+  return (
+    <div
+      onClick={onClose}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-3 sm:p-4"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-xl rounded-2xl border border-white/14 bg-[#002B45] p-5 text-white max-h-[92svh] overflow-y-auto sm:p-6 shadow-2xl text-right"
+      >
+        {/* Header */}
+        <div className="flex items-start justify-between border-b border-white/14 pb-3.5">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <span className="text-xl">✨</span>
+              <h3 className="text-lg sm:text-xl font-extrabold truncate">
+                בקרת סילבוס מבוססת AI — {course.name}
+              </h3>
+            </div>
+            <div className="mt-1 flex items-center gap-2 flex-wrap">
+              <span
+                className={`rounded-full px-2.5 py-0.5 text-[10px] font-extrabold border ${
+                  analysis?.usedGeminiAI
+                    ? "border-[#16A34A]/30 bg-[#16A34A]/20 text-[#86EFAC]"
+                    : "border-[#38BDF8]/30 bg-[#38BDF8]/15 text-[#7DD3FC]"
+                }`}
+              >
+                {analysis?.usedGeminiAI ? "✓ מחובר לגוגל ג'מיני 1.5 Flash" : "ניתוח מובנה מקומי"}
+              </span>
+              <span className="text-[11px] text-[#B8D8E6]">
+                {courseLessons.length} {courseLessons.length === 1 ? "שיעור תועד" : "שיעורים תועדו"}
+              </span>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-xs font-bold text-[#B8D8E6] hover:text-white"
+          >
+            סגירה
+          </button>
+        </div>
+
+        {/* Content */}
+        {!hasSyllabus ? (
+          <div className="mt-6 text-center py-8 space-y-4 rounded-2xl border border-dashed border-white/20 bg-white/5 p-6">
+            <span className="text-3xl">📚</span>
+            <h4 className="text-base font-extrabold text-white">טרם הוגדר סילבוס לקורס זה</h4>
+            <p className="text-xs text-[#B8D8E6] max-w-sm mx-auto leading-relaxed">
+              כדי שה-AI יוכל לבדוק אחוזי כיסוי, למנוע חזרתיות ולהמליץ על המפגש הבא, אנא הזינו את ראשי הפרקים של הקורס.
+            </p>
+            <button
+              type="button"
+              onClick={onEditSyllabus}
+              className="rounded-xl bg-[#00A6A6] px-5 py-2.5 text-xs font-extrabold text-white hover:bg-[#00B3A4] shadow-md shadow-[#00A6A6]/20 transition"
+            >
+              הזנת סילבוס עכשיו
+            </button>
+          </div>
+        ) : loading ? (
+          <div className="mt-8 text-center py-12 space-y-3">
+            <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-[#00A6A6] border-r-transparent"></div>
+            <p className="text-sm font-extrabold text-white">מנתח סילבוס ומפגשים בעזרת AI...</p>
+            <p className="text-xs text-[#B8D8E6]">מצליב נושאים, בודק חזרתיות ומנסח המלצות</p>
+          </div>
+        ) : analysis ? (
+          <div className="mt-4 space-y-4">
+            {/* Coverage Card */}
+            <div className="rounded-2xl border border-white/14 bg-[#003859] p-4 sm:p-5 shadow-lg">
+              <div className="flex items-center justify-between gap-3 mb-2.5">
+                <div>
+                  <span className="text-xs font-extrabold uppercase tracking-wider text-[#00E5E5]">
+                    מד כיסוי סילבוס כללי
+                  </span>
+                  <p className="text-xs text-slate-300 mt-0.5">
+                    {analysis.coveredTopics.length} מתוך {analysis.coveredTopics.length + analysis.pendingTopics.length} נושאי סילבוס כוסו
+                  </p>
+                </div>
+                <span className="text-2xl sm:text-3xl font-black text-white">
+                  {analysis.coveragePercent}%
+                </span>
+              </div>
+
+              {/* Progress bar */}
+              <div className="h-3 w-full rounded-full bg-[#001D30] overflow-hidden p-0.5 border border-white/10">
+                <div
+                  className={`h-full rounded-full transition-all duration-500 ${
+                    analysis.coveragePercent >= 80
+                      ? "bg-gradient-to-r from-[#10B981] to-[#059669]"
+                      : analysis.coveragePercent >= 50
+                      ? "bg-gradient-to-r from-[#00A6A6] to-[#38BDF8]"
+                      : "bg-gradient-to-r from-[#F59E0B] to-[#F97316]"
+                  }`}
+                  style={{ width: `${Math.max(4, analysis.coveragePercent)}%` }}
+                />
+              </div>
+            </div>
+
+            {/* Recommendation Card */}
+            <div className="rounded-2xl border border-[#00A6A6]/30 bg-[#00A6A6]/10 p-4 text-right">
+              <div className="flex items-center gap-2 mb-1.5">
+                <span className="text-base">💡</span>
+                <strong className="text-xs font-extrabold text-[#00E5E5] uppercase tracking-wide">
+                  המלצה ממוקדת למפגש הבא
+                </strong>
+              </div>
+              <p className="text-xs sm:text-sm font-medium leading-relaxed text-white">
+                {analysis.recommendationForNextLesson}
+              </p>
+            </div>
+
+            {/* Repetition Warnings Card */}
+            {analysis.repetitionWarnings && analysis.repetitionWarnings.length > 0 ? (
+              <div className="rounded-2xl border border-[#F59E0B]/30 bg-[#FEF3C7]/15 p-4 text-right space-y-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-base">🔄</span>
+                  <strong className="text-xs font-extrabold text-[#FDE047]">
+                    זיהוי חזרתיות אפשרית בין מפגשים:
+                  </strong>
+                </div>
+                {analysis.repetitionWarnings.map((warn, idx) => (
+                  <p key={idx} className="text-xs text-slate-100 leading-relaxed bg-[#002B45]/50 p-2.5 rounded-xl border border-white/10">
+                    • {warn}
+                  </p>
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-xl border border-[#16A34A]/25 bg-[#16A34A]/10 p-3 flex items-center gap-2 text-xs text-[#86EFAC] font-medium">
+                <span>✓</span>
+                <span>לא זוהתה חזרתיות מיותרת — רצף הלמידה נשמר באופן תקין.</span>
+              </div>
+            )}
+
+            {/* Topics Tabs & List */}
+            <div className="rounded-2xl border border-white/10 bg-[#001D30] p-3.5 space-y-2.5">
+              <div className="flex items-center justify-between border-b border-white/10 pb-2">
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab("summary")}
+                    className={`px-3 py-1 rounded-lg text-xs font-bold transition ${
+                      activeTab === "summary"
+                        ? "bg-[#00A6A6] text-white"
+                        : "text-slate-300 hover:text-white"
+                    }`}
+                  >
+                    נושאים שטרם נלמדו ({analysis.pendingTopics.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab("topics")}
+                    className={`px-3 py-1 rounded-lg text-xs font-bold transition ${
+                      activeTab === "topics"
+                        ? "bg-[#00A6A6] text-white"
+                        : "text-slate-300 hover:text-white"
+                    }`}
+                  >
+                    נושאים שכוסו ({analysis.coveredTopics.length})
+                  </button>
+                </div>
+              </div>
+
+              {activeTab === "summary" ? (
+                analysis.pendingTopics.length === 0 ? (
+                  <p className="text-xs text-[#86EFAC] p-3 text-center">
+                    🎉 כל נושאי הסילבוס כוסו בהצלחה!
+                  </p>
+                ) : (
+                  <div className="max-h-44 overflow-y-auto space-y-1.5 pr-1">
+                    {analysis.pendingTopics.map((top, idx) => (
+                      <div key={idx} className="flex items-center gap-2 p-2 rounded-xl bg-white/5 text-xs text-slate-200">
+                        <span className="text-[#38BDF8] shrink-0 font-bold">○</span>
+                        <span className="truncate">{top}</span>
+                      </div>
+                    ))}
+                  </div>
+                )
+              ) : (
+                analysis.coveredTopics.length === 0 ? (
+                  <p className="text-xs text-slate-400 p-3 text-center">
+                    טרם נרשמו נושאים שכוסו.
+                  </p>
+                ) : (
+                  <div className="max-h-44 overflow-y-auto space-y-1.5 pr-1">
+                    {analysis.coveredTopics.map((top, idx) => (
+                      <div key={idx} className="flex items-center gap-2 p-2 rounded-xl bg-[#16A34A]/10 text-xs text-white">
+                        <span className="text-[#10B981] shrink-0 font-bold">✓</span>
+                        <span className="truncate">{top}</span>
+                      </div>
+                    ))}
+                  </div>
+                )
+              )}
+            </div>
+
+            {/* Bottom Actions */}
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-white/10">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={onReanalyze}
+                  className="rounded-xl bg-[#00A6A6] hover:bg-[#00B3A4] px-4 py-2 text-xs font-extrabold text-white transition flex items-center gap-1.5"
+                >
+                  <span>🔄</span>
+                  <span>ניתוח מחדש עכשיו</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={onEditSyllabus}
+                  className="rounded-xl border border-white/14 bg-white/5 hover:bg-white/10 px-3 py-2 text-xs font-bold text-slate-200 transition"
+                >
+                  עריכת סילבוס
+                </button>
+              </div>
+
+              {!hasGeminiKey && (
+                <button
+                  type="button"
+                  onClick={onOpenGeminiSettings}
+                  className="rounded-xl border border-[#00E5E5]/40 bg-[#00E5E5]/10 hover:bg-[#00E5E5]/20 px-3 py-2 text-xs font-extrabold text-[#00E5E5] transition"
+                >
+                  ⚙️ חיבור Gemini API
+                </button>
+              )}
+            </div>
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+export function GeminiSettingsModal({
+  currentKey,
+  onClose,
+  onSave,
+  onClear,
+}: {
+  currentKey?: string;
+  onClose: () => void;
+  onSave: (key: string) => void;
+  onClear: () => void;
+}) {
+  const [keyInput, setKeyInput] = useState(currentKey || "");
+  const [showKey, setShowKey] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
+
+  const handleTest = async () => {
+    if (!keyInput.trim()) {
+      setTestResult({ success: false, message: "נא להזין מפתח לבדיקה." });
+      return;
+    }
+    setTesting(true);
+    setTestResult(null);
+    const res = await testGeminiApiKey(keyInput.trim());
+    setTestResult(res);
+    setTesting(false);
+  };
+
+  return (
+    <div
+      onClick={onClose}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-md rounded-2xl border border-white/14 bg-[#002B45] p-5 text-white max-h-[92svh] overflow-y-auto sm:p-6 shadow-2xl text-right"
+      >
+        <div className="flex items-center justify-between border-b border-white/14 pb-3">
+          <div>
+            <h3 className="text-lg font-extrabold flex items-center gap-2">
+              <span>✨</span>
+              <span>הגדרות Google Gemini AI</span>
+            </h3>
+            <p className="text-xs text-[#B8D8E6]">חיבור ישיר למודל בינה מלאכותית לקורס</p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-xs font-bold text-[#B8D8E6] hover:text-white"
+          >
+            סגירה
+          </button>
+        </div>
+
+        <div className="mt-4 space-y-3.5">
+          <div>
+            <label className="block text-xs font-bold text-white mb-1.5">
+              מפתח Gemini API (מחשבון גוגל של רותם):
+            </label>
+            <div className="relative">
+              <input
+                type={showKey ? "text" : "password"}
+                dir="ltr"
+                value={keyInput}
+                onChange={(e) => {
+                  setKeyInput(e.target.value);
+                  setTestResult(null);
+                }}
+                placeholder="AIzaSy..."
+                className="w-full rounded-xl border border-white/20 bg-[#001D30] px-3.5 py-2.5 text-xs sm:text-sm font-mono text-white placeholder:text-slate-500 focus:border-[#00A6A6] focus:outline-none pl-14"
+              />
+              <button
+                type="button"
+                onClick={() => setShowKey((p) => !p)}
+                className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-[#B8D8E6] hover:text-white p-1"
+              >
+                {showKey ? "הסתר" : "הצג"}
+              </button>
+            </div>
+          </div>
+
+          {testResult && (
+            <p
+              role="status"
+              className={`rounded-xl border p-2.5 text-xs font-extrabold leading-relaxed ${
+                testResult.success
+                  ? "border-[#16A34A]/30 bg-[#16A34A]/15 text-[#86EFAC]"
+                  : "border-[#DC2626]/30 bg-[#FEE2E2]/15 text-[#FCA5A5]"
+              }`}
+            >
+              {testResult.success ? "✓ " : "⚠️ "}
+              {testResult.message}
+            </p>
+          )}
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              disabled={testing || !keyInput.trim()}
+              onClick={handleTest}
+              className="flex-1 rounded-xl border border-white/15 bg-white/10 hover:bg-white/15 px-3 py-2 text-xs font-extrabold text-white transition disabled:opacity-50"
+            >
+              {testing ? "בודק מפתח מול גוגל..." : "בדיקת תקינות מפתח"}
+            </button>
+            {currentKey && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClear();
+                  setKeyInput("");
+                  setTestResult(null);
+                }}
+                className="rounded-xl border border-[#DC2626]/30 bg-[#FEE2E2]/10 hover:bg-[#FEE2E2]/20 px-3 py-2 text-xs font-bold text-[#FCA5A5] transition"
+              >
+                מחיקת מפתח
+              </button>
+            )}
+          </div>
+
+          <div className="rounded-xl bg-[#001D30] border border-white/10 p-3 text-[11px] text-[#B8D8E6] leading-relaxed space-y-1">
+            <p className="font-bold text-white">איך משיגים מפתח בחינם?</p>
+            <p>1. נכנסים לאתר Google AI Studio מחשבון הגוגל.</p>
+            <p>2. לוחצים על Get API key ➔ Create API key.</p>
+            <p>3. מעתיקים ומדביקים כאן פעם אחת בלבד.</p>
+          </div>
+
+          <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-white/10">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-xl border border-white/14 bg-white/5 px-4 py-2.5 text-xs font-bold text-slate-300 hover:text-white"
+            >
+              ביטול
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                onSave(keyInput.trim());
+                onClose();
+              }}
+              className="rounded-xl bg-[#00A6A6] px-5 py-2.5 text-xs font-extrabold text-white hover:bg-[#00B3A4] shadow-md shadow-[#00A6A6]/20"
+            >
+              שמירת מפתח
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }

@@ -26,11 +26,15 @@ import {
   updateAttendanceLog,
 } from "./cloud-data";
 import {
+  AISyllabusAnalysisModal,
   AttendanceStudentRow,
   BiometricLockScreen,
   CourseCard,
+  CourseSyllabusModal,
   CourseTasksMatrixView,
   FinishAttendanceBar,
+  GeminiSettingsModal,
+  LessonTopicModal,
   Layout,
   Modal,
   StatusBadge,
@@ -49,13 +53,23 @@ import {
   openWhatsAppShare,
 } from "./export-utils";
 import {
+  clearStoredGeminiApiKey,
   getPendingQueue,
+  getStoredAnalysis,
+  getStoredCourseSyllabus,
+  getStoredGeminiApiKey,
+  getStoredLessons,
+  saveStoredAnalysis,
+  saveStoredCourseSyllabus,
+  saveStoredGeminiApiKey,
+  upsertLessonLog,
   getStoredCustomTasks,
   getStoredSubmissions,
   isOnline,
   upsertCustomTask,
   upsertTaskSubmission,
 } from "./offline-storage";
+import { analyzeCourseSyllabus } from "./gemini-ai";
 import { prepareStudentImport } from "./student-import";
 import { supabase } from "./supabase";
 import type {
@@ -114,6 +128,20 @@ export default function Home() {
   // Student Quick Card modal
   const [quickCardStudent, setQuickCardStudent] = useState<Student | null>(null);
 
+  // Phase 4.3: Lesson Logging & Gemini AI Syllabus Monitor state
+  const [lessons, setLessons] = useState<LessonLog[]>(() => getStoredLessons());
+  const [geminiApiKey, setGeminiApiKey] = useState<string | null>(() => getStoredGeminiApiKey());
+  const [syllabusModalCourse, setSyllabusModalCourse] = useState<Course | null>(null);
+  const [lessonTopicModalData, setLessonTopicModalData] = useState<{
+    course: Course;
+    date: string;
+    existingLog?: LessonLog;
+  } | null>(null);
+  const [aiAnalysisModalCourse, setAiAnalysisModalCourse] = useState<Course | null>(null);
+  const [currentAnalysis, setCurrentAnalysis] = useState<AISyllabusAnalysis | null>(null);
+  const [analysisLoading, setAnalysisLoading] = useState(false);
+  const [geminiSettingsOpen, setGeminiSettingsOpen] = useState(false);
+
   // Offline & sync state
   const [isOffline, setIsOffline] = useState(() => !isOnline());
   const [pendingSyncCount, setPendingSyncCount] = useState(() => getPendingQueue().length);
@@ -139,6 +167,10 @@ export default function Home() {
     studentAddSheetOpen,
     quickCardStudent,
     taskNoteModalData,
+    syllabusModalCourse,
+    lessonTopicModalData,
+    aiAnalysisModalCourse,
+    geminiSettingsOpen,
     modal,
   });
 
@@ -151,6 +183,10 @@ export default function Home() {
       studentAddSheetOpen,
       quickCardStudent,
       taskNoteModalData,
+      syllabusModalCourse,
+      lessonTopicModalData,
+      aiAnalysisModalCourse,
+      geminiSettingsOpen,
       modal,
     };
   }, [
@@ -161,6 +197,10 @@ export default function Home() {
     studentAddSheetOpen,
     quickCardStudent,
     taskNoteModalData,
+    syllabusModalCourse,
+    lessonTopicModalData,
+    aiAnalysisModalCourse,
+    geminiSettingsOpen,
     modal,
   ]);
 
@@ -193,6 +233,22 @@ export default function Home() {
       const state = navStateRef.current;
 
       // Layer 1: Modals & Bottom Sheets (highest priority)
+      if (state.geminiSettingsOpen) {
+        setGeminiSettingsOpen(false);
+        return;
+      }
+      if (state.aiAnalysisModalCourse) {
+        setAiAnalysisModalCourse(null);
+        return;
+      }
+      if (state.syllabusModalCourse) {
+        setSyllabusModalCourse(null);
+        return;
+      }
+      if (state.lessonTopicModalData) {
+        setLessonTopicModalData(null);
+        return;
+      }
       if (state.taskNoteModalData) {
         setTaskNoteModalData(null);
         return;
@@ -582,6 +638,76 @@ export default function Home() {
   );
 
   // Excel (CSV) Export Handler
+
+  // Phase 4.3 Handlers: Syllabus & Lesson Logging & Gemini AI
+  const handleOpenSyllabusModal = (course: Course) => {
+    setSyllabusModalCourse(course);
+    safePushHistory("syllabusModal");
+  };
+
+  const handleSaveSyllabus = (courseId: string, syllabusText: string) => {
+    saveStoredCourseSyllabus(courseId, syllabusText);
+    setData((prev) => ({
+      ...prev,
+      courses: prev.courses.map((c) => (c.id === courseId ? { ...c, syllabus: syllabusText } : c)),
+    }));
+    notify("סילבוס הקורס נשמר בהצלחה.");
+  };
+
+  const handleOpenLessonTopicModal = (courseId: string, date: string) => {
+    const course = data.courses.find((c) => c.id === courseId);
+    if (!course) return;
+    const existing = lessons.find((l) => l.courseId === courseId && l.date === date);
+    setLessonTopicModalData({ course, date, existingLog: existing });
+    safePushHistory("lessonTopicModal");
+  };
+
+  const handleSaveLessonTopic = (courseId: string, date: string, topic: string, summary?: string) => {
+    const log: LessonLog = {
+      id: `${courseId}_${date}`,
+      courseId,
+      date,
+      topic,
+      summary,
+      instructorEmail: session?.user?.email ?? undefined,
+    };
+    const updated = upsertLessonLog(log);
+    setLessons(updated);
+    notify("תיעוד השיעור נשמר בהצלחה.");
+  };
+
+  const handleOpenAIAnalysis = async (course: Course) => {
+    setAiAnalysisModalCourse(course);
+    safePushHistory("aiAnalysisModal");
+
+    const cached = getStoredAnalysis(course.id);
+    if (cached) {
+      setCurrentAnalysis(cached);
+    }
+    setAnalysisLoading(true);
+
+    try {
+      const res = await analyzeCourseSyllabus(course, lessons, geminiApiKey || undefined);
+      setCurrentAnalysis(res);
+    } catch {
+      notify("אירעה שגיאה בבדיקת הסילבוס.");
+    } finally {
+      setAnalysisLoading(false);
+    }
+  };
+
+  const handleSaveGeminiKey = (key: string) => {
+    saveStoredGeminiApiKey(key);
+    setGeminiApiKey(key ? key.trim() : null);
+    notify("מפתח Google Gemini נשמר בהצלחה.");
+  };
+
+  const handleClearGeminiKey = () => {
+    clearStoredGeminiApiKey();
+    setGeminiApiKey(null);
+    notify("מפתח Gemini הוסר מהמכשיר.");
+  };
+
   const handleExportCourseCSV = useCallback(
     (course: Course) => {
       const csv = generateCourseAttendanceCSV(
@@ -825,6 +951,46 @@ export default function Home() {
             </div>
           </div>
 
+          {/* Lesson Topic banner & AI Syllabus button */}
+          {(() => {
+            const activeCourse = data.courses.find((c) => c.id === activeSessionCourseId);
+            const todayLesson = lessons.find(
+              (l) => l.courseId === activeSessionCourseId && l.date === today
+            );
+            return (
+              <div className="flex flex-wrap items-center justify-between gap-2.5 rounded-2xl border border-white/14 bg-[#003859] p-3.5 shadow-md">
+                <div className="min-w-0 flex-1">
+                  <span className="text-[11px] font-bold text-[#00E5E5] flex items-center gap-1.5">
+                    <span>📌</span>
+                    <span>נושא המפגש להיום:</span>
+                  </span>
+                  <p className="mt-0.5 text-xs sm:text-sm font-extrabold text-white truncate">
+                    {todayLesson?.topic || "טרם תועד נושא למפגש זה"}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleOpenLessonTopicModal(activeSessionCourseId, today)}
+                    className="rounded-xl border border-white/15 bg-white/10 hover:bg-white/15 px-3 py-1.5 text-xs font-bold text-slate-200 transition"
+                  >
+                    {todayLesson ? "עריכת נושא" : "+ תיעוד שיעור"}
+                  </button>
+                  {activeCourse && (
+                    <button
+                      type="button"
+                      onClick={() => handleOpenAIAnalysis(activeCourse)}
+                      className="rounded-xl bg-[#00A6A6] hover:bg-[#00B3A4] px-3.5 py-1.5 text-xs font-extrabold text-white transition flex items-center gap-1.5 shadow-md shadow-[#00A6A6]/20"
+                    >
+                      <span>✨</span>
+                      <span>בדיקת סילבוס (AI)</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
+
           <SummaryCards logs={activeSessionLogs} />
 
           <div className="space-y-2.5">
@@ -847,6 +1013,8 @@ export default function Home() {
 
           <FinishAttendanceBar
             logs={activeSessionLogs}
+            currentTopic={lessons.find((l) => l.courseId === activeSessionCourseId && l.date === today)?.topic}
+            onEditTopic={() => handleOpenLessonTopicModal(activeSessionCourseId, today)}
             onFinish={() => {
               setCompletedCourseIds((prev) => new Set(prev).add(activeSessionCourseId));
               exitActiveSession();
@@ -968,6 +1136,44 @@ export default function Home() {
               ))}
             </select>
           </div>
+          {/* History Lesson Topic & AI Syllabus button */}
+          {historyCourse !== "all" && (() => {
+            const hCourse = data.courses.find((c) => c.id === historyCourse);
+            const hLesson = lessons.find((l) => l.courseId === historyCourse && l.date === historyDate);
+            return (
+              <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-white/14 bg-[#003859] p-3 text-right">
+                <div className="min-w-0 flex-1">
+                  <span className="text-[11px] font-bold text-[#00E5E5] flex items-center gap-1">
+                    <span>📌</span>
+                    <span>נושא השיעור לתאריך {historyDate}:</span>
+                  </span>
+                  <p className="mt-0.5 text-xs sm:text-sm font-bold text-white truncate">
+                    {hLesson?.topic || "טרם תועד נושא למפגש זה"}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleOpenLessonTopicModal(historyCourse, historyDate)}
+                    className="rounded-xl border border-white/15 bg-white/10 hover:bg-white/15 px-3 py-1.5 text-xs font-bold text-slate-200 transition"
+                  >
+                    {hLesson ? "עריכת נושא" : "+ תיעוד שיעור"}
+                  </button>
+                  {hCourse && (
+                    <button
+                      type="button"
+                      onClick={() => handleOpenAIAnalysis(hCourse)}
+                      className="rounded-xl bg-[#00A6A6] hover:bg-[#00B3A4] px-3 py-1.5 text-xs font-extrabold text-white transition flex items-center gap-1 shadow-md shadow-[#00A6A6]/20"
+                    >
+                      <span>✨</span>
+                      <span>בדיקת סילבוס (AI)</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
+
           <SummaryCards
             logs={data.attendance.filter(
               (log) =>
@@ -1083,6 +1289,46 @@ export default function Home() {
                       )}
                     </div>
                   )}
+                </div>
+              </MoreGroup>
+
+              {/* Gemini AI Syllabus Monitor Group */}
+              <MoreGroup title="בינה מלאכותית (Google Gemini)">
+                <div className="p-4 text-right text-white space-y-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <strong className="text-base font-extrabold">בקרת סילבוס והמלצות פדגוגיות</strong>
+                      <p className="mt-0.5 text-xs font-medium text-[#B8D8E6]">
+                        {geminiApiKey
+                          ? "מפתח Gemini 1.5 Flash מוגדר ופעיל"
+                          : "טרם הוגדר מפתח (המערכת פועלת במצב ניתוח מובנה מקומי)"}
+                      </p>
+                    </div>
+                    <span
+                      className={`rounded-full px-2.5 py-1 text-[11px] font-extrabold ${
+                        geminiApiKey
+                          ? "bg-[#DCFCE7] text-[#166534]"
+                          : "border border-white/15 bg-white/[0.08] text-[#B8D8E6]"
+                      }`}
+                    >
+                      {geminiApiKey ? "מחובר ל-AI ✓" : "מצב מקומי"}
+                    </span>
+                  </div>
+                  <p className="text-xs text-[#B8D8E6] leading-relaxed">
+                    חיבור ישיר למודל הבינה המלאכותית של גוגל מאפשר מעקב סילבוס חכם, זיהוי ומניעת חזרתיות בין מנחים והמלצות פדגוגיות ממוקדות למפגש הבא.
+                  </p>
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setGeminiSettingsOpen(true);
+                        safePushHistory("geminiSettings");
+                      }}
+                      className="min-h-11 rounded-xl bg-[#00A6A6] px-4 py-2 text-xs font-extrabold text-white transition hover:bg-[#00B3A4]"
+                    >
+                      {geminiApiKey ? "ניהול מפתח Gemini API" : "הגדרת מפתח Gemini API"}
+                    </button>
+                  </div>
                 </div>
               </MoreGroup>
 
