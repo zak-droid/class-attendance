@@ -29,6 +29,7 @@ import {
   AttendanceStudentRow,
   BiometricLockScreen,
   CourseCard,
+  CourseTasksMatrixView,
   FinishAttendanceBar,
   Layout,
   Modal,
@@ -36,18 +37,36 @@ import {
   StudentActionBottomSheet,
   StudentQuickCardModal,
   SummaryCards,
+  TaskNoteModal,
 } from "./components";
 import {
   calculateStudentAttendanceStats,
   downloadCSV,
   formatWhatsAppSummary,
   generateCourseAttendanceCSV,
+  getDefaultCourseTasks,
+  isYearlyCourse,
   openWhatsAppShare,
 } from "./export-utils";
-import { getPendingQueue, isOnline } from "./offline-storage";
+import {
+  getPendingQueue,
+  getStoredCustomTasks,
+  getStoredSubmissions,
+  isOnline,
+  upsertCustomTask,
+  upsertTaskSubmission,
+} from "./offline-storage";
 import { prepareStudentImport } from "./student-import";
 import { supabase } from "./supabase";
-import type { AppData, AppTab, AttendanceStatus, Course, Student } from "./types";
+import type {
+  AppData,
+  AppTab,
+  AttendanceStatus,
+  Course,
+  CourseTask,
+  Student,
+  StudentTaskSubmission,
+} from "./types";
 import { localDateKey, localTimeKey, makeId } from "./utils";
 
 type ModalState =
@@ -81,8 +100,16 @@ export default function Home() {
   const [sessionReadOnly, setSessionReadOnly] = useState(false);
   const [selectedAttendanceId, setSelectedAttendanceId] = useState<string | null>(null);
   const [completedCourseIds, setCompletedCourseIds] = useState<Set<string>>(() => new Set());
-  const [moreView, setMoreView] = useState<"menu" | "courses" | "students">("menu");
+  const [moreView, setMoreView] = useState<"menu" | "courses" | "students" | "tasks">("menu");
   const [studentAddSheetOpen, setStudentAddSheetOpen] = useState(false);
+  const [customTasks, setCustomTasks] = useState<CourseTask[]>(() => getStoredCustomTasks());
+  const [submissions, setSubmissions] = useState<StudentTaskSubmission[]>(() => getStoredSubmissions());
+  const [selectedTasksCourseId, setSelectedTasksCourseId] = useState<string | null>(null);
+  const [taskNoteModalData, setTaskNoteModalData] = useState<{
+    student: Student;
+    task: CourseTask;
+    submission?: StudentTaskSubmission;
+  } | null>(null);
 
   // Student Quick Card modal
   const [quickCardStudent, setQuickCardStudent] = useState<Student | null>(null);
@@ -111,6 +138,7 @@ export default function Home() {
     selectedAttendanceId,
     studentAddSheetOpen,
     quickCardStudent,
+    taskNoteModalData,
     modal,
   });
 
@@ -163,6 +191,10 @@ export default function Home() {
       const state = navStateRef.current;
 
       // Layer 1: Modals & Bottom Sheets (highest priority)
+      if (state.taskNoteModalData) {
+        setTaskNoteModalData(null);
+        return;
+      }
       if (state.quickCardStudent) {
         setQuickCardStudent(null);
         return;
@@ -218,11 +250,69 @@ export default function Home() {
   );
 
   const handleOpenMoreView = useCallback(
-    (view: "courses" | "students") => {
+    (view: "courses" | "students" | "tasks") => {
       safePushHistory(`more-${view}`);
       setMoreView(view);
     },
     [safePushHistory]
+  );
+
+  const handleToggleSubmission = useCallback(
+    (studentId: string, taskId: string, completed: boolean) => {
+      const student = data.students.find((s) => s.id === studentId);
+      const courseId = student?.courseId ?? selectedTasksCourseId ?? "";
+      const existing = submissions.find((s) => s.studentId === studentId && s.taskId === taskId);
+      const updated = upsertTaskSubmission({
+        id: `${studentId}_${taskId}`,
+        studentId,
+        courseId,
+        taskId,
+        completed,
+        completedDate: completed
+          ? existing?.completedDate || new Date().toISOString().split("T")[0]
+          : undefined,
+        notes: existing?.notes,
+      });
+      setSubmissions(updated);
+      notify(completed ? "המטלה סומנה כהושלמה ✓" : "המטלה סומנה כלא הושלמה");
+    },
+    [data.students, selectedTasksCourseId, submissions, notify]
+  );
+
+  const handleSaveTaskNote = useCallback(
+    (studentId: string, taskId: string, notes: string, completedDate: string) => {
+      const student = data.students.find((s) => s.id === studentId);
+      const courseId = student?.courseId ?? selectedTasksCourseId ?? "";
+      const updated = upsertTaskSubmission({
+        id: `${studentId}_${taskId}`,
+        studentId,
+        courseId,
+        taskId,
+        completed: true,
+        completedDate,
+        notes,
+      });
+      setSubmissions(updated);
+      setTaskNoteModalData(null);
+      notify("הערת המטלה נשמרה ✓");
+    },
+    [data.students, selectedTasksCourseId, notify]
+  );
+
+  const handleAddCustomTask = useCallback(
+    (courseId: string, title: string) => {
+      const newTask: CourseTask = {
+        id: `custom_${courseId}_${Date.now()}`,
+        courseId,
+        title,
+        requiredForCertificate: true,
+        yearlyOnly: false,
+      };
+      const updated = upsertCustomTask(newTask);
+      setCustomTasks(updated);
+      notify("המטלה נוספה לקורס בהצלחה ✓");
+    },
+    [notify]
   );
 
   const exitMoreSubView = useCallback(() => {
@@ -492,11 +582,17 @@ export default function Home() {
   // Excel (CSV) Export Handler
   const handleExportCourseCSV = useCallback(
     (course: Course) => {
-      const csv = generateCourseAttendanceCSV(course, data.students, data.attendance);
+      const csv = generateCourseAttendanceCSV(
+        course,
+        data.students,
+        data.attendance,
+        submissions,
+        customTasks
+      );
       downloadCSV(`attendance_${course.name}_${today}`, csv);
       notify(`דוח Excel (CSV) עבור ${course.name} הורד בהצלחה.`);
     },
-    [data.students, data.attendance, today, notify]
+    [data.students, data.attendance, submissions, customTasks, today, notify]
   );
 
   if (!authReady) {
@@ -615,7 +711,7 @@ export default function Home() {
                     ? "בתהליך"
                     : "לא התחילה היום";
                   const actionLabel = completed
-                    ? "צפייה בסיכום"
+                    ? "עריכת נוכחות להיום"
                     : startedToday
                     ? "המשך נוכחות"
                     : "התחלת נוכחות";
@@ -659,7 +755,7 @@ export default function Home() {
                             if (!startedToday) void startAttendance(course.id);
                             else {
                               setTodayFilter("all");
-                              setSessionReadOnly(completed);
+                              setSessionReadOnly(false);
                               safePushHistory("session");
                               setActiveSessionCourseId(course.id);
                             }
@@ -739,7 +835,7 @@ export default function Home() {
                   log={log}
                   student={student}
                   onOpen={() => {
-                    if (!sessionReadOnly) handleOpenAttendanceModal(log.id);
+                    handleOpenAttendanceModal(log.id);
                   }}
                   onViewCard={() => handleOpenQuickCard(student)}
                 />
@@ -877,6 +973,48 @@ export default function Home() {
                 (historyCourse === "all" || log.courseId === historyCourse)
             )}
           />
+
+          {/* Interactive history logs list allowing retroactive edits */}
+          {(() => {
+            const historyLogs = data.attendance.filter(
+              (log) =>
+                (!historyDate || log.date === historyDate) &&
+                (historyCourse === "all" || log.courseId === historyCourse)
+            );
+
+            if (historyLogs.length === 0) {
+              return (
+                <div className="rounded-2xl border border-white/10 bg-white/5 p-6 text-center text-xs text-[#B8D8E6]">
+                  לא נמצאו רשומות נוכחות לתאריך ולכיתה שנבחרו.
+                </div>
+              );
+            }
+
+            return (
+              <div className="space-y-2 pt-2">
+                <div className="flex items-center justify-between px-1">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-[#B8D8E6]">
+                    רשומות לתאריך זה ({historyLogs.length}) · לחצו לעריכה ותיקון
+                  </h3>
+                </div>
+                <div className="space-y-2">
+                  {historyLogs.map((log) => {
+                    const student = data.students.find((s) => s.id === log.studentId);
+                    if (!student) return null;
+                    return (
+                      <AttendanceStudentRow
+                        key={log.id}
+                        log={log}
+                        student={student}
+                        onOpen={() => handleOpenAttendanceModal(log.id)}
+                        onViewCard={() => handleOpenQuickCard(student)}
+                      />
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })()}
         </section>
       )}
 
@@ -977,6 +1115,15 @@ export default function Home() {
 
               <MoreGroup title="ניהול מערכת">
                 <MoreAction
+                  title="מעקב חובות וזכאות לתעודה"
+                  description="טבלה כיתתית מרכזת עם צ'קבוקסים מהירים: עמיתים, פרקטיקום ומסע"
+                  onClick={() => {
+                    safePushHistory("more-tasks");
+                    setSelectedTasksCourseId(data.courses[0]?.id ?? null);
+                    setMoreView("tasks");
+                  }}
+                />
+                <MoreAction
                   title="ניהול קורסים"
                   description="הוספה, עריכה והגדרת כיתות במערכת"
                   onClick={() => handleOpenMoreView("courses")}
@@ -1062,6 +1209,11 @@ export default function Home() {
                             void setCourseActive(course.id, !course.active).then(refreshData)
                           }
                           onExportCSV={() => handleExportCourseCSV(course)}
+                          onViewTasks={() => {
+                            safePushHistory("more-tasks");
+                            setSelectedTasksCourseId(course.id);
+                            setMoreView("tasks");
+                          }}
                         />
                       );
                     })}
@@ -1117,6 +1269,72 @@ export default function Home() {
                   </div>
                 </div>
               )}
+
+              {moreView === "tasks" && (
+                <div className="space-y-4">
+                  {/* Course Selector for tasks */}
+                  <div className="flex items-center gap-2">
+                    <label className="text-xs font-bold text-[#B8D8E6] shrink-0">בחירת קורס:</label>
+                    <select
+                      value={selectedTasksCourseId || data.courses[0]?.id || ""}
+                      onChange={(e) => setSelectedTasksCourseId(e.target.value)}
+                      className="min-h-11 flex-1 rounded-xl border border-white/14 bg-[#005580] px-3 text-xs font-bold text-white"
+                    >
+                      {data.courses
+                        .filter((c) => c.active)
+                        .map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.name} {isYearlyCourse(c.name, c.description) ? "(שנתי)" : ""}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+
+                  {(() => {
+                    const activeCourse =
+                      data.courses.find((c) => c.id === selectedTasksCourseId) ||
+                      data.courses.find((c) => c.active) ||
+                      data.courses[0];
+
+                    if (!activeCourse) {
+                      return (
+                        <p className="rounded-2xl border border-white/10 bg-white/5 p-6 text-center text-xs text-[#B8D8E6]">
+                          אין קורסים מוגדרים במערכת.
+                        </p>
+                      );
+                    }
+
+                    return (
+                      <CourseTasksMatrixView
+                        course={activeCourse}
+                        students={data.students}
+                        attendanceLogs={data.attendance}
+                        submissions={submissions}
+                        customTasks={customTasks}
+                        onToggleSubmission={(studentId, taskId, completed) =>
+                          handleToggleSubmission(studentId, taskId, completed)
+                        }
+                        onEditSubmissionNote={(studentId, taskId) => {
+                          const student = data.students.find((s) => s.id === studentId);
+                          const task = [
+                            ...getDefaultCourseTasks(activeCourse.id, activeCourse.name),
+                            ...customTasks,
+                          ].find((t) => t.id === taskId);
+                          const sub = submissions.find(
+                            (s) => s.studentId === studentId && s.taskId === taskId
+                          );
+                          if (student && task) {
+                            setTaskNoteModalData({ student, task, submission: sub });
+                          }
+                        }}
+                        onAddCustomTask={(title) => handleAddCustomTask(activeCourse.id, title)}
+                        onViewStudentCard={handleOpenQuickCard}
+                        onBack={exitMoreSubView}
+                      />
+                    );
+                  })()}
+                </div>
+              )}
             </div>
           )}
         </section>
@@ -1148,7 +1366,40 @@ export default function Home() {
         <StudentQuickCardModal
           stats={calculateStudentAttendanceStats(quickCardStudent, data.attendance)}
           courseName={data.courses.find((c) => c.id === quickCardStudent.courseId)?.name}
+          isYearly={isYearlyCourse(
+            data.courses.find((c) => c.id === quickCardStudent.courseId)?.name,
+            data.courses.find((c) => c.id === quickCardStudent.courseId)?.description
+          )}
+          tasks={[
+            ...getDefaultCourseTasks(
+              quickCardStudent.courseId,
+              data.courses.find((c) => c.id === quickCardStudent.courseId)?.name
+            ),
+            ...customTasks.filter((t) => t.courseId === quickCardStudent.courseId),
+          ]}
+          submissions={submissions.filter((s) => s.studentId === quickCardStudent.id)}
+          onToggleTask={(taskId, completed) =>
+            handleToggleSubmission(quickCardStudent.id, taskId, completed)
+          }
           onClose={closeQuickCard}
+        />
+      )}
+
+      {taskNoteModalData && (
+        <TaskNoteModal
+          studentName={taskNoteModalData.student.name}
+          taskTitle={taskNoteModalData.task.title}
+          initialNote={taskNoteModalData.submission?.notes}
+          initialDate={taskNoteModalData.submission?.completedDate}
+          onSave={(note, date) =>
+            handleSaveTaskNote(
+              taskNoteModalData.student.id,
+              taskNoteModalData.task.id,
+              note,
+              date
+            )
+          }
+          onClose={() => setTaskNoteModalData(null)}
         />
       )}
 

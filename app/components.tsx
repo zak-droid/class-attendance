@@ -1,8 +1,23 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
-import type { AppTab, AttendanceLog, AttendanceStatus, Course, Student } from "./types";
-import type { StudentAttendanceStats } from "./export-utils";
+import type {
+  AppTab,
+  AttendanceLog,
+  AttendanceStatus,
+  Course,
+  CourseTask,
+  Student,
+  StudentTaskSubmission,
+} from "./types";
+import {
+  calculateStudentAttendanceStats,
+  calculateStudentCertificateEligibility,
+  getDefaultCourseTasks,
+  isYearlyCourse,
+  type StudentAttendanceStats,
+  type StudentCertificateEligibility,
+} from "./export-utils";
 
 export const statusLabels: Record<AttendanceStatus, string> = {
   Present: "נוכח",
@@ -180,23 +195,20 @@ export function StatusBadge({ status }: { status: AttendanceStatus }) {
 
 export function SummaryCards({ logs }: { logs: AttendanceLog[] }) {
   const counts: Record<AttendanceStatus, number> = {
-    Present: 0,
-    Late: 0,
-    Absent: 0,
-    Excused: 0,
+    Present: logs.filter((l) => l.status === "Present").length,
+    Late: logs.filter((l) => l.status === "Late").length,
+    Absent: logs.filter((l) => l.status === "Absent").length,
+    Excused: logs.filter((l) => l.status === "Excused").length,
   };
-  logs.forEach((log) => {
-    counts[log.status] = (counts[log.status] ?? 0) + 1;
-  });
 
   return (
-    <div className="grid grid-cols-4 gap-2">
+    <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
       {(["Present", "Late", "Absent", "Excused"] as AttendanceStatus[]).map((status) => (
         <div
           key={status}
-          className="rounded-2xl border border-white/14 bg-[#005580] p-3 text-center"
+          className="rounded-2xl border border-white/14 bg-[#005580] p-3 text-right"
         >
-          <p className="text-xs font-bold text-[#B8D8E6]">{statusLabels[status]}</p>
+          <span className="text-xs font-semibold text-[#B8D8E6]">{statusLabels[status]}</span>
           <p className="mt-1 text-2xl font-extrabold text-white">{counts[status]}</p>
         </div>
       ))}
@@ -214,6 +226,7 @@ export function CourseCard({
   onToggleActive,
   onViewStudents,
   onExportCSV,
+  onViewTasks,
 }: {
   course: Course;
   studentCount: number;
@@ -224,6 +237,7 @@ export function CourseCard({
   onToggleActive?: () => void;
   onViewStudents?: () => void;
   onExportCSV?: () => void;
+  onViewTasks?: () => void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const stateLabel = completedToday
@@ -254,9 +268,9 @@ export function CourseCard({
           onClick={onStart}
           className="min-h-11 flex-1 rounded-xl bg-[#00A6A6] px-4 text-sm font-extrabold text-white hover:bg-[#00B3A4]"
         >
-          {completedToday ? "צפייה בסיכום" : startedToday ? "המשך נוכחות" : "התחלת נוכחות"}
+          {completedToday ? "עריכת נוכחות להיום" : startedToday ? "המשך נוכחות" : "התחלת נוכחות"}
         </button>
-        {(onEdit || onToggleActive || onViewStudents || onExportCSV) && (
+        {(onEdit || onToggleActive || onViewStudents || onExportCSV || onViewTasks) && (
           <div className="relative">
             <button
               type="button"
@@ -266,7 +280,19 @@ export function CourseCard({
               •••
             </button>
             {menuOpen && (
-              <div className="absolute left-0 bottom-full mb-1 z-30 min-w-44 rounded-xl border border-white/14 bg-[#002B45] p-1.5 shadow-2xl">
+              <div className="absolute left-0 bottom-full mb-1 z-30 min-w-48 rounded-xl border border-white/14 bg-[#002B45] p-1.5 shadow-2xl">
+                {onViewTasks && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      onViewTasks();
+                    }}
+                    className="block w-full rounded-lg px-3 py-2 text-right text-xs font-bold text-[#00E5E5] hover:bg-[#005580]"
+                  >
+                    📋 מעקב חובות וזכאות לתעודה
+                  </button>
+                )}
                 {onViewStudents && (
                   <button
                     type="button"
@@ -388,11 +414,11 @@ export function StudentActionBottomSheet({
   return (
     <div
       onClick={onClose}
-      className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-0 sm:items-center sm:p-4"
+      className="fixed inset-0 left-0 right-0 top-0 bottom-0 z-50 flex items-end justify-center bg-black/60 p-0 sm:items-center sm:p-4"
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-md rounded-t-[28px] border-t border-white/14 bg-[#002B45] p-5 pb-[calc(1.5rem+env(safe-area-inset-bottom))] text-white max-h-[92svh] overflow-y-auto sm:rounded-3xl sm:border sm:p-6"
+        className="w-full max-w-md mx-auto rounded-t-[28px] border-t border-white/14 bg-[#002B45] p-5 pb-[calc(1.5rem+env(safe-area-inset-bottom))] text-white max-h-[92svh] overflow-y-auto sm:rounded-3xl sm:border sm:p-6"
       >
         <div className="flex items-center justify-between border-b border-white/14 pb-3">
           <h3 dir="auto" className="text-lg font-extrabold">
@@ -453,13 +479,30 @@ export function StudentActionBottomSheet({
 export function StudentQuickCardModal({
   stats,
   courseName,
+  isYearly = false,
+  tasks = [],
+  submissions = [],
+  onToggleTask,
   onClose,
 }: {
   stats: StudentAttendanceStats;
   courseName?: string;
+  isYearly?: boolean;
+  tasks?: CourseTask[];
+  submissions?: StudentTaskSubmission[];
+  onToggleTask?: (taskId: string, completed: boolean) => void;
   onClose: () => void;
 }) {
-  const { student, totalSessions, presentCount, lateCount, absentCount, excusedCount, attendancePercentage, recentAbsences } = stats;
+  const {
+    student,
+    totalSessions,
+    presentCount,
+    lateCount,
+    absentCount,
+    excusedCount,
+    attendancePercentage,
+    recentAbsences,
+  } = stats;
 
   const rateColor =
     attendancePercentage >= 80
@@ -468,17 +511,20 @@ export function StudentQuickCardModal({
       ? "bg-[#FEF3C7] text-[#92400E] border-[#F59E0B]/30"
       : "bg-[#FEE2E2] text-[#991B1B] border-[#DC2626]/30";
 
+  const courseTasks = tasks.length > 0 ? tasks : getDefaultCourseTasks(student.courseId, courseName);
+  const relevantTasks = courseTasks.filter((t) => !t.yearlyOnly || isYearly);
+
   return (
     <div
       role="dialog"
       aria-modal="true"
       aria-label={`כרטיס תלמיד עבור ${student.name}`}
       onClick={onClose}
-      className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-0 sm:items-center sm:p-4"
+      className="fixed inset-0 left-0 right-0 top-0 bottom-0 z-50 flex items-end justify-center bg-black/60 p-0 sm:items-center sm:p-4"
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-md rounded-t-[28px] border-t border-white/15 bg-[#002B45] p-5 pb-[calc(1.5rem+env(safe-area-inset-bottom))] text-white shadow-2xl max-h-[92svh] overflow-y-auto sm:rounded-3xl sm:border sm:p-6"
+        className="w-full max-w-md mx-auto rounded-t-[28px] border-t border-white/15 bg-[#002B45] p-5 pb-[calc(1.5rem+env(safe-area-inset-bottom))] text-white shadow-2xl max-h-[92svh] overflow-y-auto sm:rounded-3xl sm:border sm:p-6"
       >
         <div className="flex items-start justify-between border-b border-white/14 pb-3">
           <div className="min-w-0 flex-1">
@@ -504,12 +550,12 @@ export function StudentQuickCardModal({
           </button>
         </div>
 
-        {/* Attendance rate highlight */}
+        {/* Attendance rate highlight with Rotem's 80% threshold */}
         <div className="mt-3.5 flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-[#003859] p-3.5 sm:p-4">
           <div className="min-w-0 flex-1">
             <p className="text-xs font-bold text-[#B8D8E6]">אחוז נוכחות מצטבר בקורס</p>
             <p className="text-[11px] text-slate-400">
-              {totalSessions} מפגשים נרשמו עד כה
+              {totalSessions} מפגשים נרשמו עד כה (רף תעודה: 80%)
             </p>
           </div>
           <div className={`shrink-0 rounded-xl border px-3.5 py-1.5 text-center font-extrabold ${rateColor}`}>
@@ -517,14 +563,34 @@ export function StudentQuickCardModal({
           </div>
         </div>
 
-        {/* 4-Stat breakdown */}
+        {/* Certificate Eligibility Banner (Rotem's requirement) */}
+        <div className="mt-2.5">
+          {attendancePercentage >= 80 ? (
+            <div className="flex items-center gap-2 rounded-xl border border-[#16A34A]/30 bg-[#DCFCE7]/15 p-2.5 text-xs font-bold text-[#86EFAC]">
+              <span>✅</span>
+              <span>עומד/ת ברף הנוכחות לקבלת תעודה (80% ומעלה)</span>
+            </div>
+          ) : attendancePercentage >= 70 ? (
+            <div className="flex items-center gap-2 rounded-xl border border-[#F59E0B]/30 bg-[#FEF3C7]/15 p-2.5 text-xs font-bold text-[#FDE047]">
+              <span>⚠️</span>
+              <span>התראת סיכון: {attendancePercentage}% נוכחות (רף המינימום לתעודה הוא 80%)</span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 rounded-xl border border-[#DC2626]/30 bg-[#FEE2E2]/15 p-2.5 text-xs font-bold text-[#FCA5A5]">
+              <span>❌</span>
+              <span>מתחת לרף הזכאות לתעודה ({attendancePercentage}% מתוך 80% הנדרשים)</span>
+            </div>
+          )}
+        </div>
+
+        {/* 4-Stat breakdown (Late = full presence 1.0, Excused = absence) */}
         <div className="mt-3 grid grid-cols-4 gap-1.5 text-center sm:gap-2">
           <div className="rounded-xl border border-white/10 bg-[#005580] p-2">
             <p className="text-[10px] font-bold text-[#B8D8E6]">נוכח</p>
             <p className="text-base font-black text-[#86EFAC] sm:text-lg">{presentCount}</p>
           </div>
           <div className="rounded-xl border border-white/10 bg-[#005580] p-2">
-            <p className="text-[10px] font-bold text-[#B8D8E6]">מאחר</p>
+            <p className="text-[10px] font-bold text-[#B8D8E6]">מאחר (מלא)</p>
             <p className="text-base font-black text-[#FDE047] sm:text-lg">{lateCount}</p>
           </div>
           <div className="rounded-xl border border-white/10 bg-[#005580] p-2">
@@ -534,6 +600,60 @@ export function StudentQuickCardModal({
           <div className="rounded-xl border border-white/10 bg-[#005580] p-2">
             <p className="text-[10px] font-bold text-[#B8D8E6]">מוצדק</p>
             <p className="text-base font-black text-[#93C5FD] sm:text-lg">{excusedCount}</p>
+          </div>
+        </div>
+
+        {/* Course Obligations & Mandatory Assignments */}
+        <div className="mt-3.5 rounded-2xl border border-white/10 bg-[#003859] p-3.5">
+          <div className="flex items-center justify-between mb-2.5">
+            <p className="text-xs font-bold text-[#00E5E5] flex items-center gap-1.5">
+              <span>📋</span>
+              <span>חובות הקורס לתעודה:</span>
+            </p>
+            <span className="text-[11px] text-slate-300">
+              {relevantTasks.filter((t) => submissions.some((s) => s.studentId === student.id && s.taskId === t.id && s.completed)).length}/{relevantTasks.length} הושלמו
+            </span>
+          </div>
+
+          <div className="space-y-2">
+            {relevantTasks.map((task) => {
+              const sub = submissions.find(
+                (s) => s.studentId === student.id && s.taskId === task.id
+              );
+              const isDone = sub?.completed ?? false;
+
+              return (
+                <div
+                  key={task.id}
+                  onClick={() => onToggleTask && onToggleTask(task.id, !isDone)}
+                  className={`flex items-center justify-between gap-2.5 rounded-xl border p-2.5 transition cursor-pointer ${
+                    isDone
+                      ? "border-[#16A34A]/40 bg-[#16A34A]/15 text-white"
+                      : "border-white/10 bg-white/5 text-slate-300 hover:bg-white/10"
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                    <span className="text-base">{isDone ? "✅" : "⬜"}</span>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-bold truncate text-white">{task.title}</p>
+                      {task.yearlyOnly && (
+                        <span className="text-[10px] text-[#38BDF8]">קורס שנתי בלבד</span>
+                      )}
+                      {sub?.notes && (
+                        <p className="text-[11px] text-[#B8D8E6] truncate">הערה: {sub.notes}</p>
+                      )}
+                    </div>
+                  </div>
+                  <span
+                    className={`shrink-0 rounded-lg px-2 py-0.5 text-[11px] font-extrabold ${
+                      isDone ? "bg-[#16A34A] text-white" : "bg-white/10 text-slate-300"
+                    }`}
+                  >
+                    {isDone ? "בוצע" : "טרם הוגש"}
+                  </span>
+                </div>
+              );
+            })}
           </div>
         </div>
 
@@ -570,6 +690,330 @@ export function StudentQuickCardModal({
         >
           סיום צפייה
         </button>
+      </div>
+    </div>
+  );
+}
+
+export function CourseTasksMatrixView({
+  course,
+  students,
+  attendanceLogs,
+  submissions,
+  customTasks = [],
+  onToggleSubmission,
+  onEditSubmissionNote,
+  onAddCustomTask,
+  onViewStudentCard,
+  onBack,
+}: {
+  course: Course;
+  students: Student[];
+  attendanceLogs: AttendanceLog[];
+  submissions: StudentTaskSubmission[];
+  customTasks?: CourseTask[];
+  onToggleSubmission: (studentId: string, taskId: string, completed: boolean) => void;
+  onEditSubmissionNote?: (studentId: string, taskId: string) => void;
+  onAddCustomTask?: (title: string) => void;
+  onViewStudentCard: (student: Student) => void;
+  onBack: () => void;
+}) {
+  const [searchTerm, setSearchTerm] = useState("");
+  const [newTaskTitle, setNewTaskTitle] = useState("");
+  const [showAddForm, setShowAddForm] = useState(false);
+
+  const yearly = isYearlyCourse(course.name, course.description);
+  const defaultTasks = getDefaultCourseTasks(course.id, course.name);
+  const courseCustom = customTasks.filter((t) => t.courseId === course.id);
+  const allTasks = [...defaultTasks, ...courseCustom];
+  const activeTasks = allTasks.filter((t) => !t.yearlyOnly || yearly);
+
+  const courseStudents = students
+    .filter((s) => s.courseId === course.id)
+    .filter((s) => !searchTerm || s.name.toLowerCase().includes(searchTerm.toLowerCase()));
+
+  // Stats calculation
+  let eligibleCount = 0;
+  let atRiskCount = 0;
+  let notEligibleCount = 0;
+
+  for (const s of courseStudents) {
+    const cert = calculateStudentCertificateEligibility(
+      s,
+      course,
+      attendanceLogs,
+      submissions,
+      customTasks
+    );
+    if (cert.isFullyEligibleForCertificate) eligibleCount += 1;
+    else if (cert.attendancePercentage >= 70) atRiskCount += 1;
+    else notEligibleCount += 1;
+  }
+
+  const handleAddSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newTaskTitle.trim() || !onAddCustomTask) return;
+    onAddCustomTask(newTaskTitle.trim());
+    setNewTaskTitle("");
+    setShowAddForm(false);
+  };
+
+  return (
+    <div className="space-y-4 text-right text-white">
+      {/* Header */}
+      <div className="flex items-center justify-between border-b border-white/10 pb-3">
+        <div>
+          <button
+            type="button"
+            onClick={onBack}
+            className="text-xs font-bold text-[#B8D8E6] hover:text-white mb-1 flex items-center gap-1"
+          >
+            <span>→</span>
+            <span>חזרה לתפריט ניהול</span>
+          </button>
+          <h2 className="text-xl font-extrabold text-white">מעקב חובות וזכאות לתעודה</h2>
+          <div className="flex items-center gap-2 mt-1">
+            <span className="text-sm font-bold text-[#00E5E5]">{course.name}</span>
+            <span
+              className={`rounded-full px-2 py-0.5 text-[11px] font-extrabold ${
+                yearly
+                  ? "bg-[#38BDF8]/20 text-[#38BDF8] border border-[#38BDF8]/30"
+                  : "bg-white/10 text-slate-300"
+              }`}
+            >
+              {yearly ? "קורס שנתי (חובת פרקטיקום)" : "קורס סמסטריאלי"}
+            </span>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => setShowAddForm((p) => !p)}
+          className="rounded-xl border border-[#00A6A6]/40 bg-[#00A6A6]/20 px-3 py-1.5 text-xs font-extrabold text-[#00E5E5] hover:bg-[#00A6A6]/30 transition"
+        >
+          {showAddForm ? "סגירת הוספה" : "+ הוספת מטלה"}
+        </button>
+      </div>
+
+      {/* Add Custom Task Form */}
+      {showAddForm && (
+        <form onSubmit={handleAddSubmit} className="rounded-2xl border border-white/14 bg-[#003859] p-4 space-y-3">
+          <p className="text-xs font-extrabold text-[#00E5E5]">הוספת מטלת חובה חדשה לקורס:</p>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={newTaskTitle}
+              onChange={(e) => setNewTaskTitle(e.target.value)}
+              placeholder="שם המטלה (למשל: הגשת דוח רפלקציה / פרויקט גמר)..."
+              className="flex-1 rounded-xl border border-white/14 bg-[#002B45] px-3.5 py-2 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-[#00A6A6]"
+            />
+            <button
+              type="submit"
+              className="rounded-xl bg-[#00A6A6] px-4 py-2 text-xs font-extrabold text-white hover:bg-[#00B3A4] transition"
+            >
+              הוספה
+            </button>
+          </div>
+        </form>
+      )}
+
+      {/* Summary Stats Cards */}
+      <div className="grid grid-cols-3 gap-2 text-center">
+        <div className="rounded-2xl border border-[#16A34A]/30 bg-[#16A34A]/15 p-3">
+          <p className="text-xl font-extrabold text-[#86EFAC]">{eligibleCount}</p>
+          <p className="text-[11px] font-bold text-slate-300">זכאים לתעודה</p>
+        </div>
+        <div className="rounded-2xl border border-[#F59E0B]/30 bg-[#FEF3C7]/15 p-3">
+          <p className="text-xl font-extrabold text-[#FDE047]">{atRiskCount}</p>
+          <p className="text-[11px] font-bold text-slate-300">בסיכון / חסרות מטלות</p>
+        </div>
+        <div className="rounded-2xl border border-[#DC2626]/30 bg-[#FEE2E2]/15 p-3">
+          <p className="text-xl font-extrabold text-[#FCA5A5]">{notEligibleCount}</p>
+          <p className="text-[11px] font-bold text-slate-300">מתחת לרף (80%)</p>
+        </div>
+      </div>
+
+      {/* Search Bar */}
+      <div>
+        <input
+          type="search"
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          placeholder="חיפוש תלמיד/ה בכיתה..."
+          className="w-full rounded-xl border border-white/14 bg-[#005580] px-3.5 py-2.5 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-[#00A6A6]"
+        />
+      </div>
+
+      {/* Interactive Matrix / Cards View */}
+      <div className="space-y-3">
+        {courseStudents.length === 0 ? (
+          <p className="rounded-2xl border border-white/10 bg-white/5 p-6 text-center text-xs text-slate-400">
+            לא נמצאו תלמידים רשומים בקורס זה.
+          </p>
+        ) : (
+          courseStudents.map((student) => {
+            const cert = calculateStudentCertificateEligibility(
+              student,
+              course,
+              attendanceLogs,
+              submissions,
+              customTasks
+            );
+
+            return (
+              <div
+                key={student.id}
+                className="rounded-2xl border border-white/14 bg-[#005580] p-4 space-y-3"
+              >
+                {/* Student header row */}
+                <div className="flex items-center justify-between gap-2 border-b border-white/10 pb-2.5">
+                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                    <button
+                      type="button"
+                      onClick={() => onViewStudentCard(student)}
+                      aria-label="כרטיס תלמיד"
+                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white/10 text-xs font-bold text-[#B8D8E6] hover:bg-[#00A6A6] hover:text-white transition"
+                    >
+                      ℹ️
+                    </button>
+                    <span className="font-extrabold text-sm truncate text-white">{student.name}</span>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span
+                      className={`rounded-lg px-2 py-0.5 text-xs font-black ${
+                        cert.attendancePercentage >= 80
+                          ? "bg-[#DCFCE7] text-[#166534]"
+                          : cert.attendancePercentage >= 70
+                          ? "bg-[#FEF3C7] text-[#92400E]"
+                          : "bg-[#FEE2E2] text-[#991B1B]"
+                      }`}
+                    >
+                      {cert.attendancePercentage}% נוכחות
+                    </span>
+                    <span className={`rounded-lg border px-2 py-0.5 text-[11px] font-extrabold ${cert.statusBadgeClass}`}>
+                      {cert.isFullyEligibleForCertificate ? "זכאי/ת לתעודה ✓" : "טרם הושלם"}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Checkbox columns for all required tasks */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  {activeTasks.map((task) => {
+                    const sub = submissions.find(
+                      (s) => s.studentId === student.id && s.taskId === task.id
+                    );
+                    const isDone = sub?.completed ?? false;
+
+                    return (
+                      <div
+                        key={task.id}
+                        className={`flex items-center justify-between gap-2 rounded-xl border p-2 transition ${
+                          isDone
+                            ? "border-[#16A34A]/40 bg-[#16A34A]/20"
+                            : "border-white/10 bg-[#002B45]"
+                        }`}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => onToggleSubmission(student.id, task.id, !isDone)}
+                          className="flex items-center gap-2 min-w-0 flex-1 text-right focus:outline-none"
+                        >
+                          <span className="text-base shrink-0">{isDone ? "✅" : "⬜"}</span>
+                          <span className="text-xs font-bold truncate text-white">{task.title}</span>
+                        </button>
+                        {onEditSubmissionNote && (
+                          <button
+                            type="button"
+                            onClick={() => onEditSubmissionNote(student.id, task.id)}
+                            title="הוספת הערה או שינוי תאריך"
+                            className="p-1 text-xs text-[#B8D8E6] hover:text-white rounded"
+                          >
+                            📝
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+    </div>
+  );
+}
+
+export function TaskNoteModal({
+  studentName,
+  taskTitle,
+  initialNote = "",
+  initialDate = "",
+  onSave,
+  onClose,
+}: {
+  studentName: string;
+  taskTitle: string;
+  initialNote?: string;
+  initialDate?: string;
+  onSave: (note: string, date: string) => void;
+  onClose: () => void;
+}) {
+  const [note, setNote] = useState(initialNote);
+  const [date, setDate] = useState(initialDate || new Date().toISOString().split("T")[0]);
+
+  return (
+    <div
+      onClick={onClose}
+      className="fixed inset-0 left-0 right-0 top-0 bottom-0 z-50 flex items-end justify-center bg-black/60 p-0 sm:items-center sm:p-4"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-md mx-auto rounded-t-[28px] border-t border-white/14 bg-[#002B45] p-5 pb-[calc(1.5rem+env(safe-area-inset-bottom))] text-white max-h-[92svh] overflow-y-auto sm:rounded-3xl sm:border sm:p-6"
+      >
+        <div className="flex items-center justify-between border-b border-white/14 pb-3">
+          <div>
+            <h3 className="text-base font-extrabold">{studentName}</h3>
+            <p className="text-xs text-[#00E5E5]">{taskTitle}</p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-xs font-bold text-[#B8D8E6] hover:text-white"
+          >
+            סגירה
+          </button>
+        </div>
+
+        <div className="mt-4 space-y-3 text-right">
+          <label className="block text-xs font-bold text-[#B8D8E6]">
+            תאריך ביצוע / הגשה
+            <input
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              className="mt-1.5 min-h-11 w-full rounded-xl border border-white/14 bg-[#005580] px-3.5 text-xs text-white focus:outline-none focus:border-[#00A6A6]"
+            />
+          </label>
+
+          <label className="block text-xs font-bold text-[#B8D8E6]">
+            הערה / משוב מהמנחה
+            <textarea
+              rows={3}
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="כתוב כאן משוב או הערה לתלמיד/ה..."
+              className="mt-1.5 w-full rounded-xl border border-white/14 bg-white p-3 text-sm font-semibold text-[#0F172A] focus:outline-none focus:ring-1 focus:ring-[#00A6A6]"
+            />
+          </label>
+
+          <button
+            type="button"
+            onClick={() => onSave(note, date)}
+            className="mt-4 min-h-11 w-full rounded-xl bg-[#00A6A6] px-4 text-sm font-extrabold text-white hover:bg-[#00B3A4] transition"
+          >
+            שמירת פרטי מטלה
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -635,11 +1079,11 @@ export function Modal({
       aria-modal="true"
       aria-label={title}
       onClick={onClose}
-      className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-0 sm:items-center sm:p-4"
+      className="fixed inset-0 left-0 right-0 top-0 bottom-0 z-50 flex items-end justify-center bg-black/60 p-0 sm:items-center sm:p-4"
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-md rounded-t-[28px] border-t border-slate-200 bg-white p-5 pb-[calc(1.5rem+env(safe-area-inset-bottom))] text-[#0F172A] shadow-2xl max-h-[92svh] overflow-y-auto sm:rounded-3xl sm:border sm:p-6"
+        className="w-full max-w-md mx-auto rounded-t-[28px] border-t border-slate-200 bg-white p-5 pb-[calc(1.5rem+env(safe-area-inset-bottom))] text-[#0F172A] shadow-2xl max-h-[92svh] overflow-y-auto sm:rounded-3xl sm:border sm:p-6"
       >
         <div className="flex items-center justify-between border-b border-slate-200 pb-3">
           <h2 className="text-lg font-extrabold">{title}</h2>
@@ -694,9 +1138,9 @@ export function BiometricLockScreen({
     <main
       lang="he"
       dir="rtl"
-      className="min-h-[100svh] w-full max-w-full overflow-x-hidden bg-[#002B45] px-4 py-6 sm:px-5 sm:py-8 text-right text-white flex items-center justify-center"
+      className="min-h-[100svh] bg-[#002B45] px-5 py-8 text-right text-white flex items-center justify-center"
     >
-      <section className="w-full max-w-md rounded-[24px] border border-white/14 bg-[#005580] p-5 sm:p-8 shadow-[0_24px_64px_rgba(0,18,27,0.35)]">
+      <section className="w-full max-w-md rounded-[24px] border border-white/14 bg-[#005580] p-6 shadow-[0_24px_64px_rgba(0,18,27,0.35)] sm:p-8">
         <div
           className="mb-5 flex h-14 w-14 items-center justify-center rounded-2xl border border-white/14 bg-[#002B45] text-[#00A6A6]"
           aria-hidden="true"
@@ -724,7 +1168,7 @@ export function BiometricLockScreen({
 
         <h1 className="text-2xl font-extrabold tracking-tight text-white">כניסה מהירה</h1>
         <p className="mt-1.5 text-sm font-medium text-[#B8D8E6]">
-          מחובר/ת כ- <span dir="ltr" className="font-bold text-white break-all">{email}</span>
+          מחובר/ת כ- <span dir="ltr" className="font-bold text-white">{email}</span>
         </p>
 
         {error && (

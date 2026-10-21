@@ -1,9 +1,16 @@
 "use client";
 
-import type { AppData, AttendanceStatus } from "./types";
+import type {
+  AppData,
+  AttendanceStatus,
+  CourseTask,
+  StudentTaskSubmission,
+} from "./types";
 
 export const CACHE_STORAGE_KEY = "class_attendance_cache_v1";
 export const PENDING_QUEUE_KEY = "class_attendance_pending_queue_v1";
+export const SUBMISSIONS_STORAGE_KEY = "class_attendance_submissions_v1";
+export const CUSTOM_TASKS_STORAGE_KEY = "class_attendance_custom_tasks_v1";
 
 export type PendingAction =
   | {
@@ -34,6 +41,9 @@ function getStorage(): Storage | null {
 }
 
 export function isOnline(): boolean {
+  if (typeof window !== "undefined" && window.navigator && typeof window.navigator.onLine === "boolean") {
+    return window.navigator.onLine;
+  }
   if (typeof navigator !== "undefined" && typeof navigator.onLine === "boolean") {
     return navigator.onLine;
   }
@@ -60,6 +70,93 @@ export function getCachedAppData(): AppData | null {
   } catch {
     return null;
   }
+}
+
+export function getStoredSubmissions(): StudentTaskSubmission[] {
+  const storage = getStorage();
+  if (!storage) return [];
+  try {
+    const raw = storage.getItem(SUBMISSIONS_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? (parsed as StudentTaskSubmission[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function saveStoredSubmissions(submissions: StudentTaskSubmission[]): void {
+  const storage = getStorage();
+  if (!storage) return;
+  try {
+    storage.setItem(SUBMISSIONS_STORAGE_KEY, JSON.stringify(submissions));
+  } catch (err) {
+    console.warn("Failed to save task submissions:", err);
+  }
+}
+
+export function upsertTaskSubmission(submission: StudentTaskSubmission): StudentTaskSubmission[] {
+  const current = getStoredSubmissions();
+  const key = `${submission.studentId}_${submission.taskId}`;
+  const idx = current.findIndex(
+    (s) => s.id === key || (s.studentId === submission.studentId && s.taskId === submission.taskId)
+  );
+
+  const updated: StudentTaskSubmission = {
+    ...submission,
+    id: key,
+    updatedAt: new Date().toISOString(),
+  };
+
+  let nextList: StudentTaskSubmission[];
+  if (idx >= 0) {
+    nextList = [...current];
+    nextList[idx] = updated;
+  } else {
+    nextList = [...current, updated];
+  }
+
+  saveStoredSubmissions(nextList);
+  return nextList;
+}
+
+export function getStoredCustomTasks(): CourseTask[] {
+  const storage = getStorage();
+  if (!storage) return [];
+  try {
+    const raw = storage.getItem(CUSTOM_TASKS_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? (parsed as CourseTask[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function saveStoredCustomTasks(tasks: CourseTask[]): void {
+  const storage = getStorage();
+  if (!storage) return;
+  try {
+    storage.setItem(CUSTOM_TASKS_STORAGE_KEY, JSON.stringify(tasks));
+  } catch (err) {
+    console.warn("Failed to save custom tasks:", err);
+  }
+}
+
+export function upsertCustomTask(task: CourseTask): CourseTask[] {
+  const current = getStoredCustomTasks();
+  const idx = current.findIndex((t) => t.id === task.id);
+
+  let nextList: CourseTask[];
+  if (idx >= 0) {
+    nextList = [...current];
+    nextList[idx] = task;
+  } else {
+    nextList = [...current, task];
+  }
+
+  saveStoredCustomTasks(nextList);
+  return nextList;
 }
 
 export function getPendingQueue(): PendingAction[] {
@@ -144,7 +241,8 @@ export function clearPendingQueue(): void {
 
 export function applyPendingActionsToData(data: AppData): AppData {
   const queue = getPendingQueue();
-  if (queue.length === 0) return data;
+  const submissions = getStoredSubmissions();
+  const customTasks = getStoredCustomTasks();
 
   const clonedAttendance = data.attendance.map((log) => ({ ...log }));
 
@@ -161,5 +259,7 @@ export function applyPendingActionsToData(data: AppData): AppData {
   return {
     ...data,
     attendance: clonedAttendance,
+    tasks: customTasks,
+    submissions: submissions,
   };
 }
