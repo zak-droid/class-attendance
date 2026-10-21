@@ -1,157 +1,221 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
-import type { AppTab, AttendanceLog, AttendanceStatus, Course, Student } from "./types";
-
-const navItems: { id: AppTab; label: string }[] = [
-  { id: "courses", label: "כיתות" },
-  { id: "today", label: "היום" },
-  { id: "students", label: "תלמידים" },
-  { id: "history", label: "היסטוריה" },
-];
-
-function NavIcon({ tab, className = "h-4 w-4" }: { tab: AppTab; className?: string }) {
-  const icon: Record<AppTab, ReactNode> = {
-    courses: <><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H11v14H6.5A2.5 2.5 0 0 0 4 19.5z" /><path d="M20 5.5A2.5 2.5 0 0 0 17.5 3H13v14h4.5a2.5 2.5 0 0 1 2.5 2.5z" /></>,
-    today: <><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M16 3v4M8 3v4M3 10h18M8 15l2 2 5-5" /></>,
-    students: <><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" /></>,
-    history: <><path d="M3 12a9 9 0 1 0 3-6.7L3 8" /><path d="M3 3v5h5M12 7v5l3 2" /></>,
-  };
-  return <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={className}>{icon[tab]}</svg>;
-}
-
-export const statusStyles: Record<AttendanceStatus, string> = {
-  Present: "bg-[#E7F2E9] text-[#276749] border-[#CBE3D0]",
-  Late: "bg-[#FFF1D6] text-[#9A6415] border-[#F1D9A6]",
-  Absent: "bg-[#FBE7E5] text-[#B5544B] border-[#F0CDCA]",
-  Excused: "bg-[#EAF0F4] text-[#4D6470] border-[#D7E1E6]",
-};
+import type {
+  AISyllabusAnalysis,
+  AppTab,
+  AttendanceLog,
+  AttendanceStatus,
+  Course,
+  CourseTask,
+  LessonLog,
+  Student,
+  StudentTaskSubmission,
+} from "./types";
+import { testGeminiApiKey } from "./gemini-ai";
+import {
+  calculateStudentAttendanceStats,
+  calculateStudentCertificateEligibility,
+  getDefaultCourseTasks,
+  isYearlyCourse,
+  type StudentAttendanceStats,
+  type StudentCertificateEligibility,
+} from "./export-utils";
 
 export const statusLabels: Record<AttendanceStatus, string> = {
   Present: "נוכח",
-  Late: "איחר",
+  Late: "מאחר",
   Absent: "נעדר",
   Excused: "מוצדק",
 };
+
+export const statusStyles: Record<AttendanceStatus, string> = {
+  Present: "bg-[#DCFCE7] text-[#166534] border-[#16A34A]/20",
+  Late: "bg-[#FEF3C7] text-[#92400E] border-[#F59E0B]/25",
+  Absent: "bg-[#FEE2E2] text-[#991B1B] border-[#DC2626]/20",
+  Excused: "bg-[#DBEAFE] text-[#1E40AF] border-[#2563EB]/20",
+};
+
+const navItems: Array<{ id: AppTab; label: string }> = [
+  { id: "today", label: "היום" },
+  { id: "students", label: "תלמידים" },
+  { id: "history", label: "היסטוריה" },
+  { id: "more", label: "עוד" },
+];
+
+export function NavIcon({ tab }: { tab?: AppTab } = {}) {
+  if (tab === "today") {
+    return (
+      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+        <line x1="16" y1="2" x2="16" y2="6" />
+        <line x1="8" y1="2" x2="8" y2="6" />
+        <line x1="3" y1="10" x2="21" y2="10" />
+      </svg>
+    );
+  }
+  if (tab === "students") {
+    return (
+      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+        <circle cx="9" cy="7" r="4" />
+      </svg>
+    );
+  }
+  if (tab === "history") {
+    return (
+      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <circle cx="12" cy="12" r="10" />
+        <polyline points="12 6 12 12 16 14" />
+      </svg>
+    );
+  }
+  return (
+    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <line x1="3" y1="12" x2="21" y2="12" />
+      <line x1="3" y1="6" x2="21" y2="6" />
+      <line x1="3" y1="18" x2="21" y2="18" />
+    </svg>
+  );
+}
 
 export function Layout({
   tab,
   onTabChange,
   userEmail,
   onSignOut,
+  attendanceActive = false,
+  title = "ניהול נוכחות",
+  isOffline = false,
+  pendingSyncCount = 0,
+  onSyncNow,
   children,
 }: {
   tab: AppTab;
   onTabChange: (tab: AppTab) => void;
   userEmail: string;
   onSignOut: () => void;
+  attendanceActive?: boolean;
+  title?: string;
+  isOffline?: boolean;
+  pendingSyncCount?: number;
+  onSyncNow?: () => void;
   children: ReactNode;
 }) {
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const title = navItems.find((item) => item.id === tab)?.label ?? "כיתות";
-  const dateLabel = new Intl.DateTimeFormat("he-IL", {
+  const formattedDate = new Intl.DateTimeFormat("he-IL", {
     weekday: "long",
-    month: "long",
     day: "numeric",
+    month: "long",
   }).format(new Date());
-  return (
-    <div lang="he" dir="rtl" className="min-h-[100svh] bg-[#073B4C] text-right text-[#102A34]">
-      <div className="mx-auto flex min-h-[100svh] w-full max-w-[1180px]">
-        <aside className="hidden w-[226px] shrink-0 border-e border-[#073B4C] bg-[#073B4C] px-5 py-7 text-white lg:block">
-          <div className="mb-8 flex items-center gap-3">
-            <span className="grid h-11 w-11 place-items-center rounded-2xl bg-white/15 text-sm font-extrabold text-white ring-1 ring-white/20">נכ</span>
-            <div>
-              <p className="font-extrabold tracking-[-0.02em]">ניהול נוכחות</p>
-              <p className="text-xs font-medium text-[#D5E4EA]">סביבת עבודה למורים</p>
-            </div>
-          </div>
-          <nav aria-label="ניווט ראשי" className="space-y-2">
-            {navItems.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => onTabChange(item.id)}
-                aria-current={tab === item.id ? "page" : undefined}
-                className={`flex min-h-12 w-full items-center gap-3 rounded-2xl px-3 text-right text-sm font-bold transition ${
-                  tab === item.id ? "bg-white/15 text-white ring-1 ring-white/15" : "text-[#D5E4EA] hover:bg-white/10 hover:text-white"
-                }`}
-              >
-                <span className="grid h-8 w-8 place-items-center rounded-xl border border-current/15"><NavIcon tab={item.id} /></span>
-                {item.label}
-              </button>
-            ))}
-          </nav>
-          <div className="mt-8 border-t border-white/15 pt-4">
-            <p dir="ltr" className="truncate text-left text-xs font-bold text-[#D5E4EA]">{userEmail}</p>
-            <button type="button" onClick={onSignOut} className="mt-2 min-h-10 w-full rounded-xl border border-white/20 bg-white/10 px-3 text-sm font-bold text-white hover:bg-white/20">התנתקות</button>
-          </div>
-        </aside>
 
-        <div className="min-w-0 flex-1 pb-[calc(6rem+env(safe-area-inset-bottom))] lg:pb-10">
-          <header className="relative bg-[#073B4C] px-4 pb-3 pt-5 text-white sm:px-6 sm:pb-4 sm:pt-6 lg:px-10 lg:pb-5 lg:pt-9">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <h1 className="text-[28px] font-extrabold tracking-[-0.04em] sm:text-[32px]">{title}</h1>
-                {tab === "today" && <time className="mt-1.5 block text-sm font-semibold text-white/75">{dateLabel}</time>}
-              </div>
-              <button type="button" onClick={() => setMobileMenuOpen((open) => !open)} aria-expanded={mobileMenuOpen} aria-label="פתיחת תפריט" className="grid h-11 w-11 place-items-center rounded-xl border border-white/15 text-white hover:bg-white/10 lg:hidden">
-                <span className="space-y-1.5" aria-hidden="true"><span className="block h-0.5 w-6 bg-current" /><span className="block h-0.5 w-6 bg-current" /><span className="block h-0.5 w-6 bg-current" /></span>
-              </button>
+  return (
+    <div lang="he" dir="rtl" className="min-h-[100svh] w-full max-w-full overflow-x-hidden bg-[#002B45] text-white">
+      <header className="border-b border-white/14 bg-[#002B45] px-4 sm:px-5 pt-4 sm:pt-5 pb-3.5 sm:pb-4">
+        <div className="mx-auto flex max-w-4xl items-center justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <p className="text-xs font-semibold text-[#B8D8E6]">{formattedDate}</p>
+              {isOffline && (
+                <span className="rounded-full bg-[#FEF3C7] px-2 py-0.5 text-[11px] font-extrabold text-[#92400E]">
+                  מצב לא מקוון
+                </span>
+              )}
+              {!isOffline && pendingSyncCount > 0 && onSyncNow && (
+                <button
+                  type="button"
+                  onClick={onSyncNow}
+                  className="rounded-full border border-[#00A6A6]/40 bg-[#00A6A6]/20 px-2.5 py-0.5 text-[11px] font-extrabold text-[#00E5E5] transition hover:bg-[#00A6A6]/30"
+                >
+                  סנכרון ({pendingSyncCount})
+                </button>
+              )}
             </div>
-            {mobileMenuOpen && (
-              <div className="absolute end-4 top-16 z-30 w-64 rounded-2xl border border-white/15 bg-[#073B4C] p-3 shadow-[0_18px_50px_rgba(0,18,27,0.35)] lg:hidden">
-                <p dir="ltr" className="truncate text-left text-xs font-semibold text-white/70">{userEmail}</p>
-                <button type="button" onClick={onSignOut} className="mt-3 min-h-10 w-full rounded-xl border border-white/25 px-3 text-sm font-extrabold text-white hover:bg-white/10">יציאה</button>
-              </div>
-            )}
-          </header>
-          <main className="px-4 pb-4 sm:px-6 sm:pb-8 lg:px-10">{children}</main>
+            <h1 className="truncate text-xl sm:text-2xl font-extrabold tracking-tight">{title}</h1>
+            <p className="mt-0.5 truncate text-xs font-medium text-[#B8D8E6]" dir="ltr">{userEmail}</p>
+          </div>
+          <button
+            type="button"
+            onClick={onSignOut}
+            className="shrink-0 min-h-10 rounded-xl border border-white/15 bg-[#005580] px-3.5 py-1.5 text-xs font-extrabold text-white hover:bg-[#005580]/80"
+          >
+            התנתקות
+          </button>
         </div>
-      </div>
-      <BottomNav tab={tab} onTabChange={onTabChange} />
+      </header>
+
+      <main className="mx-auto w-full max-w-4xl px-4 sm:px-5 pt-4 sm:pt-5 pb-[calc(7.25rem+env(safe-area-inset-bottom))]">
+        {children}
+      </main>
+
+      {!attendanceActive && <BottomNav tab={tab} onTabChange={onTabChange} />}
     </div>
   );
 }
 
-export function BottomNav({ tab, onTabChange }: { tab: AppTab; onTabChange: (tab: AppTab) => void }) {
+export function BottomNav({
+  tab,
+  onTabChange,
+}: {
+  tab: AppTab;
+  onTabChange: (tab: AppTab) => void;
+}) {
   return (
     <nav
       aria-label="ניווט ראשי"
-      className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-4 border-t border-[#D5E4EA] bg-white px-2 pb-[calc(7px+env(safe-area-inset-bottom))] pt-1.5 shadow-[0_-8px_30px_rgba(0,28,39,0.13)] lg:hidden"
+      className="fixed inset-x-0 bottom-0 z-40 border-t border-white/14 bg-[#002B45] pb-[calc(0.35rem+env(safe-area-inset-bottom))]"
     >
-      {navItems.map((item) => (
-        <button
-          key={item.id}
-          type="button"
-          onClick={() => onTabChange(item.id)}
-          aria-current={tab === item.id ? "page" : undefined}
-          className={`mx-1 flex min-h-[58px] flex-col items-center justify-center text-[11px] font-extrabold transition active:scale-[0.97] ${
-            tab === item.id ? "text-[#073B4C]" : "text-[#5B7180]"
-          }`}
-        >
-          <span className={`mb-0.5 grid h-9 w-9 place-items-center rounded-full ${tab === item.id ? "bg-[#073B4C] text-white shadow-[0_6px_16px_rgba(7,59,76,0.28)]" : ""}`}><NavIcon tab={item.id} className="h-[18px] w-[18px]" /></span>
-          {item.label}
-        </button>
-      ))}
+      <div className="mx-auto grid max-w-md grid-cols-4 px-2">
+        {navItems.map((item) => {
+          const active = tab === item.id;
+          return (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => onTabChange(item.id)}
+              className={`flex min-h-14 flex-col items-center justify-center rounded-2xl py-2 text-xs font-extrabold transition ${
+                active ? "text-[#00A6A6]" : "text-[#B8D8E6] hover:text-white"
+              }`}
+            >
+              <NavIcon tab={item.id} />
+              <span className="mt-1">{item.label}</span>
+            </button>
+          );
+        })}
+      </div>
     </nav>
   );
 }
 
 export function StatusBadge({ status }: { status: AttendanceStatus }) {
-  return <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-extrabold ${statusStyles[status]}`}>{statusLabels[status]}</span>;
+  return (
+    <span
+      className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-extrabold ${statusStyles[status]}`}
+    >
+      {statusLabels[status]}
+    </span>
+  );
 }
 
 export function SummaryCards({ logs }: { logs: AttendanceLog[] }) {
-  const statuses: AttendanceStatus[] = ["Present", "Late", "Absent", "Excused"];
+  const counts: Record<AttendanceStatus, number> = {
+    Present: logs.filter((l) => l.status === "Present").length,
+    Late: logs.filter((l) => l.status === "Late").length,
+    Absent: logs.filter((l) => l.status === "Absent").length,
+    Excused: logs.filter((l) => l.status === "Excused").length,
+  };
+
   return (
-    <section aria-label="סיכום נוכחות" className="grid grid-cols-4 overflow-hidden rounded-2xl border border-white/15 bg-white/[0.07] shadow-[0_12px_32px_rgba(0,24,34,0.2)]">
-      {statuses.map((status) => (
-        <article key={status} className="border-e border-white/10 px-1 py-2.5 text-center first:border-e-0 sm:py-3">
-          <strong className={`block text-xl font-extrabold tracking-[-0.04em] sm:text-2xl ${status === "Present" ? "text-[#E7F2E9]" : status === "Late" ? "text-[#FFF1D6]" : status === "Absent" ? "text-[#FBE7E5]" : "text-[#D7E1E6]"}`}>{logs.filter((log) => log.status === status).length}</strong>
-          <span className={`mt-0.5 block text-[10px] font-extrabold sm:text-xs ${status === "Present" ? "text-[#E7F2E9]" : status === "Late" ? "text-[#FFF1D6]" : status === "Absent" ? "text-[#FBE7E5]" : "text-[#D7E1E6]"}`}>{statusLabels[status]}</span>
-        </article>
+    <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+      {(["Present", "Late", "Absent", "Excused"] as AttendanceStatus[]).map((status) => (
+        <div
+          key={status}
+          className="rounded-2xl border border-white/14 bg-[#005580] p-3 text-right"
+        >
+          <span className="text-xs font-semibold text-[#B8D8E6]">{statusLabels[status]}</span>
+          <p className="mt-1 text-2xl font-extrabold text-white">{counts[status]}</p>
+        </div>
       ))}
-    </section>
+    </div>
   );
 }
 
@@ -159,149 +223,1685 @@ export function CourseCard({
   course,
   studentCount,
   startedToday,
+  completedToday = false,
   onStart,
   onEdit,
   onToggleActive,
   onViewStudents,
+  onExportCSV,
+  onViewTasks,
 }: {
   course: Course;
   studentCount: number;
   startedToday: boolean;
+  completedToday?: boolean;
   onStart: () => void;
-  onEdit: () => void;
-  onToggleActive: () => void;
-  onViewStudents: () => void;
+  onEdit?: () => void;
+  onToggleActive?: () => void;
+  onViewStudents?: () => void;
+  onExportCSV?: () => void;
+  onViewTasks?: () => void;
+  onViewAIAnalysis?: () => void;
+  onEditSyllabus?: () => void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const stateLabel = completedToday
+    ? "הושלמה היום"
+    : startedToday
+    ? "בתהליך"
+    : "לא התחילה היום";
 
   return (
-    <article className={`flex h-full flex-col rounded-[20px] border p-4 text-white shadow-[0_16px_36px_rgba(0,24,34,0.25)] sm:p-5 ${course.active ? "border-[#46A9C7]/60 bg-gradient-to-br from-[#1680A2] to-[#0E6787]" : "border-white/15 bg-[#073B4C] opacity-70"}`}>
-      <div className="mb-3 flex items-start justify-between gap-3 sm:mb-5 sm:gap-4">
-        <div>
-          <div className="mb-2 flex flex-wrap items-center gap-2">
-            <h3 dir="auto" className="text-lg font-extrabold tracking-[-0.025em] sm:text-xl">{course.name}</h3>
-            {!course.active && <span className="rounded-full bg-white/15 px-2 py-1 text-[10px] font-extrabold text-white/75">לא פעיל</span>}
-          </div>
-          <p dir="auto" className="line-clamp-2 text-sm font-medium leading-5 text-white/75 sm:leading-6">{course.description || "אין עדיין תיאור"}</p>
+    <article className="rounded-[20px] border border-white/14 bg-[#005580] p-4 text-white">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <h3 dir="auto" className="truncate text-lg font-extrabold">
+            {course.name}
+          </h3>
+          <p className="mt-1 text-xs font-semibold text-[#B8D8E6]">
+            {studentCount} {studentCount !== 1 ? "תלמידים" : "תלמיד אחד"}
+          </p>
         </div>
-        <div className="flex shrink-0 items-start gap-2">
-          <span className="grid h-10 w-10 place-items-center rounded-full bg-white/15 text-xs font-extrabold text-white ring-1 ring-white/20 sm:h-12 sm:w-12 sm:text-sm">{studentCount}</span>
+        <span className="rounded-full bg-white/10 px-2.5 py-1 text-xs font-extrabold text-[#B8D8E6]">
+          {stateLabel}
+        </span>
+      </div>
+
+      <div className="mt-4 flex items-center gap-2">
+        <button
+          type="button"
+          onClick={onStart}
+          className="min-h-11 flex-1 rounded-xl bg-[#00A6A6] px-4 text-sm font-extrabold text-white hover:bg-[#00B3A4]"
+        >
+          {completedToday ? "עריכת נוכחות להיום" : startedToday ? "המשך נוכחות" : "התחלת נוכחות"}
+        </button>
+        {(onEdit || onToggleActive || onViewStudents || onExportCSV || onViewTasks || onViewAIAnalysis || onEditSyllabus) && (
           <div className="relative">
-            <button type="button" onClick={() => setMenuOpen((open) => !open)} aria-expanded={menuOpen} aria-label={`פעולות נוספות עבור ${course.name}`} className="grid h-10 w-10 place-items-center rounded-xl text-white/75 hover:bg-white/10 hover:text-white">
-              <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5 fill-current"><circle cx="5" cy="12" r="1.8" /><circle cx="12" cy="12" r="1.8" /><circle cx="19" cy="12" r="1.8" /></svg>
+            <button
+              type="button"
+              onClick={() => setMenuOpen((prev) => !prev)}
+              className="min-h-11 rounded-xl border border-white/14 bg-[#002B45] px-3 text-xs font-bold text-[#B8D8E6]"
+            >
+              •••
             </button>
             {menuOpen && (
-              <div className="absolute end-0 top-11 z-20 min-w-28 rounded-xl border border-[#D5E4EA] bg-[#FFFFFF] p-1.5 shadow-[0_12px_30px_rgba(19,69,84,0.12)]">
-                <button type="button" onClick={() => { setMenuOpen(false); onEdit(); }} className="min-h-10 w-full rounded-lg px-3 text-right text-sm font-bold text-[#073B4C] hover:bg-[#FFFFFF] sm:hidden">עריכה</button>
-                <button type="button" onClick={() => { setMenuOpen(false); onToggleActive(); }} className="min-h-10 w-full rounded-lg px-3 text-right text-sm font-bold text-[#5B7180] hover:bg-[#FFFFFF] hover:text-[#073B4C]">{course.active ? "השבתה" : "הפעלה"}</button>
+              <div className="absolute left-0 bottom-full mb-1 z-30 min-w-48 rounded-xl border border-white/14 bg-[#002B45] p-1.5 shadow-2xl">
+                {onViewAIAnalysis && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      onViewAIAnalysis();
+                    }}
+                    className="block w-full rounded-lg px-3 py-2 text-right text-xs font-bold text-[#38BDF8] hover:bg-[#005580]"
+                  >
+                    ✨ בדיקת סילבוס (AI)
+                  </button>
+                )}
+                {onViewTasks && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      onViewTasks();
+                    }}
+                    className="block w-full rounded-lg px-3 py-2 text-right text-xs font-bold text-[#00E5E5] hover:bg-[#005580]"
+                  >
+                    📋 מעקב חובות וזכאות לתעודה
+                  </button>
+                )}
+                {onEditSyllabus && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      onEditSyllabus();
+                    }}
+                    className="block w-full rounded-lg px-3 py-2 text-right text-xs font-bold text-white hover:bg-[#005580]"
+                  >
+                    📚 סילבוס הקורס
+                  </button>
+                )}
+                {onViewStudents && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      onViewStudents();
+                    }}
+                    className="block w-full rounded-lg px-3 py-2 text-right text-xs font-bold text-white hover:bg-[#005580]"
+                  >
+                    צפייה בתלמידים
+                  </button>
+                )}
+                {onExportCSV && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      onExportCSV();
+                    }}
+                    className="block w-full rounded-lg px-3 py-2 text-right text-xs font-bold text-[#00E5E5] hover:bg-[#005580]"
+                  >
+                    📊 ייצוא ל-Excel (CSV)
+                  </button>
+                )}
+                {onEdit && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      onEdit();
+                    }}
+                    className="block w-full rounded-lg px-3 py-2 text-right text-xs font-bold text-white hover:bg-[#005580]"
+                  >
+                    עריכת כיתה
+                  </button>
+                )}
+                {onToggleActive && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      onToggleActive();
+                    }}
+                    className="block w-full rounded-lg px-3 py-2 text-right text-xs font-bold text-[#F87171] hover:bg-[#005580]"
+                  >
+                    {course.active ? "העברה לארכיון" : "שחזור כיתה"}
+                  </button>
+                )}
               </div>
             )}
           </div>
-        </div>
-      </div>
-      <div className="mb-3 flex items-center justify-between border-t border-white/15 pt-2 text-xs font-bold text-white/75 sm:mb-4 sm:pt-3">
-        <button type="button" onClick={onViewStudents} className="rounded-lg px-1 py-2 text-white underline-offset-4 hover:underline">{studentCount} {studentCount === 1 ? "תלמיד פעיל" : "תלמידים פעילים"}</button>
-        <span className={startedToday ? "text-[#E7F2E9]" : "text-white/65"}>{startedToday ? "התחילה היום" : "לא התחילה"}</span>
-      </div>
-      <div className="mt-auto grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
-        <button type="button" disabled={!course.active} onClick={onStart} className="min-h-11 whitespace-nowrap rounded-xl bg-white px-3 text-sm font-extrabold text-[#073B4C] transition hover:bg-[#FFFFFF] disabled:cursor-not-allowed disabled:bg-white/35 disabled:text-white/70 sm:min-h-12 sm:rounded-2xl">
-          {startedToday ? "פתיחת נוכחות" : "התחלת נוכחות"}
-        </button>
-        <button type="button" onClick={onEdit} aria-label={`עריכת ${course.name}`} className="hidden min-h-12 rounded-2xl border border-white/30 px-3 text-sm font-bold text-white hover:bg-white/10 sm:block">עריכה</button>
+        )}
       </div>
     </article>
   );
 }
 
-export function AttendanceRow({
+export function AttendanceStudentRow({
   log,
   student,
+  onOpen,
+  onViewCard,
+}: {
+  log: AttendanceLog;
+  student: Student;
+  onOpen: () => void;
+  onViewCard?: () => void;
+}) {
+  return (
+    <div className="flex min-h-14 w-full items-center justify-between gap-3 rounded-2xl border border-white/14 bg-[#005580] px-4 py-3 text-right text-white transition hover:bg-[#005580]/90">
+      <div className="flex min-w-0 flex-1 items-center gap-2.5">
+        {onViewCard && (
+          <button
+            type="button"
+            onClick={onViewCard}
+            aria-label={`כרטיס תלמיד עבור ${student.name}`}
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-white/10 text-xs font-bold text-[#B8D8E6] transition hover:bg-[#00A6A6] hover:text-white"
+          >
+            ℹ️
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={onOpen}
+          className="min-w-0 flex-1 text-right focus:outline-none"
+        >
+          <p dir="auto" className="truncate text-base font-bold">
+            {student.name}
+          </p>
+          {log.notes && (
+            <p className="mt-0.5 truncate text-xs font-medium text-[#B8D8E6]">
+              הערה: {log.notes}
+            </p>
+          )}
+        </button>
+      </div>
+      <button type="button" onClick={onOpen} className="shrink-0 focus:outline-none">
+        <StatusBadge status={log.status} />
+      </button>
+    </div>
+  );
+}
+
+export function StudentActionBottomSheet({
+  log,
+  student,
+  onClose,
   onStatusChange,
   onNotesChange,
 }: {
   log: AttendanceLog;
   student: Student;
+  onClose: () => void;
   onStatusChange: (status: AttendanceStatus) => void;
   onNotesChange: (notes: string) => void;
 }) {
-  const statuses: AttendanceStatus[] = ["Present", "Late", "Absent", "Excused"];
-  const initials = student.name.split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase();
   const [notes, setNotes] = useState(log.notes ?? "");
-  const [noteOpen, setNoteOpen] = useState(false);
 
-  useEffect(() => setNotes(log.notes ?? ""), [log.notes]);
   return (
-    <li className="rounded-2xl border border-[#D5E4EA] bg-white p-2.5 shadow-[0_6px_18px_rgba(0,38,52,0.06)] sm:p-3">
-      <div className="flex items-center gap-2 sm:gap-2.5">
-        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#EAF0F4] text-xs font-extrabold text-[#073B4C]" aria-hidden="true">{initials}</span>
-        <div className="min-w-0 flex-1">
-          <p dir="auto" className="truncate text-sm font-extrabold">{student.name}</p>
-          <p className="mt-0.5 text-[11px] font-semibold text-[#5B7180] sm:text-xs">סומן בשעה {log.time}</p>
+    <div
+      onClick={onClose}
+      className="fixed inset-0 left-0 right-0 top-0 bottom-0 z-50 flex items-end justify-center bg-black/60 p-0 sm:items-center sm:p-4"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-md mx-auto rounded-t-[28px] border-t border-white/14 bg-[#002B45] p-5 pb-[calc(1.5rem+env(safe-area-inset-bottom))] text-white max-h-[92svh] overflow-y-auto sm:rounded-3xl sm:border sm:p-6"
+      >
+        <div className="flex items-center justify-between border-b border-white/14 pb-3">
+          <h3 dir="auto" className="text-lg font-extrabold">
+            {student.name}
+          </h3>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-xs font-bold text-[#B8D8E6] hover:text-white"
+          >
+            סגירה
+          </button>
         </div>
-        <StatusBadge status={log.status} />
-      </div>
-      <fieldset className="mt-1.5 sm:mt-2">
-        <legend className="sr-only">סטטוס עבור {student.name}</legend>
-        <div className="grid grid-cols-4 gap-1">
-          {statuses.map((status) => (
+
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          {(["Present", "Late", "Absent", "Excused"] as AttendanceStatus[]).map((status) => (
             <button
               key={status}
               type="button"
-              aria-pressed={log.status === status}
               onClick={() => onStatusChange(status)}
-              className={`min-h-10 min-w-0 rounded-xl border px-1 text-[10px] font-extrabold transition active:scale-[0.97] sm:text-xs ${
-                log.status === status ? statusStyles[status] : "border-[#D5E4EA] bg-[#FFFFFF] text-[#5B7180] hover:border-[#D5E4EA]"
+              className={`min-h-11 rounded-xl border px-3 py-2 text-sm font-extrabold ${
+                log.status === status
+                  ? "border-[#00A6A6] bg-[#00A6A6] text-white"
+                  : statusStyles[status]
               }`}
             >
               {statusLabels[status]}
             </button>
           ))}
         </div>
-      </fieldset>
-      {noteOpen ? (
-        <label className="mt-2 block text-xs font-extrabold text-[#5B7180]">
-          הערה <span className="font-medium">(אופציונלי)</span>
-          <input
-            autoFocus
-            dir="auto"
-            value={notes}
-            onChange={(event) => setNotes(event.target.value)}
-            onBlur={() => {
-              if (notes !== (log.notes ?? "")) onNotesChange(notes);
+
+        <div className="mt-4">
+          <label className="block text-xs font-bold text-[#B8D8E6]">
+            הערה לתלמיד/ה
+            <textarea
+              rows={2}
+              value={notes}
+              onChange={(event) => setNotes(event.target.value)}
+              className="mt-1.5 w-full rounded-xl border border-white/14 bg-white p-3 text-sm font-semibold text-[#0F172A]"
+            />
+          </label>
+          <button
+            type="button"
+            onClick={() => {
+              onNotesChange(notes);
+              onClose();
             }}
-            placeholder="הוספת הערה קצרה"
-            className="mt-1.5 min-h-10 w-full rounded-xl border border-[#D5E4EA] bg-[#FFFFFF] px-3 text-sm font-medium text-[#102A34] outline-none transition placeholder:text-[#5B7180] focus:border-[#073B4C] focus:ring-2 focus:ring-[#073B4C]/15"
-          />
-        </label>
-      ) : (
-        <div className="mt-1.5 flex min-w-0 items-center justify-between gap-3 sm:mt-2">
-          {notes && <p dir="auto" className="min-w-0 flex-1 truncate text-xs font-medium text-[#5B7180]">{notes}</p>}
-          <button type="button" onClick={() => setNoteOpen(true)} className="min-h-8 shrink-0 rounded-lg px-1.5 text-[11px] font-extrabold text-[#073B4C] hover:bg-[#FFFFFF] sm:min-h-9 sm:px-2 sm:text-xs">{notes ? "עריכת הערה" : "הוספת הערה"}</button>
+            className="mt-3 min-h-11 w-full rounded-xl bg-[#00A6A6] px-4 text-sm font-extrabold text-white hover:bg-[#00B3A4]"
+          >
+            שמירת הערה
+          </button>
         </div>
-      )}
-    </li>
+      </div>
+    </div>
   );
 }
 
-export function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [onClose]);
+export function StudentQuickCardModal({
+  stats,
+  courseName,
+  isYearly = false,
+  tasks = [],
+  submissions = [],
+  onToggleTask,
+  onClose,
+}: {
+  stats: StudentAttendanceStats;
+  courseName?: string;
+  isYearly?: boolean;
+  tasks?: CourseTask[];
+  submissions?: StudentTaskSubmission[];
+  onToggleTask?: (taskId: string, completed: boolean) => void;
+  onClose: () => void;
+}) {
+  const {
+    student,
+    totalSessions,
+    presentCount,
+    lateCount,
+    absentCount,
+    excusedCount,
+    attendancePercentage,
+    recentAbsences,
+  } = stats;
+
+  const rateColor =
+    attendancePercentage >= 80
+      ? "bg-[#DCFCE7] text-[#166534] border-[#16A34A]/30"
+      : attendancePercentage >= 70
+      ? "bg-[#FEF3C7] text-[#92400E] border-[#F59E0B]/30"
+      : "bg-[#FEE2E2] text-[#991B1B] border-[#DC2626]/30";
+
+  const courseTasks = tasks.length > 0 ? tasks : getDefaultCourseTasks(student.courseId, courseName);
+  const relevantTasks = courseTasks.filter((t) => !t.yearlyOnly || isYearly);
 
   return (
-    <div className="fixed inset-0 z-50 grid items-end bg-[#073B4C]/70 p-0 backdrop-blur-[3px] sm:place-items-center sm:p-5" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose(); }}>
-      <section role="dialog" aria-modal="true" aria-labelledby="modal-title" className="max-h-[92svh] w-full overflow-y-auto rounded-t-[26px] bg-white p-5 pt-3 shadow-[0_24px_70px_rgba(0,18,27,0.4)] sm:max-w-lg sm:rounded-[26px] sm:p-6">
-        <span className="mx-auto mb-3 block h-1 w-12 rounded-full bg-[#D5E4EA] sm:hidden" aria-hidden="true" />
-        <div className="mb-5 flex items-center justify-between gap-4">
-          <h2 id="modal-title" className="text-xl font-extrabold tracking-[-0.025em]">{title}</h2>
-          <button type="button" onClick={onClose} aria-label="סגירת החלון" className="grid h-11 w-11 place-items-center rounded-full border border-[#D5E4EA] text-lg font-bold text-[#5B7180] hover:bg-[#FFFFFF]">×</button>
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={`כרטיס תלמיד עבור ${student.name}`}
+      onClick={onClose}
+      className="fixed inset-0 left-0 right-0 top-0 bottom-0 z-50 flex items-end justify-center bg-black/60 p-0 sm:items-center sm:p-4"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-md mx-auto rounded-t-[28px] border-t border-white/15 bg-[#002B45] p-5 pb-[calc(1.5rem+env(safe-area-inset-bottom))] text-white shadow-2xl max-h-[92svh] overflow-y-auto sm:rounded-3xl sm:border sm:p-6"
+      >
+        <div className="flex items-start justify-between border-b border-white/14 pb-3">
+          <div className="min-w-0 flex-1">
+            <span className="text-[11px] font-extrabold uppercase tracking-wider text-[#00A6A6]">
+              כרטיס תלמיד/ה
+            </span>
+            <h2 dir="auto" className="truncate text-xl font-extrabold text-white">
+              {student.name}
+            </h2>
+            {courseName && <p className="truncate text-xs text-[#B8D8E6]">{courseName}</p>}
+            {student.email && (
+              <p className="truncate text-xs text-[#94A3B8]" dir="ltr">
+                {student.email}
+              </p>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="shrink-0 rounded-xl bg-white/10 px-3 py-1.5 text-xs font-bold text-[#B8D8E6] transition hover:bg-white/20 hover:text-white"
+          >
+            ✕ סגור
+          </button>
         </div>
-        {children}
+
+        {/* Attendance rate highlight with Rotem's 80% threshold */}
+        <div className="mt-3.5 flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-[#003859] p-3.5 sm:p-4">
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-bold text-[#B8D8E6]">אחוז נוכחות מצטבר בקורס</p>
+            <p className="text-[11px] text-slate-400">
+              {totalSessions} מפגשים נרשמו עד כה (רף תעודה: 80%)
+            </p>
+          </div>
+          <div className={`shrink-0 rounded-xl border px-3.5 py-1.5 text-center font-extrabold ${rateColor}`}>
+            <span className="text-xl">{attendancePercentage}%</span>
+          </div>
+        </div>
+
+        {/* Certificate Eligibility Banner (Rotem's requirement) */}
+        <div className="mt-2.5">
+          {attendancePercentage >= 80 ? (
+            <div className="flex items-center gap-2 rounded-xl border border-[#16A34A]/30 bg-[#DCFCE7]/15 p-2.5 text-xs font-bold text-[#86EFAC]">
+              <span>✅</span>
+              <span>עומד/ת ברף הנוכחות לקבלת תעודה (80% ומעלה)</span>
+            </div>
+          ) : attendancePercentage >= 70 ? (
+            <div className="flex items-center gap-2 rounded-xl border border-[#F59E0B]/30 bg-[#FEF3C7]/15 p-2.5 text-xs font-bold text-[#FDE047]">
+              <span>⚠️</span>
+              <span>התראת סיכון: {attendancePercentage}% נוכחות (רף המינימום לתעודה הוא 80%)</span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 rounded-xl border border-[#DC2626]/30 bg-[#FEE2E2]/15 p-2.5 text-xs font-bold text-[#FCA5A5]">
+              <span>❌</span>
+              <span>מתחת לרף הזכאות לתעודה ({attendancePercentage}% מתוך 80% הנדרשים)</span>
+            </div>
+          )}
+        </div>
+
+        {/* 4-Stat breakdown (Late = full presence 1.0, Excused = absence) */}
+        <div className="mt-3 grid grid-cols-4 gap-1.5 text-center sm:gap-2">
+          <div className="rounded-xl border border-white/10 bg-[#005580] p-2">
+            <p className="text-[10px] font-bold text-[#B8D8E6]">נוכח</p>
+            <p className="text-base font-black text-[#86EFAC] sm:text-lg">{presentCount}</p>
+          </div>
+          <div className="rounded-xl border border-white/10 bg-[#005580] p-2">
+            <p className="text-[10px] font-bold text-[#B8D8E6]">מאחר (מלא)</p>
+            <p className="text-base font-black text-[#FDE047] sm:text-lg">{lateCount}</p>
+          </div>
+          <div className="rounded-xl border border-white/10 bg-[#005580] p-2">
+            <p className="text-[10px] font-bold text-[#B8D8E6]">נעדר</p>
+            <p className="text-base font-black text-[#FCA5A5] sm:text-lg">{absentCount}</p>
+          </div>
+          <div className="rounded-xl border border-white/10 bg-[#005580] p-2">
+            <p className="text-[10px] font-bold text-[#B8D8E6]">מוצדק</p>
+            <p className="text-base font-black text-[#93C5FD] sm:text-lg">{excusedCount}</p>
+          </div>
+        </div>
+
+        {/* Course Obligations & Mandatory Assignments */}
+        <div className="mt-3.5 rounded-2xl border border-white/10 bg-[#003859] p-3.5">
+          <div className="flex items-center justify-between mb-2.5">
+            <p className="text-xs font-bold text-[#00E5E5] flex items-center gap-1.5">
+              <span>📋</span>
+              <span>חובות הקורס לתעודה:</span>
+            </p>
+            <span className="text-[11px] text-slate-300">
+              {relevantTasks.filter((t) => submissions.some((s) => s.studentId === student.id && s.taskId === t.id && s.completed)).length}/{relevantTasks.length} הושלמו
+            </span>
+          </div>
+
+          <div className="space-y-2">
+            {relevantTasks.map((task) => {
+              const sub = submissions.find(
+                (s) => s.studentId === student.id && s.taskId === task.id
+              );
+              const isDone = sub?.completed ?? false;
+
+              return (
+                <div
+                  key={task.id}
+                  onClick={() => onToggleTask && onToggleTask(task.id, !isDone)}
+                  className={`flex items-center justify-between gap-2.5 rounded-xl border p-2.5 transition cursor-pointer ${
+                    isDone
+                      ? "border-[#16A34A]/40 bg-[#16A34A]/15 text-white"
+                      : "border-white/10 bg-white/5 text-slate-300 hover:bg-white/10"
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                    <span className="text-base">{isDone ? "✅" : "⬜"}</span>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-bold truncate text-white">{task.title}</p>
+                      {task.yearlyOnly && (
+                        <span className="text-[10px] text-[#38BDF8]">קורס שנתי בלבד</span>
+                      )}
+                      {sub?.notes && (
+                        <p className="text-[11px] text-[#B8D8E6] truncate">הערה: {sub.notes}</p>
+                      )}
+                    </div>
+                  </div>
+                  <span
+                    className={`shrink-0 rounded-lg px-2 py-0.5 text-[11px] font-extrabold ${
+                      isDone ? "bg-[#16A34A] text-white" : "bg-white/10 text-slate-300"
+                    }`}
+                  >
+                    {isDone ? "בוצע" : "טרם הוגש"}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Recent absences / logs */}
+        <div className="mt-3.5">
+          <p className="mb-2 text-xs font-bold text-[#B8D8E6]">היעדרויות ואיחורים אחרונים:</p>
+          {recentAbsences.length === 0 ? (
+            <p className="rounded-xl bg-white/5 p-3 text-xs text-[#86EFAC]">
+              ✨ אין היעדרויות או איחורים רשומים לתלמיד זה
+            </p>
+          ) : (
+            <div className="max-h-36 space-y-1.5 overflow-y-auto">
+              {recentAbsences.map((ab, idx) => (
+                <div key={idx} className="flex items-center justify-between gap-2 rounded-xl bg-white/5 px-3 py-2 text-xs">
+                  <span className="shrink-0 font-bold text-slate-200">מפגש {ab.date}</span>
+                  <div className="flex min-w-0 items-center gap-2">
+                    {ab.notes && (
+                      <span className="max-w-28 truncate text-[11px] text-[#B8D8E6] sm:max-w-36">
+                        {ab.notes}
+                      </span>
+                    )}
+                    <StatusBadge status={ab.status} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <button
+          type="button"
+          onClick={onClose}
+          className="mt-4 min-h-12 w-full rounded-xl bg-[#00A6A6] px-4 text-sm font-extrabold text-white transition hover:bg-[#00B3A4]"
+        >
+          סיום צפייה
+        </button>
+      </div>
+    </div>
+  );
+}
+
+export function CourseTasksMatrixView({
+  course,
+  students,
+  attendanceLogs,
+  submissions,
+  customTasks = [],
+  onToggleSubmission,
+  onEditSubmissionNote,
+  onAddCustomTask,
+  onViewStudentCard,
+  onBack,
+}: {
+  course: Course;
+  students: Student[];
+  attendanceLogs: AttendanceLog[];
+  submissions: StudentTaskSubmission[];
+  customTasks?: CourseTask[];
+  onToggleSubmission: (studentId: string, taskId: string, completed: boolean) => void;
+  onEditSubmissionNote?: (studentId: string, taskId: string) => void;
+  onAddCustomTask?: (title: string) => void;
+  onViewStudentCard: (student: Student) => void;
+  onBack: () => void;
+}) {
+  const [searchTerm, setSearchTerm] = useState("");
+  const [newTaskTitle, setNewTaskTitle] = useState("");
+  const [showAddForm, setShowAddForm] = useState(false);
+
+  const yearly = isYearlyCourse(course.name, course.description);
+  const defaultTasks = getDefaultCourseTasks(course.id, course.name);
+  const courseCustom = customTasks.filter((t) => t.courseId === course.id);
+  const allTasks = [...defaultTasks, ...courseCustom];
+  const activeTasks = allTasks.filter((t) => !t.yearlyOnly || yearly);
+
+  const courseStudents = students
+    .filter((s) => s.courseId === course.id)
+    .filter((s) => !searchTerm || s.name.toLowerCase().includes(searchTerm.toLowerCase()));
+
+  // Stats calculation
+  let eligibleCount = 0;
+  let atRiskCount = 0;
+  let notEligibleCount = 0;
+
+  for (const s of courseStudents) {
+    const cert = calculateStudentCertificateEligibility(
+      s,
+      course,
+      attendanceLogs,
+      submissions,
+      customTasks
+    );
+    if (cert.isFullyEligibleForCertificate) eligibleCount += 1;
+    else if (cert.attendancePercentage >= 70) atRiskCount += 1;
+    else notEligibleCount += 1;
+  }
+
+  const handleAddSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newTaskTitle.trim() || !onAddCustomTask) return;
+    onAddCustomTask(newTaskTitle.trim());
+    setNewTaskTitle("");
+    setShowAddForm(false);
+  };
+
+  return (
+    <div className="space-y-4 text-right text-white">
+      {/* Header */}
+      <div className="flex items-center justify-between border-b border-white/10 pb-3">
+        <div>
+          <button
+            type="button"
+            onClick={onBack}
+            className="text-xs font-bold text-[#B8D8E6] hover:text-white mb-1 flex items-center gap-1"
+          >
+            <span>→</span>
+            <span>חזרה לתפריט ניהול</span>
+          </button>
+          <h2 className="text-xl font-extrabold text-white">מעקב חובות וזכאות לתעודה</h2>
+          <div className="flex items-center gap-2 mt-1">
+            <span className="text-sm font-bold text-[#00E5E5]">{course.name}</span>
+            <span
+              className={`rounded-full px-2 py-0.5 text-[11px] font-extrabold ${
+                yearly
+                  ? "bg-[#38BDF8]/20 text-[#38BDF8] border border-[#38BDF8]/30"
+                  : "bg-white/10 text-slate-300"
+              }`}
+            >
+              {yearly ? "קורס שנתי (חובת פרקטיקום)" : "קורס סמסטריאלי"}
+            </span>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => setShowAddForm((p) => !p)}
+          className="rounded-xl border border-[#00A6A6]/40 bg-[#00A6A6]/20 px-3 py-1.5 text-xs font-extrabold text-[#00E5E5] hover:bg-[#00A6A6]/30 transition"
+        >
+          {showAddForm ? "סגירת הוספה" : "+ הוספת מטלה"}
+        </button>
+      </div>
+
+      {/* Add Custom Task Form */}
+      {showAddForm && (
+        <form onSubmit={handleAddSubmit} className="rounded-2xl border border-white/14 bg-[#003859] p-4 space-y-3">
+          <p className="text-xs font-extrabold text-[#00E5E5]">הוספת מטלת חובה חדשה לקורס:</p>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={newTaskTitle}
+              onChange={(e) => setNewTaskTitle(e.target.value)}
+              placeholder="שם המטלה (למשל: הגשת דוח רפלקציה / פרויקט גמר)..."
+              className="flex-1 rounded-xl border border-white/14 bg-[#002B45] px-3.5 py-2 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-[#00A6A6]"
+            />
+            <button
+              type="submit"
+              className="rounded-xl bg-[#00A6A6] px-4 py-2 text-xs font-extrabold text-white hover:bg-[#00B3A4] transition"
+            >
+              הוספה
+            </button>
+          </div>
+        </form>
+      )}
+
+      {/* Summary Stats Cards */}
+      <div className="grid grid-cols-3 gap-2 text-center">
+        <div className="rounded-2xl border border-[#16A34A]/30 bg-[#16A34A]/15 p-3">
+          <p className="text-xl font-extrabold text-[#86EFAC]">{eligibleCount}</p>
+          <p className="text-[11px] font-bold text-slate-300">זכאים לתעודה</p>
+        </div>
+        <div className="rounded-2xl border border-[#F59E0B]/30 bg-[#FEF3C7]/15 p-3">
+          <p className="text-xl font-extrabold text-[#FDE047]">{atRiskCount}</p>
+          <p className="text-[11px] font-bold text-slate-300">בסיכון / חסרות מטלות</p>
+        </div>
+        <div className="rounded-2xl border border-[#DC2626]/30 bg-[#FEE2E2]/15 p-3">
+          <p className="text-xl font-extrabold text-[#FCA5A5]">{notEligibleCount}</p>
+          <p className="text-[11px] font-bold text-slate-300">מתחת לרף (80%)</p>
+        </div>
+      </div>
+
+      {/* Search Bar */}
+      <div>
+        <input
+          type="search"
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          placeholder="חיפוש תלמיד/ה בכיתה..."
+          className="w-full rounded-xl border border-white/14 bg-[#005580] px-3.5 py-2.5 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-[#00A6A6]"
+        />
+      </div>
+
+      {/* Interactive Matrix / Cards View */}
+      <div className="space-y-3">
+        {courseStudents.length === 0 ? (
+          <p className="rounded-2xl border border-white/10 bg-white/5 p-6 text-center text-xs text-slate-400">
+            לא נמצאו תלמידים רשומים בקורס זה.
+          </p>
+        ) : (
+          courseStudents.map((student) => {
+            const cert = calculateStudentCertificateEligibility(
+              student,
+              course,
+              attendanceLogs,
+              submissions,
+              customTasks
+            );
+
+            return (
+              <div
+                key={student.id}
+                className="rounded-2xl border border-white/14 bg-[#005580] p-4 space-y-3"
+              >
+                {/* Student header row */}
+                <div className="flex items-center justify-between gap-2 border-b border-white/10 pb-2.5">
+                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                    <button
+                      type="button"
+                      onClick={() => onViewStudentCard(student)}
+                      aria-label="כרטיס תלמיד"
+                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white/10 text-xs font-bold text-[#B8D8E6] hover:bg-[#00A6A6] hover:text-white transition"
+                    >
+                      ℹ️
+                    </button>
+                    <span className="font-extrabold text-sm truncate text-white">{student.name}</span>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span
+                      className={`rounded-lg px-2 py-0.5 text-xs font-black ${
+                        cert.attendancePercentage >= 80
+                          ? "bg-[#DCFCE7] text-[#166534]"
+                          : cert.attendancePercentage >= 70
+                          ? "bg-[#FEF3C7] text-[#92400E]"
+                          : "bg-[#FEE2E2] text-[#991B1B]"
+                      }`}
+                    >
+                      {cert.attendancePercentage}% נוכחות
+                    </span>
+                    <span className={`rounded-lg border px-2 py-0.5 text-[11px] font-extrabold ${cert.statusBadgeClass}`}>
+                      {cert.isFullyEligibleForCertificate ? "זכאי/ת לתעודה ✓" : "טרם הושלם"}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Checkbox columns for all required tasks */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  {activeTasks.map((task) => {
+                    const sub = submissions.find(
+                      (s) => s.studentId === student.id && s.taskId === task.id
+                    );
+                    const isDone = sub?.completed ?? false;
+
+                    return (
+                      <div
+                        key={task.id}
+                        className={`flex items-center justify-between gap-2 rounded-xl border p-2 transition ${
+                          isDone
+                            ? "border-[#16A34A]/40 bg-[#16A34A]/20"
+                            : "border-white/10 bg-[#002B45]"
+                        }`}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => onToggleSubmission(student.id, task.id, !isDone)}
+                          className="flex items-center gap-2 min-w-0 flex-1 text-right focus:outline-none"
+                        >
+                          <span className="text-base shrink-0">{isDone ? "✅" : "⬜"}</span>
+                          <span className="text-xs font-bold truncate text-white">{task.title}</span>
+                        </button>
+                        {onEditSubmissionNote && (
+                          <button
+                            type="button"
+                            onClick={() => onEditSubmissionNote(student.id, task.id)}
+                            title="הוספת הערה או שינוי תאריך"
+                            className="p-1 text-xs text-[#B8D8E6] hover:text-white rounded"
+                          >
+                            📝
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+    </div>
+  );
+}
+
+export function TaskNoteModal({
+  studentName,
+  taskTitle,
+  initialNote = "",
+  initialDate = "",
+  onSave,
+  onClose,
+}: {
+  studentName: string;
+  taskTitle: string;
+  initialNote?: string;
+  initialDate?: string;
+  onSave: (note: string, date: string) => void;
+  onClose: () => void;
+}) {
+  const [note, setNote] = useState(initialNote);
+  const [date, setDate] = useState(initialDate || new Date().toISOString().split("T")[0]);
+
+  return (
+    <div
+      onClick={onClose}
+      className="fixed inset-0 left-0 right-0 top-0 bottom-0 z-50 flex items-end justify-center bg-black/60 p-0 sm:items-center sm:p-4"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-md mx-auto rounded-t-[28px] border-t border-white/14 bg-[#002B45] p-5 pb-[calc(1.5rem+env(safe-area-inset-bottom))] text-white max-h-[92svh] overflow-y-auto sm:rounded-3xl sm:border sm:p-6"
+      >
+        <div className="flex items-center justify-between border-b border-white/14 pb-3">
+          <div>
+            <h3 className="text-base font-extrabold">{studentName}</h3>
+            <p className="text-xs text-[#00E5E5]">{taskTitle}</p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-xs font-bold text-[#B8D8E6] hover:text-white"
+          >
+            סגירה
+          </button>
+        </div>
+
+        <div className="mt-4 space-y-3 text-right">
+          <label className="block text-xs font-bold text-[#B8D8E6]">
+            תאריך ביצוע / הגשה
+            <input
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              className="mt-1.5 min-h-11 w-full rounded-xl border border-white/14 bg-[#005580] px-3.5 text-xs text-white focus:outline-none focus:border-[#00A6A6]"
+            />
+          </label>
+
+          <label className="block text-xs font-bold text-[#B8D8E6]">
+            הערה / משוב מהמנחה
+            <textarea
+              rows={3}
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="כתוב כאן משוב או הערה לתלמיד/ה..."
+              className="mt-1.5 w-full rounded-xl border border-white/14 bg-white p-3 text-sm font-semibold text-[#0F172A] focus:outline-none focus:ring-1 focus:ring-[#00A6A6]"
+            />
+          </label>
+
+          <button
+            type="button"
+            onClick={() => onSave(note, date)}
+            className="mt-4 min-h-11 w-full rounded-xl bg-[#00A6A6] px-4 text-sm font-extrabold text-white hover:bg-[#00B3A4] transition"
+          >
+            שמירת פרטי מטלה
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function FinishAttendanceBar({
+  logs,
+  onFinish,
+  onShareWhatsApp,
+  currentTopic,
+  onEditTopic,
+}: {
+  logs: AttendanceLog[];
+  onFinish: () => void;
+  onShareWhatsApp?: () => void;
+  currentTopic?: string;
+  onEditTopic?: () => void;
+}) {
+  const presentCount = logs.filter((l) => l.status === "Present").length;
+  const lateCount = logs.filter((l) => l.status === "Late").length;
+  const absentCount = logs.filter((l) => l.status === "Absent").length;
+  const excusedCount = logs.filter((l) => l.status === "Excused").length;
+
+  return (
+    <div className="fixed inset-x-0 bottom-0 z-40 border-t border-white/14 bg-[#002B45]/95 px-4 pt-2.5 pb-[calc(0.75rem+env(safe-area-inset-bottom))] backdrop-blur">
+      <div className="mx-auto flex max-w-md flex-col gap-2">
+        {(currentTopic !== undefined || onEditTopic) && (
+          <div className="flex items-center justify-between gap-2 border-b border-white/10 pb-2">
+            <div className="min-w-0 flex-1 flex items-center gap-1.5 text-xs text-[#B8D8E6]">
+              <span>📌</span>
+              <span className="font-bold text-white truncate">
+                {currentTopic ? `נושא: ${currentTopic}` : "טרם תועד נושא למפגש זה"}
+              </span>
+            </div>
+            {onEditTopic && (
+              <button
+                type="button"
+                onClick={onEditTopic}
+                className="text-[11px] font-bold text-[#00E5E5] hover:underline shrink-0"
+              >
+                {currentTopic ? "שינוי נושא" : "+ תיעוד שיעור"}
+              </button>
+            )}
+          </div>
+        )}
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-[11px] font-bold text-[#B8D8E6] text-center sm:text-right">
+          נוכחים {presentCount} · מאחרים {lateCount} · נעדרים {absentCount} · מוצדקים {excusedCount}
+        </p>
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+          {onShareWhatsApp && (
+            <button
+              type="button"
+              onClick={onShareWhatsApp}
+              className="flex min-h-11 shrink-0 items-center justify-center gap-1.5 rounded-xl bg-[#25D366] px-3.5 text-xs font-extrabold text-white transition hover:bg-[#20BD5A]"
+              title="שיתוף סיכום נוכחות לווטסאפ"
+            >
+              <span>💬</span>
+              <span>וואטסאפ</span>
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={onFinish}
+            className="min-h-11 flex-1 sm:flex-initial rounded-xl bg-[#00A6A6] px-5 text-sm font-extrabold text-white transition hover:bg-[#00B3A4]"
+          >
+            סיום נוכחות
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function Modal({
+  title,
+  onClose,
+  children,
+}: {
+  title: string;
+  onClose: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={title}
+      onClick={onClose}
+      className="fixed inset-0 left-0 right-0 top-0 bottom-0 z-50 flex items-end justify-center bg-black/60 p-0 sm:items-center sm:p-4"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-md mx-auto rounded-t-[28px] border-t border-slate-200 bg-white p-5 pb-[calc(1.5rem+env(safe-area-inset-bottom))] text-[#0F172A] shadow-2xl max-h-[92svh] overflow-y-auto sm:rounded-3xl sm:border sm:p-6"
+      >
+        <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+          <h2 className="text-lg font-extrabold">{title}</h2>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg p-1 text-xs font-bold text-[#475569] hover:text-[#0F172A]"
+          >
+            סגירה
+          </button>
+        </div>
+        <div className="mt-4">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+export function BiometricLockScreen({
+  email,
+  onVerify,
+  onFallbackSignOut,
+}: {
+  email: string;
+  onVerify: () => Promise<void>;
+  onFallbackSignOut: () => void;
+}) {
+  const [verifying, setVerifying] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleVerify = async () => {
+    setVerifying(true);
+    setError("");
+    try {
+      await onVerify();
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "האימות הביומטרי בוטל או נכשל. נסו שוב."
+      );
+    } finally {
+      setVerifying(false);
+    }
+  };
+
+  useEffect(() => {
+    void handleVerify();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return (
+    <main
+      lang="he"
+      dir="rtl"
+      className="min-h-[100svh] bg-[#002B45] px-5 py-8 text-right text-white flex items-center justify-center"
+    >
+      <section className="w-full max-w-md rounded-[24px] border border-white/14 bg-[#005580] p-6 shadow-[0_24px_64px_rgba(0,18,27,0.35)] sm:p-8">
+        <div
+          className="mb-5 flex h-14 w-14 items-center justify-center rounded-2xl border border-white/14 bg-[#002B45] text-[#00A6A6]"
+          aria-hidden="true"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={2}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="h-7 w-7"
+          >
+            <path d="M12 10a2 2 0 0 0-2 2c0 1.02-.1 2.51-.26 4" />
+            <path d="M14 13.12c0 2.38 0 6.38-1 8.88" />
+            <path d="M17.29 21.02c.12-.6.43-2.3.5-3.02" />
+            <path d="M2 12a10 10 0 0 1 18-6" />
+            <path d="M2 16h.01" />
+            <path d="M21.8 16c.2-2 .131-5.354 0-6" />
+            <path d="M5 19.5C5.5 18 6 15 6 12a6 6 0 0 1 .34-2" />
+            <path d="M8.65 22c.21-.66.45-1.32.57-2" />
+            <path d="M9 6.8a6 6 0 0 1 9 5.2v2" />
+          </svg>
+        </div>
+
+        <h1 className="text-2xl font-extrabold tracking-tight text-white">כניסה מהירה</h1>
+        <p className="mt-1.5 text-sm font-medium text-[#B8D8E6]">
+          מחובר/ת כ- <span dir="ltr" className="font-bold text-white">{email}</span>
+        </p>
+
+        {error && (
+          <p
+            role="alert"
+            className="mt-4 rounded-xl border border-[#DC2626]/30 bg-[#FEE2E2] px-3.5 py-2.5 text-xs font-extrabold text-[#991B1B]"
+          >
+            {error}
+          </p>
+        )}
+
+        <button
+          type="button"
+          disabled={verifying}
+          onClick={() => void handleVerify()}
+          className="mt-6 flex min-h-12 w-full items-center justify-center gap-2.5 rounded-xl bg-[#00A6A6] px-4 py-3 text-sm font-extrabold text-white transition hover:bg-[#00B3A4] disabled:opacity-60"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={2}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="h-5 w-5"
+            aria-hidden="true"
+          >
+            <path d="M12 10a2 2 0 0 0-2 2c0 1.02-.1 2.51-.26 4" />
+            <path d="M14 13.12c0 2.38 0 6.38-1 8.88" />
+            <path d="M5 19.5C5.5 18 6 15 6 12a6 6 0 0 1 .34-2" />
+            <path d="M9 6.8a6 6 0 0 1 9 5.2v2" />
+          </svg>
+          <span>{verifying ? "מאמת טביעת אצבע..." : "כניסה באמצעות טביעת אצבע"}</span>
+        </button>
+
+        <div className="mt-5 border-t border-white/14 pt-4 text-center">
+          <button
+            type="button"
+            onClick={onFallbackSignOut}
+            className="min-h-11 w-full rounded-xl border border-white/14 bg-[#002B45] px-4 py-2.5 text-xs font-bold text-[#B8D8E6] transition hover:text-white"
+          >
+            אימות באמצעות קישור למייל / החלפת משתמש
+          </button>
+        </div>
       </section>
+    </main>
+  );
+}
+
+
+export function CourseSyllabusModal({
+  course,
+  onClose,
+  onSave,
+}: {
+  course: Course;
+  onClose: () => void;
+  onSave: (syllabusText: string) => void;
+}) {
+  const [syllabus, setSyllabus] = useState(course.syllabus || "");
+
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const text = String(e.target?.result || "");
+      if (text.trim()) {
+        setSyllabus(text.trim());
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const loadExample = () => {
+    setSyllabus(`1. פתיחה, חוזה קבוצתי והגדרת מטרות אישיות וקבוצתיות
+2. שלבי התפתחות קבוצה ומודל טאקמן
+3. מיומנויות הקשבה פעילה ושיקוף בהנחיה
+4. דינמיקה קבוצתית וזיהוי תפקידים גלויים וסמויים בקבוצה
+5. התמודדות עם התנגדויות, קונפליקטים ומשתתפים מאתגרים
+6. משוב עמיתים וסגנונות תקשורת בין-אישית
+7. עמידה מול קהל, שפת גוף ונוכחות מנחה
+8. שילוב מתודולוגיות חווייתיות, קלפים וסימולציות
+9. פרקטיקום: סדנת הנחיית עמיתים בזמן אמת וניתוח אירועים
+10. סיכום תהליך, פרידה וטקס סיום והענקת תעודות`);
+  };
+
+  return (
+    <div
+      onClick={onClose}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-lg rounded-2xl border border-white/14 bg-[#002B45] p-5 text-white max-h-[92svh] overflow-y-auto sm:p-6 shadow-2xl text-right"
+      >
+        <div className="flex items-center justify-between border-b border-white/14 pb-3">
+          <div>
+            <h3 className="text-lg font-extrabold">סילבוס קורס: {course.name}</h3>
+            <p className="text-xs text-[#B8D8E6]">הגדרת ראשי הפרקים עבור מודול בקרת ה-AI</p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-xs font-bold text-[#B8D8E6] hover:text-white"
+          >
+            סגירה
+          </button>
+        </div>
+
+        <div className="mt-4 space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <label className="block text-xs font-bold text-[#B8D8E6]">
+              ראשי פרקים / רשימת נושאים:
+            </label>
+            <div className="flex items-center gap-2">
+              <label className="cursor-pointer rounded-lg border border-white/14 bg-white/5 px-2.5 py-1 text-[11px] font-bold text-[#38BDF8] hover:bg-white/10 transition">
+                <span>📁 העלאת קובץ</span>
+                <input
+                  type="file"
+                  accept=".txt,.md,.csv,.text"
+                  onChange={handleFileUpload}
+                  className="hidden"
+                />
+              </label>
+              <button
+                type="button"
+                onClick={loadExample}
+                className="rounded-lg border border-white/14 bg-white/5 px-2.5 py-1 text-[11px] font-bold text-[#00E5E5] hover:bg-white/10 transition"
+              >
+                טעינת דוגמה
+              </button>
+            </div>
+          </div>
+
+          <textarea
+            rows={10}
+            dir="auto"
+            value={syllabus}
+            onChange={(e) => setSyllabus(e.target.value)}
+            placeholder={`הדביקו כאן את נושאי הסילבוס, למשל:\n1. פתיחה וחוזה קבוצתי\n2. שלבי התפתחות קבוצה\n3. משוב עמיתים\n4. עמידה מול קהל\n5. פרקטיקום`}
+            className="w-full rounded-xl border border-white/20 bg-[#001D30] p-3.5 text-xs sm:text-sm font-mono text-white placeholder:text-slate-400 focus:border-[#00A6A6] focus:outline-none"
+          />
+
+          <p className="text-[11px] text-[#B8D8E6] leading-relaxed">
+            💡 <strong>טיפ:</strong> מודול ה-AI מצליב אוטומטית בין שורות הסילבוס לבין נושאי השיעורים שהמנחים רושמים בסיום כל מפגש, ומחשב את אחוז הכיסוי.
+          </p>
+
+          <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-white/10">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-xl border border-white/14 bg-white/5 px-4 py-2.5 text-xs font-bold text-slate-300 hover:text-white"
+            >
+              ביטול
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                onSave(syllabus.trim());
+                onClose();
+              }}
+              className="rounded-xl bg-[#00A6A6] px-5 py-2.5 text-xs font-extrabold text-white hover:bg-[#00B3A4] shadow-md shadow-[#00A6A6]/20"
+            >
+              שמירת סילבוס
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function LessonTopicModal({
+  course,
+  date,
+  existingLog,
+  currentUserEmail,
+  onClose,
+  onSave,
+}: {
+  course: Course;
+  date: string;
+  existingLog?: LessonLog;
+  currentUserEmail?: string;
+  onClose: () => void;
+  onSave: (topic: string, summary?: string) => void;
+}) {
+  const [topic, setTopic] = useState(existingLog?.topic || "");
+  const [summary, setSummary] = useState(existingLog?.summary || "");
+
+  return (
+    <div
+      onClick={onClose}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-md rounded-2xl border border-white/14 bg-[#002B45] p-5 text-white max-h-[92svh] overflow-y-auto sm:p-6 shadow-2xl text-right"
+      >
+        <div className="flex items-center justify-between border-b border-white/14 pb-3">
+          <div>
+            <h3 className="text-lg font-extrabold">תיעוד נושא השיעור</h3>
+            <p className="text-xs text-[#B8D8E6]">
+              {course.name} • מפגש {date}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-xs font-bold text-[#B8D8E6] hover:text-white"
+          >
+            סגירה
+          </button>
+        </div>
+
+        <div className="mt-4 space-y-3.5">
+          <div>
+            <label className="block text-xs font-bold text-white mb-1.5">
+              מה לימדנו במפגש זה? (נושא / ראשי פרקים):
+            </label>
+            <input
+              type="text"
+              dir="auto"
+              value={topic}
+              onChange={(e) => setTopic(e.target.value)}
+              placeholder="למשל: משוב עמיתים וסגנונות תקשורת"
+              className="w-full rounded-xl border border-white/20 bg-[#001D30] px-3.5 py-2.5 text-sm font-semibold text-white placeholder:text-slate-400 focus:border-[#00A6A6] focus:outline-none"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-[#B8D8E6] mb-1.5">
+              תקציר נוסף / הערות פדגוגיות (אופציונלי):
+            </label>
+            <textarea
+              rows={3}
+              dir="auto"
+              value={summary}
+              onChange={(e) => setSummary(e.target.value)}
+              placeholder="פרטים נוספים, תרגילים שבוצעו או משימות לשבוע הבא..."
+              className="w-full rounded-xl border border-white/20 bg-[#001D30] p-3 text-xs sm:text-sm font-medium text-white placeholder:text-slate-400 focus:border-[#00A6A6] focus:outline-none"
+            />
+          </div>
+
+          {currentUserEmail && (
+            <p className="text-[11px] text-slate-400">
+              מנחה מתעד: <span dir="ltr" className="text-slate-300 font-mono">{currentUserEmail}</span>
+            </p>
+          )}
+
+          <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-white/10">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-xl border border-white/14 bg-white/5 px-4 py-2.5 text-xs font-bold text-slate-300 hover:text-white"
+            >
+              ביטול
+            </button>
+            <button
+              type="button"
+              disabled={!topic.trim()}
+              onClick={() => {
+                onSave(topic.trim(), summary.trim() || undefined);
+                onClose();
+              }}
+              className="rounded-xl bg-[#00A6A6] px-5 py-2.5 text-xs font-extrabold text-white hover:bg-[#00B3A4] shadow-md shadow-[#00A6A6]/20 disabled:opacity-50"
+            >
+              שמירת שיעור
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function AISyllabusAnalysisModal({
+  course,
+  lessons,
+  analysis,
+  loading,
+  hasGeminiKey,
+  onReanalyze,
+  onEditSyllabus,
+  onOpenGeminiSettings,
+  onClose,
+}: {
+  course: Course;
+  lessons: LessonLog[];
+  analysis: AISyllabusAnalysis | null;
+  loading: boolean;
+  hasGeminiKey: boolean;
+  onReanalyze: () => void;
+  onEditSyllabus: () => void;
+  onOpenGeminiSettings: () => void;
+  onClose: () => void;
+}) {
+  const [activeTab, setActiveTab] = useState<"summary" | "topics">("summary");
+  const courseLessons = lessons.filter((l) => l.courseId === course.id);
+  const hasSyllabus = Boolean(course.syllabus && course.syllabus.trim());
+
+  return (
+    <div
+      onClick={onClose}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-3 sm:p-4"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-xl rounded-2xl border border-white/14 bg-[#002B45] p-5 text-white max-h-[92svh] overflow-y-auto sm:p-6 shadow-2xl text-right"
+      >
+        {/* Header */}
+        <div className="flex items-start justify-between border-b border-white/14 pb-3.5">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <span className="text-xl">✨</span>
+              <h3 className="text-lg sm:text-xl font-extrabold truncate">
+                בקרת סילבוס מבוססת AI — {course.name}
+              </h3>
+            </div>
+            <div className="mt-1 flex items-center gap-2 flex-wrap">
+              <span
+                className={`rounded-full px-2.5 py-0.5 text-[10px] font-extrabold border ${
+                  analysis?.usedGeminiAI
+                    ? "border-[#16A34A]/30 bg-[#16A34A]/20 text-[#86EFAC]"
+                    : "border-[#38BDF8]/30 bg-[#38BDF8]/15 text-[#7DD3FC]"
+                }`}
+              >
+                {analysis?.usedGeminiAI ? "✓ מחובר לגוגל ג'מיני 1.5 Flash" : "ניתוח מובנה מקומי"}
+              </span>
+              <span className="text-[11px] text-[#B8D8E6]">
+                {courseLessons.length} {courseLessons.length === 1 ? "שיעור תועד" : "שיעורים תועדו"}
+              </span>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-xs font-bold text-[#B8D8E6] hover:text-white"
+          >
+            סגירה
+          </button>
+        </div>
+
+        {/* Content */}
+        {!hasSyllabus ? (
+          <div className="mt-6 text-center py-8 space-y-4 rounded-2xl border border-dashed border-white/20 bg-white/5 p-6">
+            <span className="text-3xl">📚</span>
+            <h4 className="text-base font-extrabold text-white">טרם הוגדר סילבוס לקורס זה</h4>
+            <p className="text-xs text-[#B8D8E6] max-w-sm mx-auto leading-relaxed">
+              כדי שה-AI יוכל לבדוק אחוזי כיסוי, למנוע חזרתיות ולהמליץ על המפגש הבא, אנא הזינו את ראשי הפרקים של הקורס.
+            </p>
+            <button
+              type="button"
+              onClick={onEditSyllabus}
+              className="rounded-xl bg-[#00A6A6] px-5 py-2.5 text-xs font-extrabold text-white hover:bg-[#00B3A4] shadow-md shadow-[#00A6A6]/20 transition"
+            >
+              הזנת סילבוס עכשיו
+            </button>
+          </div>
+        ) : loading ? (
+          <div className="mt-8 text-center py-12 space-y-3">
+            <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-[#00A6A6] border-r-transparent"></div>
+            <p className="text-sm font-extrabold text-white">מנתח סילבוס ומפגשים בעזרת AI...</p>
+            <p className="text-xs text-[#B8D8E6]">מצליב נושאים, בודק חזרתיות ומנסח המלצות</p>
+          </div>
+        ) : analysis ? (
+          <div className="mt-4 space-y-4">
+            {/* Coverage Card */}
+            <div className="rounded-2xl border border-white/14 bg-[#003859] p-4 sm:p-5 shadow-lg">
+              <div className="flex items-center justify-between gap-3 mb-2.5">
+                <div>
+                  <span className="text-xs font-extrabold uppercase tracking-wider text-[#00E5E5]">
+                    מד כיסוי סילבוס כללי
+                  </span>
+                  <p className="text-xs text-slate-300 mt-0.5">
+                    {analysis.coveredTopics.length} מתוך {analysis.coveredTopics.length + analysis.pendingTopics.length} נושאי סילבוס כוסו
+                  </p>
+                </div>
+                <span className="text-2xl sm:text-3xl font-black text-white">
+                  {analysis.coveragePercent}%
+                </span>
+              </div>
+
+              {/* Progress bar */}
+              <div className="h-3 w-full rounded-full bg-[#001D30] overflow-hidden p-0.5 border border-white/10">
+                <div
+                  className={`h-full rounded-full transition-all duration-500 ${
+                    analysis.coveragePercent >= 80
+                      ? "bg-gradient-to-r from-[#10B981] to-[#059669]"
+                      : analysis.coveragePercent >= 50
+                      ? "bg-gradient-to-r from-[#00A6A6] to-[#38BDF8]"
+                      : "bg-gradient-to-r from-[#F59E0B] to-[#F97316]"
+                  }`}
+                  style={{ width: `${Math.max(4, analysis.coveragePercent)}%` }}
+                />
+              </div>
+            </div>
+
+            {/* Recommendation Card */}
+            <div className="rounded-2xl border border-[#00A6A6]/30 bg-[#00A6A6]/10 p-4 text-right">
+              <div className="flex items-center gap-2 mb-1.5">
+                <span className="text-base">💡</span>
+                <strong className="text-xs font-extrabold text-[#00E5E5] uppercase tracking-wide">
+                  המלצה ממוקדת למפגש הבא
+                </strong>
+              </div>
+              <p className="text-xs sm:text-sm font-medium leading-relaxed text-white">
+                {analysis.recommendationForNextLesson}
+              </p>
+            </div>
+
+            {/* Repetition Warnings Card */}
+            {analysis.repetitionWarnings && analysis.repetitionWarnings.length > 0 ? (
+              <div className="rounded-2xl border border-[#F59E0B]/30 bg-[#FEF3C7]/15 p-4 text-right space-y-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-base">🔄</span>
+                  <strong className="text-xs font-extrabold text-[#FDE047]">
+                    זיהוי חזרתיות אפשרית בין מפגשים:
+                  </strong>
+                </div>
+                {analysis.repetitionWarnings.map((warn, idx) => (
+                  <p key={idx} className="text-xs text-slate-100 leading-relaxed bg-[#002B45]/50 p-2.5 rounded-xl border border-white/10">
+                    • {warn}
+                  </p>
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-xl border border-[#16A34A]/25 bg-[#16A34A]/10 p-3 flex items-center gap-2 text-xs text-[#86EFAC] font-medium">
+                <span>✓</span>
+                <span>לא זוהתה חזרתיות מיותרת — רצף הלמידה נשמר באופן תקין.</span>
+              </div>
+            )}
+
+            {/* Topics Tabs & List */}
+            <div className="rounded-2xl border border-white/10 bg-[#001D30] p-3.5 space-y-2.5">
+              <div className="flex items-center justify-between border-b border-white/10 pb-2">
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab("summary")}
+                    className={`px-3 py-1 rounded-lg text-xs font-bold transition ${
+                      activeTab === "summary"
+                        ? "bg-[#00A6A6] text-white"
+                        : "text-slate-300 hover:text-white"
+                    }`}
+                  >
+                    נושאים שטרם נלמדו ({analysis.pendingTopics.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab("topics")}
+                    className={`px-3 py-1 rounded-lg text-xs font-bold transition ${
+                      activeTab === "topics"
+                        ? "bg-[#00A6A6] text-white"
+                        : "text-slate-300 hover:text-white"
+                    }`}
+                  >
+                    נושאים שכוסו ({analysis.coveredTopics.length})
+                  </button>
+                </div>
+              </div>
+
+              {activeTab === "summary" ? (
+                analysis.pendingTopics.length === 0 ? (
+                  <p className="text-xs text-[#86EFAC] p-3 text-center">
+                    🎉 כל נושאי הסילבוס כוסו בהצלחה!
+                  </p>
+                ) : (
+                  <div className="max-h-44 overflow-y-auto space-y-1.5 pr-1">
+                    {analysis.pendingTopics.map((top, idx) => (
+                      <div key={idx} className="flex items-center gap-2 p-2 rounded-xl bg-white/5 text-xs text-slate-200">
+                        <span className="text-[#38BDF8] shrink-0 font-bold">○</span>
+                        <span className="truncate">{top}</span>
+                      </div>
+                    ))}
+                  </div>
+                )
+              ) : (
+                analysis.coveredTopics.length === 0 ? (
+                  <p className="text-xs text-slate-400 p-3 text-center">
+                    טרם נרשמו נושאים שכוסו.
+                  </p>
+                ) : (
+                  <div className="max-h-44 overflow-y-auto space-y-1.5 pr-1">
+                    {analysis.coveredTopics.map((top, idx) => (
+                      <div key={idx} className="flex items-center gap-2 p-2 rounded-xl bg-[#16A34A]/10 text-xs text-white">
+                        <span className="text-[#10B981] shrink-0 font-bold">✓</span>
+                        <span className="truncate">{top}</span>
+                      </div>
+                    ))}
+                  </div>
+                )
+              )}
+            </div>
+
+            {/* Bottom Actions */}
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-white/10">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={onReanalyze}
+                  className="rounded-xl bg-[#00A6A6] hover:bg-[#00B3A4] px-4 py-2 text-xs font-extrabold text-white transition flex items-center gap-1.5"
+                >
+                  <span>🔄</span>
+                  <span>ניתוח מחדש עכשיו</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={onEditSyllabus}
+                  className="rounded-xl border border-white/14 bg-white/5 hover:bg-white/10 px-3 py-2 text-xs font-bold text-slate-200 transition"
+                >
+                  עריכת סילבוס
+                </button>
+              </div>
+
+              {!hasGeminiKey && (
+                <button
+                  type="button"
+                  onClick={onOpenGeminiSettings}
+                  className="rounded-xl border border-[#00E5E5]/40 bg-[#00E5E5]/10 hover:bg-[#00E5E5]/20 px-3 py-2 text-xs font-extrabold text-[#00E5E5] transition"
+                >
+                  ⚙️ חיבור Gemini API
+                </button>
+              )}
+            </div>
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+export function GeminiSettingsModal({
+  currentKey,
+  onClose,
+  onSave,
+  onClear,
+}: {
+  currentKey?: string;
+  onClose: () => void;
+  onSave: (key: string) => void;
+  onClear: () => void;
+}) {
+  const [keyInput, setKeyInput] = useState(currentKey || "");
+  const [showKey, setShowKey] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
+
+  const handleTest = async () => {
+    if (!keyInput.trim()) {
+      setTestResult({ success: false, message: "נא להזין מפתח לבדיקה." });
+      return;
+    }
+    setTesting(true);
+    setTestResult(null);
+    const res = await testGeminiApiKey(keyInput.trim());
+    setTestResult(res);
+    setTesting(false);
+  };
+
+  return (
+    <div
+      onClick={onClose}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-md rounded-2xl border border-white/14 bg-[#002B45] p-5 text-white max-h-[92svh] overflow-y-auto sm:p-6 shadow-2xl text-right"
+      >
+        <div className="flex items-center justify-between border-b border-white/14 pb-3">
+          <div>
+            <h3 className="text-lg font-extrabold flex items-center gap-2">
+              <span>✨</span>
+              <span>הגדרות Google Gemini AI</span>
+            </h3>
+            <p className="text-xs text-[#B8D8E6]">חיבור ישיר למודל בינה מלאכותית לקורס</p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-xs font-bold text-[#B8D8E6] hover:text-white"
+          >
+            סגירה
+          </button>
+        </div>
+
+        <div className="mt-4 space-y-3.5">
+          <div>
+            <label className="block text-xs font-bold text-white mb-1.5">
+              מפתח Gemini API (מחשבון גוגל של רותם):
+            </label>
+            <div className="relative">
+              <input
+                type={showKey ? "text" : "password"}
+                dir="ltr"
+                value={keyInput}
+                onChange={(e) => {
+                  setKeyInput(e.target.value);
+                  setTestResult(null);
+                }}
+                placeholder="AIzaSy..."
+                className="w-full rounded-xl border border-white/20 bg-[#001D30] px-3.5 py-2.5 text-xs sm:text-sm font-mono text-white placeholder:text-slate-500 focus:border-[#00A6A6] focus:outline-none pl-14"
+              />
+              <button
+                type="button"
+                onClick={() => setShowKey((p) => !p)}
+                className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-[#B8D8E6] hover:text-white p-1"
+              >
+                {showKey ? "הסתר" : "הצג"}
+              </button>
+            </div>
+          </div>
+
+          {testResult && (
+            <p
+              role="status"
+              className={`rounded-xl border p-2.5 text-xs font-extrabold leading-relaxed ${
+                testResult.success
+                  ? "border-[#16A34A]/30 bg-[#16A34A]/15 text-[#86EFAC]"
+                  : "border-[#DC2626]/30 bg-[#FEE2E2]/15 text-[#FCA5A5]"
+              }`}
+            >
+              {testResult.success ? "✓ " : "⚠️ "}
+              {testResult.message}
+            </p>
+          )}
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              disabled={testing || !keyInput.trim()}
+              onClick={handleTest}
+              className="flex-1 rounded-xl border border-white/15 bg-white/10 hover:bg-white/15 px-3 py-2 text-xs font-extrabold text-white transition disabled:opacity-50"
+            >
+              {testing ? "בודק מפתח מול גוגל..." : "בדיקת תקינות מפתח"}
+            </button>
+            {currentKey && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClear();
+                  setKeyInput("");
+                  setTestResult(null);
+                }}
+                className="rounded-xl border border-[#DC2626]/30 bg-[#FEE2E2]/10 hover:bg-[#FEE2E2]/20 px-3 py-2 text-xs font-bold text-[#FCA5A5] transition"
+              >
+                מחיקת מפתח
+              </button>
+            )}
+          </div>
+
+          <div className="rounded-xl bg-[#001D30] border border-white/10 p-3 text-[11px] text-[#B8D8E6] leading-relaxed space-y-1">
+            <p className="font-bold text-white">איך משיגים מפתח בחינם?</p>
+            <p>1. נכנסים לאתר Google AI Studio מחשבון הגוגל.</p>
+            <p>2. לוחצים על Get API key ➔ Create API key.</p>
+            <p>3. מעתיקים ומדביקים כאן פעם אחת בלבד.</p>
+          </div>
+
+          <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-white/10">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-xl border border-white/14 bg-white/5 px-4 py-2.5 text-xs font-bold text-slate-300 hover:text-white"
+            >
+              ביטול
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                onSave(keyInput.trim());
+                onClose();
+              }}
+              className="rounded-xl bg-[#00A6A6] px-5 py-2.5 text-xs font-extrabold text-white hover:bg-[#00B3A4] shadow-md shadow-[#00A6A6]/20"
+            >
+              שמירת מפתח
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

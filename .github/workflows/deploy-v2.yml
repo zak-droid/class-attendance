@@ -1,0 +1,54 @@
+name: Build V2 & Deploy to main/docs
+
+on:
+  push:
+    branches:
+      - teacher-first-v2
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout teacher-first-v2 source
+        uses: actions/checkout@v4
+        with:
+          ref: teacher-first-v2
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install dependencies, build, and test
+        run: |
+          npm ci
+          npm run build
+          npm test
+
+      - name: Save built dist
+        run: |
+          mkdir -p /tmp/v2-dist
+          cp -R dist/. /tmp/v2-dist/
+
+      - name: Checkout main branch
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          clean: true
+
+      - name: Publish built assets to main/docs
+        run: |
+          rm -rf docs/assets
+          cp -R /tmp/v2-dist/. docs/
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs
+          if ! git diff --cached --quiet; then
+            git commit -m "Deploy V2 biometric quick sign-in and synced Today copy to production"
+            git push origin main
+          fi

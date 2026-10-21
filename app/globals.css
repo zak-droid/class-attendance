@@ -1,66 +1,38 @@
 @import "tailwindcss";
 
 :root {
-  --background: #073b4c;
-  --foreground: #102a34;
+  --background: #002b45;
+  --foreground: #ffffff;
+  --surface-secondary: #005580;
+  --cta-primary: #00a6a6;
+  --cta-active: #00b3a4;
 }
 
-* {
-  box-sizing: border-box;
-}
-
-html {
-  min-width: 320px;
-  background: var(--background);
-  direction: rtl;
-}
-
+html,
 body {
-  margin: 0;
-  background: var(--background);
+  background-color: var(--background);
   color: var(--foreground);
-  text-align: right;
   font-family: Heebo, "Noto Sans Hebrew", "Segoe UI", Arial, sans-serif;
-  -webkit-font-smoothing: antialiased;
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
 }
 
-button,
-input,
-select,
-textarea {
-  font: inherit;
-  font-family: Heebo, "Noto Sans Hebrew", "Segoe UI", Arial, sans-serif;
-}
-
-button {
-  cursor: pointer;
-}
-
-button:focus-visible,
-input:focus-visible,
-select:focus-visible,
-textarea:focus-visible {
-  outline: 3px solid rgba(15, 76, 92, 0.3);
-  outline-offset: 2px;
+#root {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
 }
 
 .app-bg {
-  background: #073b4c;
+  background: radial-gradient(circle at top right, #005580 0%, #002b45 62%);
 }
 
-.soft-card {
-  box-shadow: 0 10px 28px rgba(19, 69, 84, 0.1);
-}
-
-.dark-filter label {
-  color: rgba(255, 255, 255, 0.72);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    scroll-behavior: auto !important;
-    transition-duration: 0.01ms !important;
-  }
+.glass-panel {
+  background: #005580;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 16px 36px rgba(0, 18, 27, 0.16);
 }
