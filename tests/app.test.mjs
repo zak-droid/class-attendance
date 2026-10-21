@@ -34,8 +34,11 @@ import {
 } from "../app/offline-storage.ts";
 import {
   calculateStudentAttendanceStats,
+  calculateStudentCertificateEligibility,
   formatWhatsAppSummary,
   generateCourseAttendanceCSV,
+  getDefaultCourseTasks,
+  isYearlyCourse,
 } from "../app/export-utils.ts";
 
 function read(relativePath) {
@@ -367,7 +370,7 @@ test("offline storage cache, pending queue lifecycle, and optimistic data projec
   }
 });
 
-test("export utils generate valid Excel CSV with UTF-8 BOM, WhatsApp summary, and accurate attendance stats", () => {
+test("export utils generate valid Excel CSV with UTF-8 BOM, WhatsApp summary, Rotem 80% attendance stats and certificate eligibility", () => {
   const student = { id: "s1", name: "דני כהן", email: "dani@example.com", courseId: "c1", active: true };
   const course = { id: "c1", name: "הנחיית קבוצות", active: true };
 
@@ -378,18 +381,49 @@ test("export utils generate valid Excel CSV with UTF-8 BOM, WhatsApp summary, an
     { id: "l4", studentId: "s1", courseId: "c1", date: "2026-10-22", time: "10:00", status: "Excused" },
   ];
 
-  // 1. Student Stats calculation
+  // 1. Student Stats calculation according to Rotem rules:
+  // Late = 1.0 (full presence), Excused = regular absence (counted in denominator without credit)
+  // (1 present + 1 late) / 4 total sessions = 50%
   const stats = calculateStudentAttendanceStats(student, logs);
   assert.equal(stats.totalSessions, 4);
   assert.equal(stats.presentCount, 1);
   assert.equal(stats.lateCount, 1);
   assert.equal(stats.absentCount, 1);
   assert.equal(stats.excusedCount, 1);
-  // (1 present + 1 late) / (4 total - 1 excused) = 2/3 = 67%
-  assert.equal(stats.attendancePercentage, 67);
-  assert.equal(stats.recentAbsences.length, 2); // Absent + Late
+  assert.equal(stats.attendancePercentage, 50);
+  assert.equal(stats.isAttendanceEligible, false); // 80% threshold
+  assert.equal(stats.eligibilityStatus, "not_eligible");
+  assert.equal(stats.recentAbsences.length, 3); // Late + Absent + Excused
 
-  // 2. WhatsApp Summary
+  // 2. Certificate eligibility with mandatory obligations
+  const yearlyCourse = { id: "c1", name: "הנחיית קבוצות שנתי", active: true };
+  const goodLogs = [
+    { id: "l1", studentId: "s1", courseId: "c1", date: "2026-10-01", time: "10:00", status: "Present" },
+    { id: "l2", studentId: "s1", courseId: "c1", date: "2026-10-08", time: "10:00", status: "Present" },
+    { id: "l3", studentId: "s1", courseId: "c1", date: "2026-10-15", time: "10:00", status: "Present" },
+    { id: "l4", studentId: "s1", courseId: "c1", date: "2026-10-22", time: "10:00", status: "Late" },
+    { id: "l5", studentId: "s1", courseId: "c1", date: "2026-10-29", time: "10:00", status: "Absent" },
+  ]; // 4/5 = 80% attendance!
+
+  // Missing practicum on yearly course
+  const subsMissingPracticum = [
+    { id: "s1_c1_peer", studentId: "s1", courseId: "c1", taskId: "c1_peer", completed: true },
+    { id: "s1_c1_journey", studentId: "s1", courseId: "c1", taskId: "c1_journey", completed: true },
+  ];
+  const certMissing = calculateStudentCertificateEligibility(student, yearlyCourse, goodLogs, subsMissingPracticum);
+  assert.equal(certMissing.isAttendanceEligible, true);
+  assert.equal(certMissing.allTasksCompleted, false);
+  assert.equal(certMissing.isFullyEligibleForCertificate, false);
+
+  // All 3 completed on yearly course
+  const subsAllDone = [
+    ...subsMissingPracticum,
+    { id: "s1_c1_practicum", studentId: "s1", courseId: "c1", taskId: "c1_practicum", completed: true },
+  ];
+  const certAll = calculateStudentCertificateEligibility(student, yearlyCourse, goodLogs, subsAllDone);
+  assert.equal(certAll.isFullyEligibleForCertificate, true);
+
+  // 3. WhatsApp Summary
   const todayLogs = [
     { id: "l1", studentId: "s1", courseId: "c1", date: "2026-10-20", time: "10:00", status: "Present" },
     { id: "l2", studentId: "s2", courseId: "c1", date: "2026-10-20", time: "10:00", status: "Late" },
@@ -402,12 +436,13 @@ test("export utils generate valid Excel CSV with UTF-8 BOM, WhatsApp summary, an
   assert.match(waMessage, /מאחרים: 1/);
   assert.match(waMessage, /נעדרים: 1/);
 
-  // 3. Excel CSV Generation
-  const csv = generateCourseAttendanceCSV(course, [student], logs);
+  // 4. Excel CSV Generation
+  const csv = generateCourseAttendanceCSV(course, [student], logs, subsAllDone);
   assert.match(csv, /שם התלמיד,אימייל,סטטוס תלמיד/);
   assert.match(csv, /דני כהן,dani@example\.com,פעיל/);
-  assert.match(csv, /67%/);
-  assert.match(csv, /מפגש 2026-10-01/);
+  assert.match(csv, /50%/);
+  assert.match(csv, /תרגיל עמיתים/);
+  assert.match(csv, /מסע מדברי/);
 });
 
 test("teacher enhancements UI contracts in components and page", () => {
@@ -438,6 +473,17 @@ test("teacher enhancements UI contracts in components and page", () => {
   assert.match(page, /handleExportCourseCSV/);
   assert.match(page, /דוחות וייצוא נתונים/);
   assert.match(components, /ייצוא ל-Excel/);
+
+  // Phase 4 Course Obligations Matrix & Live/Retroactive Editing
+  assert.match(page, /CourseTasksMatrixView/);
+  assert.match(page, /TaskNoteModal/);
+  assert.match(page, /מעקב חובות וזכאות לתעודה/);
+  assert.match(page, /עריכת נוכחות להיום/);
+  assert.match(page, /רשומות לתאריך זה/);
+  assert.match(components, /CourseTasksMatrixView/);
+  assert.match(components, /TaskNoteModal/);
+  assert.match(components, /חובות הקורס לתעודה/);
+  assert.match(components, /רף תעודה: 80%/);
 });
 
 test("mobile hardware and gesture back button navigation lifecycle contract", () => {
