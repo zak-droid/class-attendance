@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState, type ChangeEvent, type FormEvent, type ReactNode } from "react";
 import type {
   AISyllabusAnalysis,
   AppTab,
@@ -779,7 +779,7 @@ export function CourseTasksMatrixView({
     else notEligibleCount += 1;
   }
 
-  const handleAddSubmit = (e: React.FormEvent) => {
+  const handleAddSubmit = (e: FormEvent) => {
     e.preventDefault();
     if (!newTaskTitle.trim() || !onAddCustomTask) return;
     onAddCustomTask(newTaskTitle.trim());
@@ -1112,6 +1112,7 @@ export function FinishAttendanceBar({
             סיום נוכחות
           </button>
         </div>
+        </div>
       </div>
     </div>
   );
@@ -1283,7 +1284,7 @@ export function CourseSyllabusModal({
 }) {
   const [syllabus, setSyllabus] = useState(course.syllabus || "");
 
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();

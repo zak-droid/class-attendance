@@ -1,6 +1,7 @@
 "use client";
 
 import type {
+  AISyllabusAnalysis,
   AppData,
   AttendanceStatus,
   CourseTask,
@@ -358,4 +359,69 @@ export function applyPendingActionsToData(data: AppData): AppData {
     submissions: submissions,
     lessons: lessons,
   };
+}
+
+export const GEMINI_API_KEY_STORAGE_KEY = "class_attendance_gemini_api_key_v1";
+export const ANALYSIS_STORAGE_KEY = "class_attendance_syllabus_analysis_v1";
+
+export function getStoredGeminiApiKey(): string | null {
+  const storage = getStorage();
+  if (!storage) return null;
+  try {
+    const raw = storage.getItem(GEMINI_API_KEY_STORAGE_KEY);
+    return raw ? raw.trim() : null;
+  } catch {
+    return null;
+  }
+}
+
+export function saveStoredGeminiApiKey(key: string): void {
+  const storage = getStorage();
+  if (!storage) return;
+  try {
+    const trimmed = key.trim();
+    if (trimmed) {
+      storage.setItem(GEMINI_API_KEY_STORAGE_KEY, trimmed);
+    } else {
+      storage.removeItem(GEMINI_API_KEY_STORAGE_KEY);
+    }
+  } catch (err) {
+    console.warn("Failed to save Gemini API key:", err);
+  }
+}
+
+export function clearStoredGeminiApiKey(): void {
+  const storage = getStorage();
+  if (!storage) return;
+  try {
+    storage.removeItem(GEMINI_API_KEY_STORAGE_KEY);
+  } catch {
+    // Ignore
+  }
+}
+
+export function hasStoredGeminiApiKey(): boolean {
+  return Boolean(getStoredGeminiApiKey());
+}
+
+export function getStoredAnalysis(courseId: string): AISyllabusAnalysis | null {
+  const storage = getStorage();
+  if (!storage) return null;
+  try {
+    const raw = storage.getItem(`${ANALYSIS_STORAGE_KEY}_${courseId}`);
+    if (!raw) return null;
+    return JSON.parse(raw) as AISyllabusAnalysis;
+  } catch {
+    return null;
+  }
+}
+
+export function saveStoredAnalysis(courseId: string, analysis: AISyllabusAnalysis): void {
+  const storage = getStorage();
+  if (!storage) return;
+  try {
+    storage.setItem(`${ANALYSIS_STORAGE_KEY}_${courseId}`, JSON.stringify(analysis));
+  } catch {
+    // Ignore
+  }
 }

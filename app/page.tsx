@@ -73,11 +73,13 @@ import { analyzeCourseSyllabus } from "./gemini-ai";
 import { prepareStudentImport } from "./student-import";
 import { supabase } from "./supabase";
 import type {
+  AISyllabusAnalysis,
   AppData,
   AppTab,
   AttendanceStatus,
   Course,
   CourseTask,
+  LessonLog,
   Student,
   StudentTaskSubmission,
 } from "./types";
