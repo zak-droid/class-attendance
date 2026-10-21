@@ -88,6 +88,58 @@ export function saveStoredAnalysis(courseId: string, analysis: AISyllabusAnalysi
 /**
  * Quick validation test for the Gemini API key against Google AI Studio endpoint.
  */
+export const GEMINI_CANDIDATE_MODELS = [
+  "gemini-1.5-flash-latest",
+  "gemini-2.0-flash",
+  "gemini-1.5-flash-002",
+  "gemini-1.5-flash-001",
+  "gemini-2.5-flash",
+  "gemini-1.5-flash",
+  "gemini-flash-latest",
+];
+
+async function callGeminiAPI(
+  apiKey: string,
+  payload: unknown
+): Promise<{ ok: boolean; status: number; data?: any; errorMsg?: string; modelUsed?: string }> {
+  let lastErrorMsg = "";
+  let lastStatus = 0;
+
+  for (const model of GEMINI_CANDIDATE_MODELS) {
+    try {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(
+        apiKey
+      )}`;
+      const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        return { ok: true, status: response.status, data, modelUsed: model };
+      }
+
+      lastStatus = response.status;
+      const errorJson = await response.json().catch(() => null);
+      lastErrorMsg = errorJson?.error?.message || `HTTP ${response.status}`;
+
+      // If invalid key or permission denied, stop immediately
+      if (response.status === 400 && lastErrorMsg.includes("API key")) {
+        return { ok: false, status: response.status, errorMsg: lastErrorMsg };
+      }
+      if (response.status === 403) {
+        return { ok: false, status: response.status, errorMsg: lastErrorMsg };
+      }
+    } catch (err) {
+      lastErrorMsg = err instanceof Error ? err.message : String(err);
+    }
+  }
+
+  return { ok: false, status: lastStatus, errorMsg: lastErrorMsg };
+}
+
 export async function testGeminiApiKey(
   apiKey: string
 ): Promise<{ success: boolean; message: string }> {
@@ -97,38 +149,27 @@ export async function testGeminiApiKey(
   }
 
   try {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${encodeURIComponent(
-      key
-    )}`;
-
-    const response = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: [{ text: "השב במילה אחת בלבד בעברית: מחובר" }],
-          },
-        ],
-        generationConfig: {
-          maxOutputTokens: 10,
+    const res = await callGeminiAPI(key, {
+      contents: [
+        {
+          parts: [{ text: "השב במילה אחת בלבד בעברית: מחובר" }],
         },
-      }),
+      ],
+      generationConfig: {
+        maxOutputTokens: 10,
+      },
     });
 
-    if (!response.ok) {
-      const errorJson = await response.json().catch(() => null);
-      const errMsg =
-        errorJson?.error?.message || `שגיאת אימות מול גוגל (${response.status})`;
+    if (!res.ok) {
       return {
         success: false,
-        message: `אימות המפתח נכשל: ${errMsg}`,
+        message: `אימות המפתח נכשל: ${res.errorMsg || "שגיאה בחיבור לגוגל"}`,
       };
     }
 
     return {
       success: true,
-      message: "המפתח אומת בהצלחה! חיבור פעיל לגוגל ג'מיני 1.5 Flash.",
+      message: `המפתח אומת בהצלחה! חיבור פעיל לגוגל ג'מיני (${res.modelUsed}).`,
     };
   } catch (err) {
     return {
@@ -339,30 +380,22 @@ ${lessonsSummary || "טרם נרשמו מפגשים בקורס זה."}
   "repetitionWarnings": ["התראה מפורטת על נושא שנלמד יותר מפעם אחת ללא צורך, או מערך ריק [] אם אין שום חזרתיות"]
 }`;
 
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${encodeURIComponent(
-      apiKey
-    )}`;
-
-    const response = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: {
-          temperature: 0.2,
-          responseMimeType: "application/json",
-        },
-      }),
+    const apiRes = await callGeminiAPI(apiKey, {
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: {
+        temperature: 0.2,
+        responseMimeType: "application/json",
+      },
     });
 
-    if (!response.ok) {
-      console.warn(`Gemini API returned error ${response.status}, falling back to heuristic.`);
+    if (!apiRes.ok || !apiRes.data) {
+      console.warn(`Gemini API returned error ${apiRes.status}: ${apiRes.errorMsg}, falling back to heuristic.`);
       const fallback = performHeuristicAnalysis(course, lessons);
       saveStoredAnalysis(course.id, fallback);
       return fallback;
     }
 
-    const resJson = await response.json();
+    const resJson = apiRes.data;
     const rawText = resJson?.candidates?.[0]?.content?.parts?.[0]?.text;
 
     if (!rawText) {
