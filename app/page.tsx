@@ -1720,6 +1720,73 @@ export default function Home() {
         />
       )}
 
+      {geminiSettingsOpen && (
+        <GeminiSettingsModal
+          currentKey={geminiApiKey || undefined}
+          onClose={() => setGeminiSettingsOpen(false)}
+          onSave={(key) => {
+            handleSaveGeminiKey(key);
+            setGeminiSettingsOpen(false);
+          }}
+          onClear={() => {
+            handleClearGeminiKey();
+            setGeminiSettingsOpen(false);
+          }}
+        />
+      )}
+
+      {syllabusModalCourse && (
+        <CourseSyllabusModal
+          course={syllabusModalCourse}
+          onClose={() => setSyllabusModalCourse(null)}
+          onSave={(syllabusText) => {
+            handleSaveSyllabus(syllabusModalCourse.id, syllabusText);
+            setSyllabusModalCourse(null);
+          }}
+        />
+      )}
+
+      {lessonTopicModalData && (
+        <LessonTopicModal
+          course={lessonTopicModalData.course}
+          date={lessonTopicModalData.date}
+          existingLog={lessonTopicModalData.existingLog}
+          currentUserEmail={userEmail || undefined}
+          onClose={() => setLessonTopicModalData(null)}
+          onSave={(topic, summary) => {
+            handleSaveLessonTopic(
+              lessonTopicModalData.course.id,
+              lessonTopicModalData.date,
+              topic,
+              summary
+            );
+            setLessonTopicModalData(null);
+          }}
+        />
+      )}
+
+      {aiAnalysisModalCourse && (
+        <AISyllabusAnalysisModal
+          course={aiAnalysisModalCourse}
+          lessons={lessons}
+          analysis={currentAnalysis}
+          loading={analysisLoading}
+          hasGeminiKey={Boolean(geminiApiKey)}
+          onReanalyze={() => void handleOpenAIAnalysis(aiAnalysisModalCourse)}
+          onEditSyllabus={() => {
+            const c = aiAnalysisModalCourse;
+            setAiAnalysisModalCourse(null);
+            handleOpenSyllabusModal(c);
+          }}
+          onOpenGeminiSettings={() => {
+            setAiAnalysisModalCourse(null);
+            setGeminiSettingsOpen(true);
+            safePushHistory("geminiSettings");
+          }}
+          onClose={() => setAiAnalysisModalCourse(null)}
+        />
+      )}
+
       <div
         className={`pointer-events-none fixed inset-x-4 bottom-24 z-[60] mx-auto max-w-md rounded-2xl bg-[#0F172A] px-4 py-3 text-center text-sm font-bold text-white shadow-[0_16px_36px_rgba(11,59,73,0.20)] transition lg:bottom-6 ${
           toast ? "translate-y-0 opacity-100" : "translate-y-3 opacity-0"
