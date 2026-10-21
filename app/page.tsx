@@ -150,6 +150,7 @@ export default function Home() {
       selectedAttendanceId,
       studentAddSheetOpen,
       quickCardStudent,
+      taskNoteModalData,
       modal,
     };
   }, [
@@ -159,6 +160,7 @@ export default function Home() {
     selectedAttendanceId,
     studentAddSheetOpen,
     quickCardStudent,
+    taskNoteModalData,
     modal,
   ]);
 
