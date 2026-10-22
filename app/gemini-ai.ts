@@ -590,3 +590,68 @@ export async function extractSyllabusFromPdfFile(
     message: "לא זוהה טקסט בתוך קובץ ה-PDF. לקריאה חכמה של סריקות ו-PDF, אנא הגדירו מפתח Gemini API בלשונית עוד, או העתיקו והדביקו את ראשי הפרקים ישירות.",
   };
 }
+
+/**
+ * Uses Gemini AI to parse an Excel spreadsheet (.xlsx, .xls) and extract a list of student names.
+ */
+export async function extractStudentsFromExcelFile(
+  file: File,
+  overrideApiKey?: string
+): Promise<{ success: boolean; text: string; message: string }> {
+  const apiKey = (overrideApiKey || getStoredGeminiApiKey() || "").trim();
+  if (!apiKey) {
+    return {
+      success: false,
+      text: "",
+      message: "לפיענוח ישיר של קובצי XLSX באפליקציה, הגדירו מפתח Gemini API בלשונית עוד. לחילופין, שמרו באקסל כ-CSV או העתיקו את שורות האקסל והדביקו בתיבה.",
+    };
+  }
+
+  try {
+    const base64Data = await fileToBase64(file);
+    const res = await callGeminiAPI(apiKey, {
+      contents: [
+        {
+          parts: [
+            {
+              inlineData: {
+                mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                data: base64Data,
+              },
+            },
+            {
+              text: "חלץ מתוך קובץ האקסל הזה את רשימת כל שמות הסטודנטים והאימיילים שלהם. החזר שורה לכל סטודנט במבנה: שם מלא, אימייל (אם קיים). ללא שום עמודות נוספות וללא הקדמות.",
+            },
+          ],
+        },
+      ],
+      generationConfig: {
+        temperature: 0.1,
+        maxOutputTokens: 2048,
+      },
+    });
+
+    if (res.ok && res.data) {
+      const parsed = res.data?.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (parsed && parsed.trim()) {
+        return {
+          success: true,
+          text: parsed.trim(),
+          message: `קובץ האקסל ${file.name} פוענח בהצלחה באמצעות Gemini AI!`,
+        };
+      }
+    }
+
+    return {
+      success: false,
+      text: "",
+      message: "לא ניתן היה לפענח את קובץ האקסל. מומלץ לשמור כ-CSV או להעתיק את עמודת השמות.",
+    };
+  } catch (err) {
+    return {
+      success: false,
+      text: "",
+      message: `שגיאה בפיענוח קובץ האקסל: ${err instanceof Error ? err.message : String(err)}`,
+    };
+  }
+}

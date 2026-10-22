@@ -403,15 +403,26 @@ export function AttendanceStudentRow({
   student,
   onOpen,
   onViewCard,
+  onStatusChange,
 }: {
   log: AttendanceLog;
   student: Student;
   onOpen: () => void;
   onViewCard?: () => void;
+  onStatusChange?: (status: AttendanceStatus) => void;
 }) {
+  const statusStyles: Record<AttendanceStatus, { bg: string; text: string; border: string }> = {
+    Present: { bg: "bg-[#10B981]/20", text: "text-[#34D399]", border: "border-[#10B981]/40" },
+    Late: { bg: "bg-[#F59E0B]/20", text: "text-[#FBBF24]", border: "border-[#F59E0B]/40" },
+    Absent: { bg: "bg-[#EF4444]/20", text: "text-[#F87171]", border: "border-[#EF4444]/40" },
+    Excused: { bg: "bg-[#38BDF8]/20", text: "text-[#38BDF8]", border: "border-[#38BDF8]/40" },
+  };
+
+  const currentStyle = statusStyles[log.status] || statusStyles.Present;
+
   return (
-    <div className="flex min-h-14 w-full items-center justify-between gap-3 rounded-2xl border border-white/14 bg-[#005580] px-4 py-3 text-right text-white transition hover:bg-[#005580]/90">
-      <div className="flex min-w-0 flex-1 items-center gap-2.5">
+    <div className="flex min-h-14 w-full items-center justify-between gap-2.5 rounded-2xl border border-white/14 bg-[#005580] px-3.5 py-2.5 text-right text-white transition hover:bg-[#005580]/90 shadow-sm">
+      <div className="flex min-w-0 flex-1 items-center gap-2">
         {onViewCard && (
           <button
             type="button"
@@ -427,19 +438,55 @@ export function AttendanceStudentRow({
           onClick={onOpen}
           className="min-w-0 flex-1 text-right focus:outline-none"
         >
-          <p dir="auto" className="truncate text-base font-bold">
+          <p dir="auto" className="truncate text-sm sm:text-base font-bold">
             {student.name}
           </p>
           {log.notes && (
-            <p className="mt-0.5 truncate text-xs font-medium text-[#B8D8E6]">
-              הערה: {log.notes}
+            <p className="mt-0.5 truncate text-[11px] font-medium text-[#FDE047]">
+              📝 {log.notes}
             </p>
           )}
         </button>
       </div>
-      <button type="button" onClick={onOpen} className="shrink-0 focus:outline-none">
-        <StatusBadge status={log.status} />
-      </button>
+
+      <div className="flex items-center gap-1.5 shrink-0">
+        {onStatusChange ? (
+          <div className="relative">
+            <select
+              value={log.status}
+              onChange={(e) => onStatusChange(e.target.value as AttendanceStatus)}
+              aria-label={`סימון נוכחות עבור ${student.name}`}
+              className={`min-h-10 cursor-pointer appearance-none rounded-xl border ${currentStyle.border} ${currentStyle.bg} ${currentStyle.text} pl-7 pr-3 py-1.5 text-xs font-extrabold focus:outline-none focus:ring-2 focus:ring-[#00A6A6]`}
+            >
+              <option value="Present" className="bg-[#002B45] text-[#34D399]">🟢 נוכח</option>
+              <option value="Late" className="bg-[#002B45] text-[#FBBF24]">🟡 מאחר</option>
+              <option value="Absent" className="bg-[#002B45] text-[#F87171]">🔴 נעדר</option>
+              <option value="Excused" className="bg-[#002B45] text-[#38BDF8]">🔵 מוצדק</option>
+            </select>
+            <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-white/60">
+              ▼
+            </span>
+          </div>
+        ) : (
+          <button type="button" onClick={onOpen} className="shrink-0 focus:outline-none">
+            <StatusBadge status={log.status} />
+          </button>
+        )}
+
+        <button
+          type="button"
+          onClick={onOpen}
+          aria-label={`הוספת הערה עבור ${student.name}`}
+          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/10 text-xs transition ${
+            log.notes
+              ? "bg-[#F59E0B]/20 text-[#FBBF24] border-[#F59E0B]/40"
+              : "bg-white/5 text-[#B8D8E6] hover:bg-white/10 hover:text-white"
+          }`}
+          title={log.notes ? `עריכת הערה: ${log.notes}` : "הוספת הערה"}
+        >
+          {log.notes ? "📝" : "💬"}
+        </button>
+      </div>
     </div>
   );
 }
