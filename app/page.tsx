@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent, type ReactNode } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { AuthScreen } from "./AuthScreen";
 import {
@@ -2143,7 +2143,7 @@ function AddStudentBottomSheet({
           setFileMessage({ type: "info", text: res.message });
         }
       }
-    } catch {
+    } catch (err) {
       setFileMessage({ type: "error", text: `שגיאה בטעינת הקובץ: ${err instanceof Error ? err.message : String(err)}` });
     } finally {
       e.target.value = "";
