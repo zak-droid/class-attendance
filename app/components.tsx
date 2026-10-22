@@ -1,5 +1,7 @@
 "use client";
 
+export { InstructorHelpHub } from "./InstructorHelpHub";
+
 import { useEffect, useState, type ChangeEvent, type FormEvent, type ReactNode } from "react";
 import type {
   AISyllabusAnalysis,
@@ -12,7 +14,7 @@ import type {
   Student,
   StudentTaskSubmission,
 } from "./types";
-import { testGeminiApiKey } from "./gemini-ai";
+import { testGeminiApiKey, extractSyllabusFromPdfFile } from "./gemini-ai";
 import {
   calculateStudentAttendanceStats,
   calculateStudentCertificateEligibility,
@@ -84,6 +86,7 @@ export function Layout({
   onTabChange,
   userEmail,
   onSignOut,
+  onOpenHelp,
   attendanceActive = false,
   title = "ניהול נוכחות",
   isOffline = false,
@@ -95,6 +98,7 @@ export function Layout({
   onTabChange: (tab: AppTab) => void;
   userEmail: string;
   onSignOut: () => void;
+  onOpenHelp?: () => void;
   attendanceActive?: boolean;
   title?: string;
   isOffline?: boolean;
@@ -133,13 +137,26 @@ export function Layout({
             <h1 className="truncate text-xl sm:text-2xl font-extrabold tracking-tight">{title}</h1>
             <p className="mt-0.5 truncate text-xs font-medium text-[#B8D8E6]" dir="ltr">{userEmail}</p>
           </div>
-          <button
-            type="button"
-            onClick={onSignOut}
-            className="shrink-0 min-h-10 rounded-xl border border-white/15 bg-[#005580] px-3.5 py-1.5 text-xs font-extrabold text-white hover:bg-[#005580]/80"
-          >
-            התנתקות
-          </button>
+          <div className="flex items-center gap-2">
+            {onOpenHelp && (
+              <button
+                type="button"
+                onClick={onOpenHelp}
+                title="מרכז עזרה, שו״ת ומשוב מנחים"
+                className="shrink-0 flex items-center gap-1.5 min-h-10 rounded-xl border border-[#00A6A6]/40 bg-[#00A6A6]/20 px-3 py-1.5 text-xs font-extrabold text-[#00E5E5] hover:bg-[#00A6A6]/30 transition"
+              >
+                <span>💡</span>
+                <span className="hidden sm:inline">עזרה ומשוב</span>
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={onSignOut}
+              className="shrink-0 min-h-10 rounded-xl border border-white/15 bg-[#005580] px-3.5 py-1.5 text-xs font-extrabold text-white hover:bg-[#005580]/80"
+            >
+              התנתקות
+            </button>
+          </div>
         </div>
       </header>
 
@@ -230,6 +247,8 @@ export function CourseCard({
   onViewStudents,
   onExportCSV,
   onViewTasks,
+  onViewAIAnalysis,
+  onEditSyllabus,
 }: {
   course: Course;
   studentCount: number;
@@ -384,15 +403,26 @@ export function AttendanceStudentRow({
   student,
   onOpen,
   onViewCard,
+  onStatusChange,
 }: {
   log: AttendanceLog;
   student: Student;
   onOpen: () => void;
   onViewCard?: () => void;
+  onStatusChange?: (status: AttendanceStatus) => void;
 }) {
+  const statusStyles: Record<AttendanceStatus, { bg: string; text: string; border: string }> = {
+    Present: { bg: "bg-[#10B981]/20", text: "text-[#34D399]", border: "border-[#10B981]/40" },
+    Late: { bg: "bg-[#F59E0B]/20", text: "text-[#FBBF24]", border: "border-[#F59E0B]/40" },
+    Absent: { bg: "bg-[#EF4444]/20", text: "text-[#F87171]", border: "border-[#EF4444]/40" },
+    Excused: { bg: "bg-[#38BDF8]/20", text: "text-[#38BDF8]", border: "border-[#38BDF8]/40" },
+  };
+
+  const currentStyle = statusStyles[log.status] || statusStyles.Present;
+
   return (
-    <div className="flex min-h-14 w-full items-center justify-between gap-3 rounded-2xl border border-white/14 bg-[#005580] px-4 py-3 text-right text-white transition hover:bg-[#005580]/90">
-      <div className="flex min-w-0 flex-1 items-center gap-2.5">
+    <div className="flex min-h-14 w-full items-center justify-between gap-2.5 rounded-2xl border border-white/14 bg-[#005580] px-3.5 py-2.5 text-right text-white transition hover:bg-[#005580]/90 shadow-sm">
+      <div className="flex min-w-0 flex-1 items-center gap-2">
         {onViewCard && (
           <button
             type="button"
@@ -408,19 +438,55 @@ export function AttendanceStudentRow({
           onClick={onOpen}
           className="min-w-0 flex-1 text-right focus:outline-none"
         >
-          <p dir="auto" className="truncate text-base font-bold">
+          <p dir="auto" className="truncate text-sm sm:text-base font-bold">
             {student.name}
           </p>
           {log.notes && (
-            <p className="mt-0.5 truncate text-xs font-medium text-[#B8D8E6]">
-              הערה: {log.notes}
+            <p className="mt-0.5 truncate text-[11px] font-medium text-[#FDE047]">
+              📝 {log.notes}
             </p>
           )}
         </button>
       </div>
-      <button type="button" onClick={onOpen} className="shrink-0 focus:outline-none">
-        <StatusBadge status={log.status} />
-      </button>
+
+      <div className="flex items-center gap-1.5 shrink-0">
+        {onStatusChange ? (
+          <div className="relative">
+            <select
+              value={log.status}
+              onChange={(e) => onStatusChange(e.target.value as AttendanceStatus)}
+              aria-label={`סימון נוכחות עבור ${student.name}`}
+              className={`min-h-10 cursor-pointer appearance-none rounded-xl border ${currentStyle.border} ${currentStyle.bg} ${currentStyle.text} pl-7 pr-3 py-1.5 text-xs font-extrabold focus:outline-none focus:ring-2 focus:ring-[#00A6A6]`}
+            >
+              <option value="Present" className="bg-[#002B45] text-[#34D399]">🟢 נוכח</option>
+              <option value="Late" className="bg-[#002B45] text-[#FBBF24]">🟡 מאחר</option>
+              <option value="Absent" className="bg-[#002B45] text-[#F87171]">🔴 נעדר</option>
+              <option value="Excused" className="bg-[#002B45] text-[#38BDF8]">🔵 מוצדק</option>
+            </select>
+            <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-white/60">
+              ▼
+            </span>
+          </div>
+        ) : (
+          <button type="button" onClick={onOpen} className="shrink-0 focus:outline-none">
+            <StatusBadge status={log.status} />
+          </button>
+        )}
+
+        <button
+          type="button"
+          onClick={onOpen}
+          aria-label={`הוספת הערה עבור ${student.name}`}
+          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/10 text-xs transition ${
+            log.notes
+              ? "bg-[#F59E0B]/20 text-[#FBBF24] border-[#F59E0B]/40"
+              : "bg-white/5 text-[#B8D8E6] hover:bg-white/10 hover:text-white"
+          }`}
+          title={log.notes ? `עריכת הערה: ${log.notes}` : "הוספת הערה"}
+        >
+          {log.notes ? "📝" : "💬"}
+        </button>
+      </div>
     </div>
   );
 }
@@ -1283,21 +1349,60 @@ export function CourseSyllabusModal({
   onSave: (syllabusText: string) => void;
 }) {
   const [syllabus, setSyllabus] = useState(course.syllabus || "");
+  const [uploading, setUploading] = useState(false);
+  const [statusMessage, setStatusMessage] = useState<{ type: "ok" | "error"; text: string } | null>(null);
 
-  const handleFileUpload = (event: ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const text = String(e.target?.result || "");
-      if (text.trim()) {
-        setSyllabus(text.trim());
+
+    setUploading(true);
+    setStatusMessage(null);
+
+    const isPdf = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
+
+    if (isPdf) {
+      try {
+        const res = await extractSyllabusFromPdfFile(file);
+        if (res.success && res.text) {
+          setSyllabus(res.text);
+          setStatusMessage({ type: "ok", text: res.message || "קובץ ה-PDF פוענח בהצלחה!" });
+        } else {
+          setStatusMessage({
+            type: "error",
+            text: res.message || "לא זוהה טקסט בקובץ ה-PDF. ניתן להדביק את ראשי הפרקים ידנית.",
+          });
+        }
+      } catch (err) {
+        setStatusMessage({
+          type: "error",
+          text: err instanceof Error ? err.message : "שגיאה בפענוח קובץ ה-PDF.",
+        });
+      } finally {
+        setUploading(false);
+        event.target.value = "";
       }
-    };
-    reader.readAsText(file);
+    } else {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const text = String(e.target?.result || "");
+        if (text.trim()) {
+          setSyllabus(text.trim());
+          setStatusMessage({ type: "ok", text: "הקובץ נטען בהצלחה!" });
+        }
+        setUploading(false);
+      };
+      reader.onerror = () => {
+        setStatusMessage({ type: "error", text: "שגיאה בקריאת הקובץ." });
+        setUploading(false);
+      };
+      reader.readAsText(file);
+      event.target.value = "";
+    }
   };
 
   const loadExample = () => {
+    setStatusMessage(null);
     setSyllabus(`1. פתיחה, חוזה קבוצתי והגדרת מטרות אישיות וקבוצתיות
 2. שלבי התפתחות קבוצה ומודל טאקמן
 3. מיומנויות הקשבה פעילה ושיקוף בהנחיה
@@ -1339,11 +1444,15 @@ export function CourseSyllabusModal({
               ראשי פרקים / רשימת נושאים:
             </label>
             <div className="flex items-center gap-2">
-              <label className="cursor-pointer rounded-lg border border-white/14 bg-white/5 px-2.5 py-1 text-[11px] font-bold text-[#38BDF8] hover:bg-white/10 transition">
-                <span>📁 העלאת קובץ</span>
+              <label
+                className={`cursor-pointer rounded-lg border border-white/14 bg-white/5 px-2.5 py-1 text-[11px] font-bold text-[#38BDF8] hover:bg-white/10 transition flex items-center gap-1.5 ${
+                  uploading ? "opacity-60 pointer-events-none" : ""
+                }`}
+              >
+                <span>{uploading ? "⏳ מפענח PDF..." : "📁 העלאת קובץ (PDF/טקסט)"}</span>
                 <input
                   type="file"
-                  accept=".txt,.md,.csv,.text"
+                  accept=".pdf,.txt,.md,.csv,.text,application/pdf,text/plain"
                   onChange={handleFileUpload}
                   className="hidden"
                 />
@@ -1351,12 +1460,25 @@ export function CourseSyllabusModal({
               <button
                 type="button"
                 onClick={loadExample}
-                className="rounded-lg border border-white/14 bg-white/5 px-2.5 py-1 text-[11px] font-bold text-[#00E5E5] hover:bg-white/10 transition"
+                disabled={uploading}
+                className="rounded-lg border border-white/14 bg-white/5 px-2.5 py-1 text-[11px] font-bold text-[#00E5E5] hover:bg-white/10 transition disabled:opacity-60"
               >
                 טעינת דוגמה
               </button>
             </div>
           </div>
+
+          {statusMessage && (
+            <div
+              className={`p-2.5 rounded-xl text-xs font-semibold ${
+                statusMessage.type === "ok"
+                  ? "bg-[#10B981]/15 text-[#34D399] border border-[#10B981]/30"
+                  : "bg-[#EF4444]/15 text-[#F87171] border border-[#EF4444]/30"
+              }`}
+            >
+              {statusMessage.text}
+            </div>
+          )}
 
           <textarea
             rows={10}

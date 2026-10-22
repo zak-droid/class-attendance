@@ -32,6 +32,7 @@ import {
   CourseCard,
   CourseSyllabusModal,
   CourseTasksMatrixView,
+  InstructorHelpHub,
   FinishAttendanceBar,
   GeminiSettingsModal,
   LessonTopicModal,
@@ -69,7 +70,7 @@ import {
   upsertCustomTask,
   upsertTaskSubmission,
 } from "./offline-storage";
-import { analyzeCourseSyllabus } from "./gemini-ai";
+import { analyzeCourseSyllabus, extractStudentsFromExcelFile } from "./gemini-ai";
 import { prepareStudentImport } from "./student-import";
 import { supabase } from "./supabase";
 import type {
@@ -113,10 +114,24 @@ export default function Home() {
   const [historyCourse, setHistoryCourse] = useState("all");
 
   const [activeSessionCourseId, setActiveSessionCourseId] = useState<string | null>(null);
+
+  const handleQuickStatusChange = (logId: string, status: AttendanceStatus) => {
+    setData((prev) => ({
+      ...prev,
+      attendance: prev.attendance.map((log) =>
+        log.id === logId ? { ...log, status } : log
+      ),
+    }));
+
+    void updateAttendanceLog(logId, { status }).then(() => {
+      setPendingSyncCount(getPendingQueue().length);
+      void refreshData();
+    });
+  };
   const [sessionReadOnly, setSessionReadOnly] = useState(false);
   const [selectedAttendanceId, setSelectedAttendanceId] = useState<string | null>(null);
   const [completedCourseIds, setCompletedCourseIds] = useState<Set<string>>(() => new Set());
-  const [moreView, setMoreView] = useState<"menu" | "courses" | "students" | "tasks">("menu");
+  const [moreView, setMoreView] = useState<"menu" | "courses" | "students" | "tasks" | "help">("menu");
   const [studentAddSheetOpen, setStudentAddSheetOpen] = useState(false);
   const [customTasks, setCustomTasks] = useState<CourseTask[]>(() => getStoredCustomTasks());
   const [submissions, setSubmissions] = useState<StudentTaskSubmission[]>(() => getStoredSubmissions());
@@ -310,7 +325,7 @@ export default function Home() {
   );
 
   const handleOpenMoreView = useCallback(
-    (view: "courses" | "students" | "tasks") => {
+    (view: "courses" | "students" | "tasks" | "help") => {
       safePushHistory(`more-${view}`);
       setMoreView(view);
     },
@@ -769,6 +784,10 @@ export default function Home() {
       onTabChange={handleTabChange}
       userEmail={userEmail || "מורה"}
       onSignOut={handleSignOut}
+      onOpenHelp={() => {
+        setTab("more");
+        handleOpenMoreView("help");
+      }}
       attendanceActive={Boolean(activeSessionCourseId)}
       isOffline={isOffline}
       pendingSyncCount={pendingSyncCount}
@@ -1008,6 +1027,7 @@ export default function Home() {
                     handleOpenAttendanceModal(log.id);
                   }}
                   onViewCard={() => handleOpenQuickCard(student)}
+                  onStatusChange={(status) => handleQuickStatusChange(log.id, status)}
                 />
               );
             })}
@@ -1218,6 +1238,7 @@ export default function Home() {
                         student={student}
                         onOpen={() => handleOpenAttendanceModal(log.id)}
                         onViewCard={() => handleOpenQuickCard(student)}
+                        onStatusChange={(status) => handleQuickStatusChange(log.id, status)}
                       />
                     );
                   })}
@@ -1363,6 +1384,14 @@ export default function Home() {
                 </div>
               </MoreGroup>
 
+              <MoreGroup title="תמיכה ופיתוח מנחים">
+                <MoreAction
+                  title="💡 מרכז עזרה, שו״ת ומשוב מנחים"
+                  description="ספריית שו״ת מלאה, דיווח על תקלות ואשף הצעות לשדרוגים ושינויים"
+                  onClick={() => handleOpenMoreView("help")}
+                />
+              </MoreGroup>
+
               <MoreGroup title="ניהול מערכת">
                 <MoreAction
                   title="מעקב חובות וזכאות לתעודה"
@@ -1464,6 +1493,8 @@ export default function Home() {
                             setSelectedTasksCourseId(course.id);
                             setMoreView("tasks");
                           }}
+                          onViewAIAnalysis={() => void handleOpenAIAnalysis(course)}
+                          onEditSyllabus={() => handleOpenSyllabusModal(course)}
                         />
                       );
                     })}
@@ -1584,6 +1615,22 @@ export default function Home() {
                     );
                   })()}
                 </div>
+              )}
+
+              {moreView === "help" && (
+                <InstructorHelpHub
+                  userEmail={userEmail}
+                  courses={data.courses}
+                  onNavigate={(destTab, destMoreView) => {
+                    setTab(destTab);
+                    if (destMoreView) {
+                      handleOpenMoreView(destMoreView);
+                    } else {
+                      setMoreView("menu");
+                    }
+                  }}
+                  onBack={exitMoreSubView}
+                />
               )}
             </div>
           )}
@@ -1715,6 +1762,73 @@ export default function Home() {
           initialCourseId={modal.initialCourseId ?? (studentCourse === "all" ? data.courses[0]?.id ?? "" : studentCourse)}
           onClose={closeModal}
           onSaved={refreshData}
+        />
+      )}
+
+      {geminiSettingsOpen && (
+        <GeminiSettingsModal
+          currentKey={geminiApiKey || undefined}
+          onClose={() => setGeminiSettingsOpen(false)}
+          onSave={(key) => {
+            handleSaveGeminiKey(key);
+            setGeminiSettingsOpen(false);
+          }}
+          onClear={() => {
+            handleClearGeminiKey();
+            setGeminiSettingsOpen(false);
+          }}
+        />
+      )}
+
+      {syllabusModalCourse && (
+        <CourseSyllabusModal
+          course={syllabusModalCourse}
+          onClose={() => setSyllabusModalCourse(null)}
+          onSave={(syllabusText) => {
+            handleSaveSyllabus(syllabusModalCourse.id, syllabusText);
+            setSyllabusModalCourse(null);
+          }}
+        />
+      )}
+
+      {lessonTopicModalData && (
+        <LessonTopicModal
+          course={lessonTopicModalData.course}
+          date={lessonTopicModalData.date}
+          existingLog={lessonTopicModalData.existingLog}
+          currentUserEmail={userEmail || undefined}
+          onClose={() => setLessonTopicModalData(null)}
+          onSave={(topic, summary) => {
+            handleSaveLessonTopic(
+              lessonTopicModalData.course.id,
+              lessonTopicModalData.date,
+              topic,
+              summary
+            );
+            setLessonTopicModalData(null);
+          }}
+        />
+      )}
+
+      {aiAnalysisModalCourse && (
+        <AISyllabusAnalysisModal
+          course={aiAnalysisModalCourse}
+          lessons={lessons}
+          analysis={currentAnalysis}
+          loading={analysisLoading}
+          hasGeminiKey={Boolean(geminiApiKey)}
+          onReanalyze={() => void handleOpenAIAnalysis(aiAnalysisModalCourse)}
+          onEditSyllabus={() => {
+            const c = aiAnalysisModalCourse;
+            setAiAnalysisModalCourse(null);
+            handleOpenSyllabusModal(c);
+          }}
+          onOpenGeminiSettings={() => {
+            setAiAnalysisModalCourse(null);
+            setGeminiSettingsOpen(true);
+            safePushHistory("geminiSettings");
+          }}
+          onClose={() => setAiAnalysisModalCourse(null)}
         />
       )}
 
@@ -1909,31 +2023,105 @@ function AddStudentBottomSheet({
   onClose: () => void;
   onSaved: () => Promise<void>;
 }) {
+  const [mode, setMode] = useState<"batch" | "single">("batch");
   const [courseId, setCourseId] = useState(initialCourseId);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [batchText, setBatchText] = useState("");
+  const [isImporting, setIsImporting] = useState(false);
+  const [fileMessage, setFileMessage] = useState<{ type: "ok" | "info" | "error"; text: string } | null>(null);
+
   const preview = prepareStudentImport(batchText, courseId, students);
 
-  const handleSave = async (event: FormEvent) => {
-    event.preventDefault();
-    if (!name.trim() || !courseId) return;
-    await saveStudent({
-      id: makeId(),
-      name: name.trim(),
-      email: email.trim() || undefined,
-      courseId,
-      active: true,
-    });
-    await onSaved();
-    onClose();
+  const handleFileUpload = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setFileMessage({ type: "info", text: "טוען ומנתח קובץ..." });
+
+    try {
+      const lower = file.name.toLowerCase();
+      if (lower.endsWith(".csv") || lower.endsWith(".tsv") || lower.endsWith(".txt")) {
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          const txt = String(ev.target?.result || "");
+          if (txt.trim()) {
+            setBatchText(txt.trim());
+            setFileMessage({ type: "ok", text: `נטענו נתונים בהצלחה מקובץ ${file.name}` });
+          } else {
+            setFileMessage({ type: "error", text: "הקובץ שנבחר ריק." });
+          }
+        };
+        reader.readAsText(file);
+      } else if (lower.endsWith(".xlsx") || lower.endsWith(".xls")) {
+        setFileMessage({ type: "info", text: "מפענח קובץ Excel..." });
+        const res = await extractStudentsFromExcelFile(file);
+        if (res.success && res.text) {
+          setBatchText(res.text);
+          setFileMessage({ type: "ok", text: res.message });
+        } else {
+          setFileMessage({ type: "info", text: res.message });
+        }
+      }
+    } catch (err) {
+      setFileMessage({ type: "error", text: `שגיאה בטעינת הקובץ: ${err instanceof Error ? err.message : String(err)}` });
+    } finally {
+      e.target.value = "";
+    }
+  };
+
+  const handleSaveBatch = async (e: FormEvent) => {
+    e.preventDefault();
+    if (preview.ready.length === 0 || !courseId || isImporting) return;
+    setIsImporting(true);
+
+    try {
+      for (const row of preview.ready) {
+        await saveStudent({
+          id: makeId(),
+          name: row.name,
+          email: row.email,
+          courseId,
+          active: true,
+        });
+      }
+      await onSaved();
+      onClose();
+    } catch (err) {
+      setFileMessage({ type: "error", text: "אירעה שגיאה בשמירת התלמידים." });
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
+  const handleSaveSingle = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!name.trim() || !courseId || isImporting) return;
+    setIsImporting(true);
+
+    try {
+      await saveStudent({
+        id: makeId(),
+        name: name.trim(),
+        email: email.trim() || undefined,
+        courseId,
+        active: true,
+      });
+      await onSaved();
+      onClose();
+    } catch (err) {
+      setFileMessage({ type: "error", text: "אירעה שגיאה בשמירת התלמיד." });
+    } finally {
+      setIsImporting(false);
+    }
   };
 
   return (
-    <Modal title="הוספת תלמיד חדש" onClose={onClose}>
-      <form onSubmit={(e) => void handleSave(e)} className="space-y-3">
+    <Modal title="ניהול תלמידים בכיתה" onClose={onClose}>
+      <div className="space-y-4">
+        {/* Course selector */}
         <label className="block text-xs font-bold text-[#475569]">
-          בחר קורס / בחירת כיתה
+          כיתה יעד / קורס:
           <select
             value={courseId}
             onChange={(e) => setCourseId(e.target.value)}
@@ -1946,45 +2134,141 @@ function AddStudentBottomSheet({
             ))}
           </select>
         </label>
-        <label className="block text-xs font-bold text-[#475569]">
-          שם מלא / שם התלמיד/ה
-          <input
-            type="text"
-            required
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className="mt-1 w-full rounded-xl border border-[#CBD5E1] p-2.5 text-sm font-semibold"
-          />
-        </label>
-        <label className="block text-xs font-bold text-[#475569]">
-          אימייל (רשות)
-          <input
-            type="email"
-            dir="ltr"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="mt-1 w-full rounded-xl border border-[#CBD5E1] p-2.5 text-left text-sm font-semibold"
-          />
-        </label>
-        <div className="pt-2">
-          <p className="text-xs font-bold text-[#475569]">ייבוא מרוכז של תלמידים — הדביקו רשימת תלמידים</p>
-          <textarea
-            rows={3}
-            value={batchText}
-            onChange={(e) => setBatchText(e.target.value)}
-            placeholder="שם מלא, אימייל בסוגריים, שורה חדשה לכל תלמיד"
-            className="mt-1 w-full rounded-xl border border-[#CBD5E1] p-2.5 text-xs"
-          />
-          {batchText && (
-            <p className="mt-1 text-xs font-bold text-[#166534]">
-              שורות תקינות מוכנות לייבוא / תקינים לייבוא: {preview.ready.length}
-            </p>
-          )}
+
+        {/* Tab switch */}
+        <div className="flex rounded-xl bg-slate-100 p-1 border border-slate-200">
+          <button
+            type="button"
+            onClick={() => setMode("batch")}
+            className={`flex-1 rounded-lg py-2 text-xs font-extrabold transition ${
+              mode === "batch"
+                ? "bg-[#002B45] text-white shadow"
+                : "text-slate-600 hover:text-slate-900"
+            }`}
+          >
+            📁 ייבוא מרוכז / העלאת אקסל
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode("single")}
+            className={`flex-1 rounded-lg py-2 text-xs font-extrabold transition ${
+              mode === "single"
+                ? "bg-[#002B45] text-white shadow"
+                : "text-slate-600 hover:text-slate-900"
+            }`}
+          >
+            👤 הוספת תלמיד בודד
+          </button>
         </div>
-        <button type="submit" className={`${primaryButton} w-full`}>
-          שמירה
-        </button>
-      </form>
+
+        {mode === "batch" ? (
+          <form onSubmit={(e) => void handleSaveBatch(e)} className="space-y-3">
+            <div className="flex items-center justify-between gap-2 pt-1">
+              <label className="block text-xs font-bold text-[#475569]">
+                הדבקה מאקסל או העלאת קובץ:
+              </label>
+              <label className="cursor-pointer rounded-lg border border-[#00A6A6]/30 bg-[#00A6A6]/10 px-2.5 py-1 text-[11px] font-bold text-[#008080] hover:bg-[#00A6A6]/20 transition flex items-center gap-1">
+                <span>📁 העלאת קובץ אקסל / CSV</span>
+                <input
+                  type="file"
+                  accept=".xlsx,.xls,.csv,.tsv,.txt"
+                  onChange={(e) => void handleFileUpload(e)}
+                  className="hidden"
+                />
+              </label>
+            </div>
+
+            {fileMessage && (
+              <div
+                className={`p-2.5 rounded-xl text-xs font-semibold ${
+                  fileMessage.type === "ok"
+                    ? "bg-[#10B981]/15 text-[#166534] border border-[#10B981]/30"
+                    : fileMessage.type === "error"
+                    ? "bg-[#EF4444]/15 text-[#991B1B] border border-[#EF4444]/30"
+                    : "bg-[#0284C7]/15 text-[#0369A1] border border-[#0284C7]/30"
+                }`}
+              >
+                {fileMessage.text}
+              </div>
+            )}
+
+            <textarea
+              rows={5}
+              dir="auto"
+              value={batchText}
+              onChange={(e) => setBatchText(e.target.value)}
+              placeholder="הדביקו כאן שורות ישירות מאקסל (המערכת מזהה ומסננת אוטומטית שמות תלמידים גם אם הטבלה מכילה ת.ז, טלפונים, ערים וכד')"
+              className="mt-1 w-full rounded-xl border border-[#CBD5E1] p-2.5 text-xs font-mono leading-relaxed focus:border-[#00A6A6] focus:outline-none"
+            />
+
+            {batchText.trim() && (
+              <div className="flex flex-wrap gap-2 text-[11px] font-bold">
+                <span className="rounded-lg bg-[#DCFCE7] px-2.5 py-1 text-[#166534]">
+                  ✓ מוכנים לייבוא: {preview.ready.length}
+                </span>
+                {preview.duplicates.length > 0 && (
+                  <span className="rounded-lg bg-[#FEF3C7] px-2.5 py-1 text-[#92400E]">
+                    ⚠ כפילויות שידלגו: {preview.duplicates.length}
+                  </span>
+                )}
+                {preview.invalid.length > 0 && (
+                  <span className="rounded-lg bg-[#FEE2E2] px-2.5 py-1 text-[#991B1B]">
+                    ✗ לא תקינים: {preview.invalid.length}
+                  </span>
+                )}
+              </div>
+            )}
+
+            <p className="text-[11px] text-[#64748B] leading-relaxed">
+              💡 <strong>טיפ:</strong> אפשר להעתיק עמודות שלמות מאקסל עם פרטי התלמידים. המערכת מחלצת אוטומטית את שמות התלמידים והאימיילים ומתעלמת משאר העמודות.
+            </p>
+
+            <button
+              type="submit"
+              disabled={preview.ready.length === 0 || isImporting}
+              className={`${primaryButton} w-full disabled:opacity-50`}
+            >
+              {isImporting
+                ? "מייבא תלמידים..."
+                : preview.ready.length > 0
+                ? `ייבוא ${preview.ready.length} תלמידים לכיתה`
+                : "אנא הדביקו שמות או העלו קובץ"}
+            </button>
+          </form>
+        ) : (
+          <form onSubmit={(e) => void handleSaveSingle(e)} className="space-y-3">
+            <label className="block text-xs font-bold text-[#475569]">
+              שם מלא של התלמיד/ה:
+              <input
+                type="text"
+                required
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="למשל: דניאל כהן"
+                className="mt-1 w-full rounded-xl border border-[#CBD5E1] p-2.5 text-sm font-semibold focus:border-[#00A6A6] focus:outline-none"
+              />
+            </label>
+            <label className="block text-xs font-bold text-[#475569]">
+              כתובת אימייל (רשות):
+              <input
+                type="email"
+                dir="ltr"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="student@example.com"
+                className="mt-1 w-full rounded-xl border border-[#CBD5E1] p-2.5 text-left text-sm font-semibold focus:border-[#00A6A6] focus:outline-none"
+              />
+            </label>
+            <button
+              type="submit"
+              disabled={!name.trim() || isImporting}
+              className={`${primaryButton} w-full disabled:opacity-50`}
+            >
+              {isImporting ? "שומר..." : "שמירת תלמיד חדש"}
+            </button>
+          </form>
+        )}
+      </div>
     </Modal>
   );
 }
