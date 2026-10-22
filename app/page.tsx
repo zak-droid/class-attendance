@@ -38,7 +38,6 @@ import {
   LessonTopicModal,
   Layout,
   Modal,
-  StatusBadge,
   StudentActionBottomSheet,
   StudentQuickCardModal,
   SummaryCards,
@@ -57,10 +56,8 @@ import {
   clearStoredGeminiApiKey,
   getPendingQueue,
   getStoredAnalysis,
-  getStoredCourseSyllabus,
   getStoredGeminiApiKey,
   getStoredLessons,
-  saveStoredAnalysis,
   saveStoredCourseSyllabus,
   saveStoredGeminiApiKey,
   upsertLessonLog,
@@ -110,6 +107,7 @@ export default function Home() {
   const [todayFilter, setTodayFilter] = useState<"all" | "exceptions">("all");
   const [studentCourse, setStudentCourse] = useState("all");
   const [studentSearch, setStudentSearch] = useState("");
+  const [showInactiveStudents, setShowInactiveStudents] = useState(false);
   const [historyDate, setHistoryDate] = useState(today);
   const [historyCourse, setHistoryCourse] = useState("all");
 
@@ -128,7 +126,7 @@ export default function Home() {
       void refreshData();
     });
   };
-  const [sessionReadOnly, setSessionReadOnly] = useState(false);
+  const [sessionReadOnly, setSessionReadOnly] = useState(false); void sessionReadOnly;
   const [selectedAttendanceId, setSelectedAttendanceId] = useState<string | null>(null);
   const [completedCourseIds, setCompletedCourseIds] = useState<Set<string>>(() => new Set());
   const [moreView, setMoreView] = useState<"menu" | "courses" | "students" | "tasks" | "help">("menu");
@@ -834,11 +832,20 @@ export default function Home() {
             </div>
           )}
 
-          <div className="mb-4">
-            <h2 className="text-xl font-extrabold">שיעורי היום</h2>
-            <p className="mt-1 text-sm font-medium leading-6 text-[#B8D8E6]">
-              בחרו כיתה כדי להתחיל נוכחות להיום.
-            </p>
+          <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="text-xl font-extrabold">שיעורי היום</h2>
+              <p className="mt-1 text-sm font-medium leading-6 text-[#B8D8E6]">
+                בחרו כיתה כדי להתחיל נוכחות להיום.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => handleOpenModal({ type: "course" })}
+              className="min-h-10 rounded-xl bg-[#00A6A6] hover:bg-[#00B3A4] px-3.5 py-2 text-xs font-extrabold text-white transition shadow-sm"
+            >
+              + כיתה חדשה
+            </button>
             <p className="text-xs font-medium leading-5 text-[#B8D8E6]">
               כל התלמידים יסומנו כנוכחים כברירת מחדל.
             </p>
@@ -897,22 +904,36 @@ export default function Home() {
                       </div>
 
                       <div className="mt-5 flex items-center gap-2">
-                        <button
-                          type="button"
-                          disabled={studentCount === 0}
-                          onClick={() => {
-                            if (!startedToday) void startAttendance(course.id);
-                            else {
-                              setTodayFilter("all");
-                              setSessionReadOnly(false);
-                              safePushHistory("session");
-                              setActiveSessionCourseId(course.id);
+                        {studentCount === 0 ? (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleOpenModal({
+                                type: "import",
+                                initialCourseId: course.id,
+                              })
                             }
-                          }}
-                          className="min-h-12 flex-1 rounded-xl bg-[#00A6A6] px-4 text-sm font-extrabold text-white transition hover:bg-[#00B3A4] disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/[0.45]"
-                        >
-                          {studentCount === 0 ? "אין תלמידים רשומים" : actionLabel}
-                        </button>
+                            className="min-h-12 flex-1 rounded-xl bg-[#00A6A6] hover:bg-[#00B3A4] px-4 text-xs sm:text-sm font-extrabold text-white transition shadow-md"
+                          >
+                            + הוספת / ייבוא תלמידים לכיתה
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (!startedToday) void startAttendance(course.id);
+                              else {
+                                setTodayFilter("all");
+                                setSessionReadOnly(false);
+                                safePushHistory("session");
+                                setActiveSessionCourseId(course.id);
+                              }
+                            }}
+                            className="min-h-12 flex-1 rounded-xl bg-[#00A6A6] px-4 text-sm font-extrabold text-white transition hover:bg-[#00B3A4]"
+                          >
+                            {actionLabel}
+                          </button>
+                        )}
                         {startedToday && (
                           <button
                             type="button"
@@ -1050,15 +1071,29 @@ export default function Home() {
       {/* TAB: STUDENTS */}
       {tab === "students" && (
         <section className="space-y-4 pb-4">
-          <div className="flex items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 className="text-xl font-extrabold text-white">תלמידים</h2>
-            <button
-              type="button"
-              onClick={handleOpenStudentAddSheet}
-              className="min-h-11 rounded-xl bg-[#00A6A6] px-4 text-xs font-extrabold text-white hover:bg-[#00B3A4]"
-            >
-              + הוספת תלמיד חדש
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() =>
+                  handleOpenModal({
+                    type: "import",
+                    initialCourseId: studentCourse === "all" ? data.courses[0]?.id : studentCourse,
+                  })
+                }
+                className="min-h-11 rounded-xl border border-white/20 bg-white/10 hover:bg-white/15 px-3 text-xs font-extrabold text-white transition"
+              >
+                📁 ייבוא מאקסל
+              </button>
+              <button
+                type="button"
+                onClick={handleOpenStudentAddSheet}
+                className="min-h-11 rounded-xl bg-[#00A6A6] px-4 text-xs font-extrabold text-white hover:bg-[#00B3A4] transition"
+              >
+                + הוספת תלמיד
+              </button>
+            </div>
           </div>
 
           <div className="flex gap-2">
@@ -1083,16 +1118,50 @@ export default function Home() {
             </select>
           </div>
 
-          <div className="space-y-2.5">
-            {data.students
+          {(() => {
+            const courseFiltered = data.students.filter(
+              (s) => studentCourse === "all" || s.courseId === studentCourse
+            );
+            const activeCount = courseFiltered.filter((s) => s.active).length;
+            const inactiveCount = courseFiltered.length - activeCount;
+
+            const displayed = courseFiltered
               .filter((student) => {
-                const matchCourse = studentCourse === "all" || student.courseId === studentCourse;
                 const matchSearch =
                   !studentSearch ||
                   student.name.toLowerCase().includes(studentSearch.toLowerCase());
-                return matchCourse && matchSearch;
+                const matchActive = showInactiveStudents ? true : student.active;
+                return matchSearch && matchActive;
               })
-              .map((student) => (
+              .sort((a, b) => {
+                if (a.active !== b.active) return a.active ? -1 : 1;
+                return a.name.localeCompare(b.name, "he");
+              });
+
+            return (
+              <>
+                <div className="flex items-center justify-between text-xs font-bold text-[#B8D8E6] px-1">
+                  <span>
+                    מציג {displayed.length} תלמידים פעילים {inactiveCount > 0 && !showInactiveStudents ? "(" + inactiveCount + " לא פעילים מוסתרים)" : ""}
+                  </span>
+                  {inactiveCount > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setShowInactiveStudents((prev) => !prev)}
+                      className="text-xs underline hover:text-white transition"
+                    >
+                      {showInactiveStudents ? "הסתר תלמידים לא פעילים" : "הצג גם " + inactiveCount + " לא פעילים"}
+                    </button>
+                  )}
+                </div>
+
+                <div className="space-y-2.5">
+                  {displayed.length === 0 ? (
+                    <div className="rounded-2xl border border-white/14 bg-[#005580] p-6 text-center text-xs font-bold text-[#B8D8E6]">
+                      לא נמצאו תלמידים התואמים את הסינון.
+                    </div>
+                  ) : (
+                    displayed.map((student) => (
                 <div
                   key={student.id}
                   className="flex min-h-14 w-full items-center justify-between gap-3 rounded-2xl border border-white/14 bg-[#005580] px-4 py-3"
@@ -1129,9 +1198,13 @@ export default function Home() {
                     }
                   />
                 </div>
-              ))}
+              ))
+            )}
           </div>
-        </section>
+        </>
+      );
+    })()}
+  </section>
       )}
 
       {/* TAB: HISTORY */}
@@ -1479,9 +1552,16 @@ export default function Home() {
                           startedToday={todayLogs.some((l) => l.courseId === course.id)}
                           completedToday={completedCourseIds.has(course.id)}
                           onStart={() => {
-                            safePushHistory("session");
-                            setActiveSessionCourseId(course.id);
                             setTab("today");
+                            const started = todayLogs.some((l) => l.courseId === course.id);
+                            if (!started) {
+                              void startAttendance(course.id);
+                            } else {
+                              setTodayFilter("all");
+                              setSessionReadOnly(false);
+                              safePushHistory("session");
+                              setActiveSessionCourseId(course.id);
+                            }
                           }}
                           onEdit={() => handleOpenModal({ type: "course", course })}
                           onToggleActive={() =>
@@ -2063,7 +2143,7 @@ function AddStudentBottomSheet({
           setFileMessage({ type: "info", text: res.message });
         }
       }
-    } catch (err) {
+    } catch {
       setFileMessage({ type: "error", text: `שגיאה בטעינת הקובץ: ${err instanceof Error ? err.message : String(err)}` });
     } finally {
       e.target.value = "";
@@ -2087,7 +2167,7 @@ function AddStudentBottomSheet({
       }
       await onSaved();
       onClose();
-    } catch (err) {
+    } catch {
       setFileMessage({ type: "error", text: "אירעה שגיאה בשמירת התלמידים." });
     } finally {
       setIsImporting(false);
@@ -2109,7 +2189,7 @@ function AddStudentBottomSheet({
       });
       await onSaved();
       onClose();
-    } catch (err) {
+    } catch {
       setFileMessage({ type: "error", text: "אירעה שגיאה בשמירת התלמיד." });
     } finally {
       setIsImporting(false);
@@ -2119,21 +2199,26 @@ function AddStudentBottomSheet({
   return (
     <Modal title="ניהול תלמידים בכיתה" onClose={onClose}>
       <div className="space-y-4">
-        {/* Course selector */}
-        <label className="block text-xs font-bold text-[#475569]">
-          כיתה יעד / קורס:
-          <select
-            value={courseId}
-            onChange={(e) => setCourseId(e.target.value)}
-            className="mt-1 w-full rounded-xl border border-[#CBD5E1] p-2.5 text-sm font-semibold"
-          >
-            {courses.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
-        </label>
+        {/* Prominent Destination Course Selector */}
+        <div className="rounded-xl border border-[#00A6A6]/30 bg-[#00A6A6]/10 p-3">
+          <label className="block text-xs font-extrabold text-[#005580]">
+            🎯 שיוך לכיתה / קורס יעד:
+            <select
+              value={courseId}
+              onChange={(e) => setCourseId(e.target.value)}
+              className="mt-1.5 w-full rounded-xl border border-[#00A6A6]/40 bg-white p-2.5 text-sm font-bold text-[#002B45] shadow-sm focus:border-[#00A6A6] focus:outline-none"
+            >
+              {courses.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <p className="mt-1 text-[11px] font-semibold text-[#005580]">
+            כל התלמידים ברשימה ישויכו ישירות לכיתה זו בלחיצת כפתור אחת.
+          </p>
+        </div>
 
         {/* Tab switch */}
         <div className="flex rounded-xl bg-slate-100 p-1 border border-slate-200">

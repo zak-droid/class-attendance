@@ -458,6 +458,7 @@ export async function extractTextFromPdfArrayBuffer(buffer: ArrayBuffer): Promis
   const streamRegex = /stream\r?\n([\s\S]*?)\r?\nendstream/g;
   let match: RegExpExecArray | null;
   const extractedLines: string[] = [];
+  const DS = (globalThis as any).DecompressionStream;
 
   while ((match = streamRegex.exec(raw)) !== null) {
     const streamStart = match.index + match[0].indexOf("\n") + 1;
@@ -465,9 +466,9 @@ export async function extractTextFromPdfArrayBuffer(buffer: ArrayBuffer): Promis
     const streamBytes = bytes.slice(streamStart, streamStart + streamContentLength);
 
     let decompressed = "";
-    if (typeof DecompressionStream !== "undefined") {
+    if (typeof DS === "function") {
       try {
-        const ds = new DecompressionStream("deflate");
+        const ds = new DS("deflate");
         const writer = ds.writable.getWriter();
         writer.write(streamBytes);
         writer.close();
@@ -480,7 +481,7 @@ export async function extractTextFromPdfArrayBuffer(buffer: ArrayBuffer): Promis
       decompressed = match[1];
     }
 
-    // Extract text in (...) Tj or [...] TJ or hex <...>
+    // Extract text in (...) Tj or [...] TJ
     const tjRegex = /\(([^)]+)\)\s*T[jJ]|\[([^\]]+)\]\s*TJ/g;
     let tjMatch: RegExpExecArray | null;
     while ((tjMatch = tjRegex.exec(decompressed)) !== null) {
@@ -500,13 +501,12 @@ export async function extractTextFromPdfArrayBuffer(buffer: ArrayBuffer): Promis
     }
   }
 
-  // Filter and format as numbered topics
   const topics = extractedLines
     .filter((l) => !l.startsWith("/") && !l.includes("PDF") && l.length > 2)
     .slice(0, 30);
 
   if (topics.length === 0) return "";
-  return topics.map((t, idx) => `${idx + 1}. ${t}`).join("\n");
+  return topics.map((t, idxNum) => `${idxNum + 1}. ${t}`).join("\n");
 }
 
 /**
@@ -519,7 +519,6 @@ export async function extractSyllabusFromPdfFile(
 ): Promise<{ success: boolean; text: string; usedGemini: boolean; message?: string }> {
   const apiKey = (overrideApiKey || getStoredGeminiApiKey() || "").trim();
 
-  // If Gemini API key is available, use Gemini 1.5 Flash to parse PDF
   if (apiKey) {
     try {
       const base64Data = await fileToBase64(file);
@@ -567,7 +566,6 @@ export async function extractSyllabusFromPdfFile(
     }
   }
 
-  // Fallback: client-side stream text extraction
   try {
     const arrayBuffer = await file.arrayBuffer();
     const localText = await extractTextFromPdfArrayBuffer(arrayBuffer);
@@ -591,19 +589,211 @@ export async function extractSyllabusFromPdfFile(
   };
 }
 
+async function inflateRawZipEntry(compData: Uint8Array): Promise<ArrayBuffer | null> {
+  const DS = (globalThis as any).DecompressionStream;
+  if (typeof DS !== "function") return null;
+
+  try {
+    const ds = new DS("deflate-raw");
+    const writer = ds.writable.getWriter();
+    writer.write(compData);
+    writer.close();
+    return await new Response(ds.readable).arrayBuffer();
+  } catch {
+    try {
+      const wrapped = new Uint8Array(compData.length + 2);
+      wrapped[0] = 0x78;
+      wrapped[1] = 0x9c;
+      wrapped.set(compData, 2);
+      const ds = new DS("deflate");
+      const reader = ds.readable.getReader();
+      const writer = ds.writable.getWriter();
+      writer.write(wrapped).catch(() => {});
+      writer.close().catch(() => {});
+      const chunks: Uint8Array[] = [];
+      let total = 0;
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          if (value) {
+            chunks.push(value);
+            total += value.byteLength;
+          }
+        }
+      } catch {
+        // Ignore Adler-32 trailer mismatch at end of stream
+      }
+      const out = new Uint8Array(total);
+      let offset = 0;
+      for (const c of chunks) {
+        out.set(c, offset);
+        offset += c.byteLength;
+      }
+      return out.buffer;
+    } catch {
+      return null;
+    }
+  }
+}
+
+function decodeXmlEntities(str: string): string {
+  return str
+    .replace(/&#(\d+);/g, (_, dec) => String.fromCharCode(Number(dec)))
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&amp;/g, "&");
+}
+
 /**
- * Uses Gemini AI to parse an Excel spreadsheet (.xlsx, .xls) and extract a list of student names.
+ * Built-in local .xlsx parser (reads ZIP Central Directory, xl/sharedStrings.xml, and xl/worksheets/sheet1.xml)
+ * Works 100% locally in the browser without requiring a Gemini API key.
+ */
+export async function extractTextFromXlsxArrayBuffer(buffer: ArrayBuffer): Promise<string> {
+  const bytes = new Uint8Array(buffer);
+  if (bytes.length < 22) return "";
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+
+  let eocdOffset = -1;
+  for (let i = bytes.length - 22; i >= Math.max(0, bytes.length - 65557); i -= 1) {
+    if (view.getUint32(i, true) === 0x06054b50) {
+      eocdOffset = i;
+      break;
+    }
+  }
+  if (eocdOffset === -1) return "";
+
+  const cdCount = view.getUint16(eocdOffset + 10, true);
+  const cdOffset = view.getUint32(eocdOffset + 16, true);
+  const entries = new Map<string, { compression: number; compSize: number; localHeaderOffset: number }>();
+  let ptr = cdOffset;
+  const decoder = new TextDecoder("utf-8");
+
+  for (let i = 0; i < cdCount; i += 1) {
+    if (ptr + 46 > bytes.length || view.getUint32(ptr, true) !== 0x02014b50) break;
+    const compression = view.getUint16(ptr + 10, true);
+    const compSize = view.getUint32(ptr + 20, true);
+    const nameLen = view.getUint16(ptr + 28, true);
+    const extraLen = view.getUint16(ptr + 30, true);
+    const commentLen = view.getUint16(ptr + 32, true);
+    const localHeaderOffset = view.getUint32(ptr + 42, true);
+    const name = decoder.decode(bytes.subarray(ptr + 46, ptr + 46 + nameLen));
+    entries.set(name, { compression, compSize, localHeaderOffset });
+    ptr += 46 + nameLen + extraLen + commentLen;
+  }
+
+  async function readEntryText(name: string): Promise<string | null> {
+    const entry = entries.get(name);
+    if (!entry) return null;
+    const lh = entry.localHeaderOffset;
+    if (lh + 30 > bytes.length || view.getUint32(lh, true) !== 0x04034b50) return null;
+    const lhNameLen = view.getUint16(lh + 26, true);
+    const lhExtraLen = view.getUint16(lh + 28, true);
+    const dataStart = lh + 30 + lhNameLen + lhExtraLen;
+    const compData = bytes.subarray(dataStart, dataStart + entry.compSize);
+
+    if (entry.compression === 0) {
+      return decoder.decode(compData);
+    }
+    if (entry.compression === 8) {
+      const outBuf = await inflateRawZipEntry(compData);
+      if (outBuf && outBuf.byteLength > 0) {
+        return decoder.decode(outBuf);
+      }
+    }
+    return null;
+  }
+
+  const sharedStrings: string[] = [];
+  const ssXml = await readEntryText("xl/sharedStrings.xml");
+  if (ssXml) {
+    const siRegex = /<si\b[^>]*>([\s\S]*?)<\/si>/g;
+    let siMatch: RegExpExecArray | null;
+    while ((siMatch = siRegex.exec(ssXml)) !== null) {
+      const tRegex = /<t\b[^>]*>([\s\S]*?)<\/t>/g;
+      let tMatch: RegExpExecArray | null;
+      const parts: string[] = [];
+      while ((tMatch = tRegex.exec(siMatch[1])) !== null) {
+        parts.push(decodeXmlEntities(tMatch[1]));
+      }
+      sharedStrings.push(parts.join(""));
+    }
+  }
+
+  const sheetName =
+    Array.from(entries.keys()).find((k) => /^xl\/worksheets\/sheet\d+\.xml$/i.test(k)) ||
+    "xl/worksheets/sheet1.xml";
+  const sheetXml = await readEntryText(sheetName);
+  if (!sheetXml) return "";
+
+  const rows: string[] = [];
+  const rowRegex = /<row\b[^>]*>([\s\S]*?)<\/row>/g;
+  let rowMatch: RegExpExecArray | null;
+  while ((rowMatch = rowRegex.exec(sheetXml)) !== null) {
+    const cells: string[] = [];
+    const cellRegex = /<c\b([^>]*)>([\s\S]*?)<\/c>/g;
+    let cellMatch: RegExpExecArray | null;
+    while ((cellMatch = cellRegex.exec(rowMatch[1])) !== null) {
+      const attrs = cellMatch[1];
+      const content = cellMatch[2];
+      const typeMatch = /\bt="([^"]+)"/.exec(attrs);
+      const cellType = typeMatch ? typeMatch[1] : "";
+      let val = "";
+      if (cellType === "s") {
+        const vMatch = /<v\b[^>]*>([\s\S]*?)<\/v>/.exec(content);
+        if (vMatch) {
+          const sIdx = parseInt(vMatch[1].trim(), 10);
+          val = sharedStrings[sIdx] ?? "";
+        }
+      } else if (cellType === "inlineStr" || content.includes("<is>")) {
+        const tMatch = /<t\b[^>]*>([\s\S]*?)<\/t>/.exec(content);
+        if (tMatch) val = decodeXmlEntities(tMatch[1]);
+      } else {
+        const vMatch = /<v\b[^>]*>([\s\S]*?)<\/v>/.exec(content);
+        if (vMatch) val = decodeXmlEntities(vMatch[1].trim());
+      }
+      if (val.trim()) cells.push(val.trim());
+    }
+    if (cells.length > 0) {
+      rows.push(cells.join("\t"));
+    }
+  }
+  return rows.join("\n");
+}
+
+/**
+ * Extracts student rows from an Excel spreadsheet (.xlsx, .xls) using local parser first,
+ * and falls back to Gemini AI if needed.
  */
 export async function extractStudentsFromExcelFile(
   file: File,
   overrideApiKey?: string
 ): Promise<{ success: boolean; text: string; message: string }> {
+  // 1. Try fast local .xlsx extraction first (works offline and without API key)
+  try {
+    const buf = await file.arrayBuffer();
+    const localRows = await extractTextFromXlsxArrayBuffer(buf);
+    if (localRows && localRows.trim()) {
+      return {
+        success: true,
+        text: localRows.trim(),
+        message: `קובץ האקסל ${file.name} נקרא בהצלחה!`,
+      };
+    }
+  } catch (err) {
+    console.warn("Local XLSX parser fallback:", err);
+  }
+
+  // 2. Fallback to Gemini AI if API key is available
   const apiKey = (overrideApiKey || getStoredGeminiApiKey() || "").trim();
   if (!apiKey) {
     return {
       success: false,
       text: "",
-      message: "לפיענוח ישיר של קובצי XLSX באפליקציה, הגדירו מפתח Gemini API בלשונית עוד. לחילופין, שמרו באקסל כ-CSV או העתיקו את שורות האקסל והדביקו בתיבה.",
+      message: "לא ניתן היה לקרוא את קובץ האקסל הישן (.xls). אנא שמרו כקובץ Excel מודרני (.xlsx) או CSV, או העתיקו את השורות והדביקו בתיבה.",
     };
   }
 

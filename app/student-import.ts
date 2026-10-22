@@ -19,22 +19,32 @@ export interface StudentImportPreview {
 }
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const hasLettersPattern = /[\u0590-\u05FFa-zA-Z]{2,}/;
+const phoneOrIdPattern = /^[\d\-\s\+\(\)\.\/]{5,}$/;
 
-function cleanName(value: string) {
+function cleanName(value: string): string {
   return value.trim().replace(/^["\x27]|["\x27]$/g, "").replace(/\s+/g, " ");
 }
 
-function normalizedName(value: string) {
-  return cleanName(value).normalize("NFKC").toLowerCase("he-IL");
+function normalizedName(value: string): string {
+  return cleanName(value).normalize("NFKC").toLowerCase();
 }
 
-function normalizedEmail(value: string) {
+function normalizedEmail(value: string): string {
   return value.trim().toLowerCase();
 }
 
-export function prepareStudentImport(text: string, courseId: string, existingStudents: Student[]): StudentImportPreview {
+export function prepareStudentImport(
+  text: string,
+  courseId: string,
+  existingStudents: Student[]
+): StudentImportPreview {
   const existingInCourse = existingStudents.filter((student) => student.courseId === courseId);
-  const existingEmails = new Set(existingInCourse.map((student) => student.email ? normalizedEmail(student.email) : "").filter(Boolean));
+  const existingEmails = new Set(
+    existingInCourse
+      .map((student) => (student.email ? normalizedEmail(student.email) : ""))
+      .filter(Boolean)
+  );
   const existingNames = new Set(existingInCourse.map((student) => normalizedName(student.name)));
   const seenEmails = new Set<string>();
   const seenNames = new Set<string>();
@@ -60,18 +70,26 @@ export function prepareStudentImport(text: string, courseId: string, existingStu
 
     const values = rawValues.map((v) => v.trim().replace(/^["\x27]|["\x27]$/g, ""));
 
-    // Check if line is a header row (first 3 lines only)
+    // Skip header row if detected in the first 3 lines
     if (index < 3) {
       const joined = values.join(" ").toLowerCase();
       if (
         (joined.includes("שם") || joined.includes("student") || joined.includes("name")) &&
-        (joined.includes("מייל") || joined.includes("email") || joined.includes("טלפון") || joined.includes("phone") || joined.includes("ת.ז") || joined.includes("id"))
+        (joined.includes("מייל") ||
+          joined.includes("אימייל") ||
+          joined.includes("email") ||
+          joined.includes("טלפון") ||
+          joined.includes("נייד") ||
+          joined.includes("phone") ||
+          joined.includes("ת.ז") ||
+          joined.includes("תעודת זהות") ||
+          joined.includes("id"))
       ) {
-        return; // skip header row
+        return;
       }
     }
 
-    // Check for email across any column
+    // Find email across any column
     let email = "";
     let emailColIdx = -1;
     for (let i = 0; i < values.length; i += 1) {
@@ -82,20 +100,20 @@ export function prepareStudentImport(text: string, courseId: string, existingStu
       }
     }
 
-    // Backward compatibility with test: if exactly 2 values and second value is non-empty but invalid email
+    // Backward compatibility: if 2 columns and 2nd column looks like a malformed email/token without spaces
     if (values.length === 2 && values[1] && !email) {
-      if (values[1].includes("@") || !values[1].includes(" ")) {
+      if (values[1].includes("@") || (!values[1].includes(" ") && !phoneOrIdPattern.test(values[1]))) {
         invalid.push({ line, input: trimmedInput, reason: "כתובת אימייל לא תקינה" });
         return;
       }
     }
 
-    // Name column: find first non-numeric, non-email column with letters
+    // Find student name column: first non-email column that contains actual letters (skipping row numbers, IDs, phones)
     let name = "";
     for (let i = 0; i < values.length; i += 1) {
       if (i === emailColIdx) continue;
       const val = cleanName(values[i]);
-      if (val && !/^\d{5,}$/.test(val.replace(/[-\s]/g, ""))) {
+      if (val && hasLettersPattern.test(val) && !phoneOrIdPattern.test(val) && !val.includes("@")) {
         name = val;
         break;
       }
@@ -105,7 +123,7 @@ export function prepareStudentImport(text: string, courseId: string, existingStu
       name = cleanName(values[0] ?? "");
     }
 
-    if (!name) {
+    if (!name || /^\d+$/.test(name)) {
       invalid.push({ line, input: trimmedInput, reason: "חסר שם תלמיד" });
       return;
     }

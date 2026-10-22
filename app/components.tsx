@@ -16,12 +16,10 @@ import type {
 } from "./types";
 import { testGeminiApiKey, extractSyllabusFromPdfFile } from "./gemini-ai";
 import {
-  calculateStudentAttendanceStats,
   calculateStudentCertificateEligibility,
   getDefaultCourseTasks,
   isYearlyCourse,
   type StudentAttendanceStats,
-  type StudentCertificateEligibility,
 } from "./export-utils";
 
 export const statusLabels: Record<AttendanceStatus, string> = {
