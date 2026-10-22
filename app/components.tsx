@@ -14,7 +14,7 @@ import type {
   Student,
   StudentTaskSubmission,
 } from "./types";
-import { testGeminiApiKey } from "./gemini-ai";
+import { testGeminiApiKey, extractSyllabusFromPdfFile } from "./gemini-ai";
 import {
   calculateStudentAttendanceStats,
   calculateStudentCertificateEligibility,
@@ -1302,21 +1302,60 @@ export function CourseSyllabusModal({
   onSave: (syllabusText: string) => void;
 }) {
   const [syllabus, setSyllabus] = useState(course.syllabus || "");
+  const [uploading, setUploading] = useState(false);
+  const [statusMessage, setStatusMessage] = useState<{ type: "ok" | "error"; text: string } | null>(null);
 
-  const handleFileUpload = (event: ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const text = String(e.target?.result || "");
-      if (text.trim()) {
-        setSyllabus(text.trim());
+
+    setUploading(true);
+    setStatusMessage(null);
+
+    const isPdf = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
+
+    if (isPdf) {
+      try {
+        const res = await extractSyllabusFromPdfFile(file);
+        if (res.success && res.text) {
+          setSyllabus(res.text);
+          setStatusMessage({ type: "ok", text: res.message || "קובץ ה-PDF פוענח בהצלחה!" });
+        } else {
+          setStatusMessage({
+            type: "error",
+            text: res.message || "לא זוהה טקסט בקובץ ה-PDF. ניתן להדביק את ראשי הפרקים ידנית.",
+          });
+        }
+      } catch (err) {
+        setStatusMessage({
+          type: "error",
+          text: err instanceof Error ? err.message : "שגיאה בפענוח קובץ ה-PDF.",
+        });
+      } finally {
+        setUploading(false);
+        event.target.value = "";
       }
-    };
-    reader.readAsText(file);
+    } else {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const text = String(e.target?.result || "");
+        if (text.trim()) {
+          setSyllabus(text.trim());
+          setStatusMessage({ type: "ok", text: "הקובץ נטען בהצלחה!" });
+        }
+        setUploading(false);
+      };
+      reader.onerror = () => {
+        setStatusMessage({ type: "error", text: "שגיאה בקריאת הקובץ." });
+        setUploading(false);
+      };
+      reader.readAsText(file);
+      event.target.value = "";
+    }
   };
 
   const loadExample = () => {
+    setStatusMessage(null);
     setSyllabus(`1. פתיחה, חוזה קבוצתי והגדרת מטרות אישיות וקבוצתיות
 2. שלבי התפתחות קבוצה ומודל טאקמן
 3. מיומנויות הקשבה פעילה ושיקוף בהנחיה
@@ -1358,11 +1397,15 @@ export function CourseSyllabusModal({
               ראשי פרקים / רשימת נושאים:
             </label>
             <div className="flex items-center gap-2">
-              <label className="cursor-pointer rounded-lg border border-white/14 bg-white/5 px-2.5 py-1 text-[11px] font-bold text-[#38BDF8] hover:bg-white/10 transition">
-                <span>📁 העלאת קובץ</span>
+              <label
+                className={`cursor-pointer rounded-lg border border-white/14 bg-white/5 px-2.5 py-1 text-[11px] font-bold text-[#38BDF8] hover:bg-white/10 transition flex items-center gap-1.5 ${
+                  uploading ? "opacity-60 pointer-events-none" : ""
+                }`}
+              >
+                <span>{uploading ? "⏳ מפענח PDF..." : "📁 העלאת קובץ (PDF/טקסט)"}</span>
                 <input
                   type="file"
-                  accept=".txt,.md,.csv,.text"
+                  accept=".pdf,.txt,.md,.csv,.text,application/pdf,text/plain"
                   onChange={handleFileUpload}
                   className="hidden"
                 />
@@ -1370,12 +1413,25 @@ export function CourseSyllabusModal({
               <button
                 type="button"
                 onClick={loadExample}
-                className="rounded-lg border border-white/14 bg-white/5 px-2.5 py-1 text-[11px] font-bold text-[#00E5E5] hover:bg-white/10 transition"
+                disabled={uploading}
+                className="rounded-lg border border-white/14 bg-white/5 px-2.5 py-1 text-[11px] font-bold text-[#00E5E5] hover:bg-white/10 transition disabled:opacity-60"
               >
                 טעינת דוגמה
               </button>
             </div>
           </div>
+
+          {statusMessage && (
+            <div
+              className={`p-2.5 rounded-xl text-xs font-semibold ${
+                statusMessage.type === "ok"
+                  ? "bg-[#10B981]/15 text-[#34D399] border border-[#10B981]/30"
+                  : "bg-[#EF4444]/15 text-[#F87171] border border-[#EF4444]/30"
+              }`}
+            >
+              {statusMessage.text}
+            </div>
+          )}
 
           <textarea
             rows={10}

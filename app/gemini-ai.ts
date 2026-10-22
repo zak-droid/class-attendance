@@ -429,3 +429,164 @@ ${lessonsSummary || "טרם נרשמו מפגשים בקורס זה."}
     return fallback;
   }
 }
+
+
+/**
+ * Reads a File as base64 string (browser environment).
+ */
+export async function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const res = String(reader.result || "");
+      const base64 = res.includes(",") ? res.split(",")[1] : res;
+      resolve(base64);
+    };
+    reader.onerror = (err) => reject(err);
+    reader.readAsDataURL(file);
+  });
+}
+
+/**
+ * Extracts raw text from uncompressed or FlateDecode PDF streams in the browser.
+ */
+export async function extractTextFromPdfArrayBuffer(buffer: ArrayBuffer): Promise<string> {
+  const bytes = new Uint8Array(buffer);
+  const latin1Decoder = new TextDecoder("latin1");
+  const raw = latin1Decoder.decode(bytes);
+
+  const streamRegex = /stream\r?\n([\s\S]*?)\r?\nendstream/g;
+  let match: RegExpExecArray | null;
+  const extractedLines: string[] = [];
+
+  while ((match = streamRegex.exec(raw)) !== null) {
+    const streamStart = match.index + match[0].indexOf("\n") + 1;
+    const streamContentLength = match[1].length;
+    const streamBytes = bytes.slice(streamStart, streamStart + streamContentLength);
+
+    let decompressed = "";
+    if (typeof DecompressionStream !== "undefined") {
+      try {
+        const ds = new DecompressionStream("deflate");
+        const writer = ds.writable.getWriter();
+        writer.write(streamBytes);
+        writer.close();
+        const res = await new Response(ds.readable).arrayBuffer();
+        decompressed = new TextDecoder("utf-8", { fatal: false }).decode(res);
+      } catch {
+        decompressed = match[1];
+      }
+    } else {
+      decompressed = match[1];
+    }
+
+    // Extract text in (...) Tj or [...] TJ or hex <...>
+    const tjRegex = /\(([^)]+)\)\s*T[jJ]|\[([^\]]+)\]\s*TJ/g;
+    let tjMatch: RegExpExecArray | null;
+    while ((tjMatch = tjRegex.exec(decompressed)) !== null) {
+      if (tjMatch[1]) {
+        const cleaned = tjMatch[1].replace(/\\([()\\])/g, "$1").trim();
+        if (cleaned.length > 2 && !cleaned.startsWith("/")) extractedLines.push(cleaned);
+      } else if (tjMatch[2]) {
+        const parts = tjMatch[2].match(/\(([^)]*)\)/g);
+        if (parts) {
+          const combined = parts
+            .map((p) => p.slice(1, -1).replace(/\\([()\\])/g, "$1"))
+            .join("")
+            .trim();
+          if (combined.length > 2 && !combined.startsWith("/")) extractedLines.push(combined);
+        }
+      }
+    }
+  }
+
+  // Filter and format as numbered topics
+  const topics = extractedLines
+    .filter((l) => !l.startsWith("/") && !l.includes("PDF") && l.length > 2)
+    .slice(0, 30);
+
+  if (topics.length === 0) return "";
+  return topics.map((t, idx) => `${idx + 1}. ${t}`).join("\n");
+}
+
+/**
+ * Main handler to extract syllabus topics from a PDF file:
+ * Uses Google Gemini AI if API key is stored, or falls back to client-side stream decoding.
+ */
+export async function extractSyllabusFromPdfFile(
+  file: File,
+  overrideApiKey?: string
+): Promise<{ success: boolean; text: string; usedGemini: boolean; message?: string }> {
+  const apiKey = (overrideApiKey || getStoredGeminiApiKey() || "").trim();
+
+  // If Gemini API key is available, use Gemini 1.5 Flash to parse PDF
+  if (apiKey) {
+    try {
+      const base64Data = await fileToBase64(file);
+      const prompt = `אתה עוזר פדגוגי מומחה. לפניך קובץ סילבוס / תוכנית לימודים בפורמט PDF.
+אנא קרא את תוכן הקובץ וחלץ מתוכו את כל ראשי הפרקים, המפגשים ונושאי הלימוד.
+החזר אך ורק רשימה נקייה וממוספרת בעברית של נושאי הלימוד (למשל:
+1. פתיחה וחוזה קבוצתי
+2. שלבי התפתחות קבוצה
+3. משוב עמיתים
+וכך הלאה), שורה אחר שורה, ללא שום מילות הקדמה, סיכום או הערות נוספות.`;
+
+      const apiRes = await callGeminiAPI(apiKey, {
+        contents: [
+          {
+            parts: [
+              {
+                inlineData: {
+                  mimeType: "application/pdf",
+                  data: base64Data,
+                },
+              },
+              { text: prompt },
+            ],
+          },
+        ],
+        generationConfig: {
+          temperature: 0.1,
+          maxOutputTokens: 1024,
+        },
+      });
+
+      if (apiRes.ok && apiRes.data) {
+        const text = apiRes.data?.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (text && text.trim()) {
+          return {
+            success: true,
+            text: text.trim(),
+            usedGemini: true,
+            message: `פוענח בהצלחה באמצעות Gemini AI (${apiRes.modelUsed})`,
+          };
+        }
+      }
+    } catch (err) {
+      console.warn("Gemini PDF extraction failed, falling back to local extractor:", err);
+    }
+  }
+
+  // Fallback: client-side stream text extraction
+  try {
+    const arrayBuffer = await file.arrayBuffer();
+    const localText = await extractTextFromPdfArrayBuffer(arrayBuffer);
+    if (localText && localText.trim()) {
+      return {
+        success: true,
+        text: localText.trim(),
+        usedGemini: false,
+        message: "פוענח באמצעות מנוע פיענוח מקומי",
+      };
+    }
+  } catch (err) {
+    console.warn("Local PDF extraction error:", err);
+  }
+
+  return {
+    success: false,
+    text: "",
+    usedGemini: false,
+    message: "לא זוהה טקסט בתוך קובץ ה-PDF. לקריאה חכמה של סריקות ו-PDF, אנא הגדירו מפתח Gemini API בלשונית עוד, או העתיקו והדביקו את ראשי הפרקים ישירות.",
+  };
+}
