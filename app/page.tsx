@@ -32,6 +32,7 @@ import {
   CourseCard,
   CourseSyllabusModal,
   CourseTasksMatrixView,
+  InstructorHelpHub,
   FinishAttendanceBar,
   GeminiSettingsModal,
   LessonTopicModal,
@@ -116,7 +117,7 @@ export default function Home() {
   const [sessionReadOnly, setSessionReadOnly] = useState(false);
   const [selectedAttendanceId, setSelectedAttendanceId] = useState<string | null>(null);
   const [completedCourseIds, setCompletedCourseIds] = useState<Set<string>>(() => new Set());
-  const [moreView, setMoreView] = useState<"menu" | "courses" | "students" | "tasks">("menu");
+  const [moreView, setMoreView] = useState<"menu" | "courses" | "students" | "tasks" | "help">("menu");
   const [studentAddSheetOpen, setStudentAddSheetOpen] = useState(false);
   const [customTasks, setCustomTasks] = useState<CourseTask[]>(() => getStoredCustomTasks());
   const [submissions, setSubmissions] = useState<StudentTaskSubmission[]>(() => getStoredSubmissions());
@@ -310,7 +311,7 @@ export default function Home() {
   );
 
   const handleOpenMoreView = useCallback(
-    (view: "courses" | "students" | "tasks") => {
+    (view: "courses" | "students" | "tasks" | "help") => {
       safePushHistory(`more-${view}`);
       setMoreView(view);
     },
@@ -769,6 +770,10 @@ export default function Home() {
       onTabChange={handleTabChange}
       userEmail={userEmail || "מורה"}
       onSignOut={handleSignOut}
+      onOpenHelp={() => {
+        setTab("more");
+        handleOpenMoreView("help");
+      }}
       attendanceActive={Boolean(activeSessionCourseId)}
       isOffline={isOffline}
       pendingSyncCount={pendingSyncCount}
@@ -1363,6 +1368,14 @@ export default function Home() {
                 </div>
               </MoreGroup>
 
+              <MoreGroup title="תמיכה ופיתוח מנחים">
+                <MoreAction
+                  title="💡 מרכז עזרה, שו״ת ומשוב מנחים"
+                  description="ספריית שו״ת מלאה, דיווח על תקלות ואשף הצעות לשדרוגים ושינויים"
+                  onClick={() => handleOpenMoreView("help")}
+                />
+              </MoreGroup>
+
               <MoreGroup title="ניהול מערכת">
                 <MoreAction
                   title="מעקב חובות וזכאות לתעודה"
@@ -1586,6 +1599,22 @@ export default function Home() {
                     );
                   })()}
                 </div>
+              )}
+
+              {moreView === "help" && (
+                <InstructorHelpHub
+                  userEmail={userEmail}
+                  courses={data.courses}
+                  onNavigate={(destTab, destMoreView) => {
+                    setTab(destTab);
+                    if (destMoreView) {
+                      handleOpenMoreView(destMoreView);
+                    } else {
+                      setMoreView("menu");
+                    }
+                  }}
+                  onBack={exitMoreSubView}
+                />
               )}
             </div>
           )}

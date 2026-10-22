@@ -1,5 +1,7 @@
 "use client";
 
+export { InstructorHelpHub } from "./InstructorHelpHub";
+
 import { useEffect, useState, type ChangeEvent, type FormEvent, type ReactNode } from "react";
 import type {
   AISyllabusAnalysis,
@@ -84,6 +86,7 @@ export function Layout({
   onTabChange,
   userEmail,
   onSignOut,
+  onOpenHelp,
   attendanceActive = false,
   title = "ניהול נוכחות",
   isOffline = false,
@@ -95,6 +98,7 @@ export function Layout({
   onTabChange: (tab: AppTab) => void;
   userEmail: string;
   onSignOut: () => void;
+  onOpenHelp?: () => void;
   attendanceActive?: boolean;
   title?: string;
   isOffline?: boolean;
@@ -133,13 +137,26 @@ export function Layout({
             <h1 className="truncate text-xl sm:text-2xl font-extrabold tracking-tight">{title}</h1>
             <p className="mt-0.5 truncate text-xs font-medium text-[#B8D8E6]" dir="ltr">{userEmail}</p>
           </div>
-          <button
-            type="button"
-            onClick={onSignOut}
-            className="shrink-0 min-h-10 rounded-xl border border-white/15 bg-[#005580] px-3.5 py-1.5 text-xs font-extrabold text-white hover:bg-[#005580]/80"
-          >
-            התנתקות
-          </button>
+          <div className="flex items-center gap-2">
+            {onOpenHelp && (
+              <button
+                type="button"
+                onClick={onOpenHelp}
+                title="מרכז עזרה, שו״ת ומשוב מנחים"
+                className="shrink-0 flex items-center gap-1.5 min-h-10 rounded-xl border border-[#00A6A6]/40 bg-[#00A6A6]/20 px-3 py-1.5 text-xs font-extrabold text-[#00E5E5] hover:bg-[#00A6A6]/30 transition"
+              >
+                <span>💡</span>
+                <span className="hidden sm:inline">עזרה ומשוב</span>
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={onSignOut}
+              className="shrink-0 min-h-10 rounded-xl border border-white/15 bg-[#005580] px-3.5 py-1.5 text-xs font-extrabold text-white hover:bg-[#005580]/80"
+            >
+              התנתקות
+            </button>
+          </div>
         </div>
       </header>
 
