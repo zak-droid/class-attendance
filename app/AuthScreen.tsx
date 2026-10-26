@@ -7,7 +7,10 @@ import { isSupabaseConfigured, supabase } from "./supabase";
 export function AuthScreen() {
   const savedBiometric = getBiometricRecord();
   const [email, setEmail] = useState(() => savedBiometric?.email ?? "");
-  const [error, setError] = useState("");
+  const [error, setError] = useState(() => {
+    const params = new URLSearchParams(window.location.hash.slice(1));
+    return params.has('error') ? 'קישור הכניסה אינו תקף או שכבר נעשה בו שימוש. הזינו אימייל לקבלת קישור חדש והשתמשו בהודעה האחרונה.' : '';
+  });
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
   const approvedTeachers = new Set([
@@ -43,6 +46,7 @@ export function AuthScreen() {
     }
     setLoading(true);
     setError("");
+    try {
     const { error: signInError } = await db.auth.signInWithOtp({
       email: normalizedEmail,
       options: {
@@ -55,7 +59,8 @@ export function AuthScreen() {
     } else {
       setSent(true);
     }
-    setLoading(false);
+    } catch { setError("שליחת הקישור נכשלה. בדקו חיבור ונסו שוב."); }
+    finally { setLoading(false); }
   };
 
   return (

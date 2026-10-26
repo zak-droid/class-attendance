@@ -79,6 +79,7 @@ export interface AppData {
   tasks?: CourseTask[];
   submissions?: StudentTaskSubmission[];
   lessons?: LessonLog[];
+  completedSessions?: string[];
 }
 
 export type AppTab = "today" | "students" | "history" | "more";

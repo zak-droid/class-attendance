@@ -21,6 +21,7 @@ export interface StudentAttendanceStats {
   isAttendanceEligible: boolean;
   eligibilityStatus: EligibilityStatus;
   eligibilityLabel: string;
+  history: AttendanceLog[];
   recentAbsences: Array<{
     date: string;
     status: AttendanceStatus;
@@ -111,16 +112,19 @@ export function calculateStudentAttendanceStats(
   // Excused counts as a regular absence (it stays in the total sessions denominator)
   let attendancePercentage = 100;
   if (totalSessions === 0) {
-    attendancePercentage = 100;
+    attendancePercentage = 0;
   } else {
     attendancePercentage = Math.round((attendedCount / totalSessions) * 100);
   }
 
-  const isAttendanceEligible = attendancePercentage >= 80;
+  const isAttendanceEligible = totalSessions > 0 && attendancePercentage >= 80;
   let eligibilityStatus: EligibilityStatus = "eligible";
   let eligibilityLabel = "עומד/ת ברף (80%+)";
 
-  if (attendancePercentage >= 80) {
+  if (totalSessions === 0) {
+    eligibilityStatus = "at_risk";
+    eligibilityLabel = "אין נתוני נוכחות";
+  } else if (attendancePercentage >= 80) {
     eligibilityStatus = "eligible";
     eligibilityLabel = "עומד/ת ברף (80%+)";
   } else if (attendancePercentage >= 70) {
@@ -142,11 +146,13 @@ export function calculateStudentAttendanceStats(
     isAttendanceEligible,
     eligibilityStatus,
     eligibilityLabel,
+    history: [...studentLogs].sort((a,b) => b.date.localeCompare(a.date)),
     recentAbsences,
   };
 }
 
 export interface StudentCertificateEligibility {
+  hasAttendanceData: boolean;
   studentId: string;
   attendancePercentage: number;
   isAttendanceEligible: boolean;
@@ -199,7 +205,10 @@ export function calculateStudentCertificateEligibility(
   let statusLabel = "זכאי/ת לתעודה ✨";
   let statusBadgeClass = "bg-[#DCFCE7] text-[#166534] border-[#16A34A]/30";
 
-  if (isFullyEligibleForCertificate) {
+  if (stats.totalSessions === 0) {
+    statusLabel = "אין נתוני נוכחות — הזכאות טרם נקבעה";
+    statusBadgeClass = "bg-slate-100 text-slate-700";
+  } else if (isFullyEligibleForCertificate) {
     statusLabel = "זכאי/ת לתעודה ✨";
     statusBadgeClass = "bg-[#DCFCE7] text-[#166534] border-[#16A34A]/30";
   } else if (stats.isAttendanceEligible && !allTasksCompleted) {
@@ -214,6 +223,7 @@ export function calculateStudentCertificateEligibility(
   }
 
   return {
+    hasAttendanceData: stats.totalSessions > 0,
     studentId: student.id,
     attendancePercentage: stats.attendancePercentage,
     isAttendanceEligible: stats.isAttendanceEligible,
@@ -336,7 +346,7 @@ export function generateCourseAttendanceCSV(
       escapeCsvCell(student.name),
       escapeCsvCell(student.email || ""),
       student.active ? "פעיל" : "לא פעיל",
-      `${stats.attendancePercentage}%`,
+      stats.totalSessions ? `${stats.attendancePercentage}%` : "אין נתונים",
       escapeCsvCell(cert.statusLabel),
       hasPeer ? "בוצע" : "לא בוצע",
       ...(yearly ? [hasPracticum ? "בוצע" : "לא בוצע"] : []),

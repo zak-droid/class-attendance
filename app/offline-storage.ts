@@ -262,12 +262,8 @@ export function getPendingQueue(): PendingAction[] {
 
 function savePendingQueue(queue: PendingAction[]): void {
   const storage = getStorage();
-  if (!storage) return;
-  try {
-    storage.setItem(PENDING_QUEUE_KEY, JSON.stringify(queue));
-  } catch (err) {
-    console.warn("Failed to save pending queue:", err);
-  }
+  if (!storage) throw new Error("האחסון המקומי אינו זמין. לא ניתן לשמור ללא חיבור.");
+  storage.setItem(PENDING_QUEUE_KEY, JSON.stringify(queue));
 }
 
 export function queuePendingAction(
@@ -304,6 +300,7 @@ export function queuePendingAction(
     if (existing.type === "update_attendance") {
       currentQueue[existingIdx] = {
         ...existing,
+        createdAt: fullAction.createdAt,
         patch: { ...existing.patch, ...fullAction.patch },
       };
     }
@@ -335,9 +332,19 @@ export function applyPendingActionsToData(data: AppData): AppData {
 
   const clonedAttendance = data.attendance.map((log) => ({ ...log }));
 
+  // Project queued sessions before their edits, so a teacher can work offline.
+  for (const action of queue) {
+    if (action.type !== "create_attendance") continue;
+    for (const student of data.students.filter(s => s.active && s.courseId === action.courseId)) {
+      if (!clonedAttendance.some(l => l.studentId === student.id && l.courseId === action.courseId && l.date === action.date)) {
+        clonedAttendance.push({id: `offline|${student.id}|${action.courseId}|${action.date}`, studentId: student.id, courseId: action.courseId, date: action.date, time: action.time, status: "Present"});
+      }
+    }
+  }
   for (const action of queue) {
     if (action.type === "update_attendance") {
-      const target = clonedAttendance.find((log) => log.id === action.logId);
+      const parts = action.logId.split("|");
+      const target = clonedAttendance.find(log => log.id === action.logId || (parts[0] === "offline" && log.studentId === parts[1] && log.courseId === parts[2] && log.date === parts[3]));
       if (target) {
         if (action.patch.status !== undefined) target.status = action.patch.status;
         if (action.patch.notes !== undefined) target.notes = action.patch.notes;
@@ -345,19 +352,12 @@ export function applyPendingActionsToData(data: AppData): AppData {
     }
   }
 
-  // Enrich courses with stored syllabi
-  const enrichedCourses = data.courses.map((c) => ({
-    ...c,
-    syllabus: getStoredCourseSyllabus(c.id) || c.syllabus,
-  }));
-
   return {
     ...data,
-    courses: enrichedCourses,
     attendance: clonedAttendance,
-    tasks: customTasks,
-    submissions: submissions,
-    lessons: lessons,
+    tasks: data.tasks ?? customTasks,
+    submissions: data.submissions ?? submissions,
+    lessons: data.lessons ?? lessons,
   };
 }
 

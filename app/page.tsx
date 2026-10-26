@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent, type ReactNode } from "react";
 import type { Session } from "@supabase/supabase-js";
+import { saveSharedRecord } from "./shared-records";
 import { AuthScreen } from "./AuthScreen";
 import {
   clearBiometricRecord,
@@ -16,6 +17,9 @@ import {
 } from "./biometric";
 import {
   createTodayAttendance,
+  addStudentAttendance,
+  saveCourseSyllabus,
+  saveLessonLog,
   fetchAppData,
   saveCourse,
   saveStudent,
@@ -58,14 +62,10 @@ import {
   getStoredAnalysis,
   getStoredGeminiApiKey,
   getStoredLessons,
-  saveStoredCourseSyllabus,
   saveStoredGeminiApiKey,
-  upsertLessonLog,
   getStoredCustomTasks,
   getStoredSubmissions,
   isOnline,
-  upsertCustomTask,
-  upsertTaskSubmission,
 } from "./offline-storage";
 import { analyzeCourseSyllabus, extractStudentsFromExcelFile } from "./gemini-ai";
 import { prepareStudentImport } from "./student-import";
@@ -81,7 +81,7 @@ import type {
   Student,
   StudentTaskSubmission,
 } from "./types";
-import { localDateKey, localTimeKey, makeId } from "./utils";
+import { formatLocalDate, localDateKey, localTimeKey, makeId } from "./utils";
 
 type ModalState =
   | { type: "course"; course?: Course }
@@ -110,9 +110,11 @@ export default function Home() {
   const [showInactiveStudents, setShowInactiveStudents] = useState(false);
   const [historyDate, setHistoryDate] = useState(today);
   const [historyCourse, setHistoryCourse] = useState("all");
+  const [historyStudent, setHistoryStudent] = useState("all");
 
   const [activeSessionCourseId, setActiveSessionCourseId] = useState<string | null>(null);
 
+  const attendanceWrites = useRef(0);
   const handleQuickStatusChange = (logId: string, status: AttendanceStatus) => {
     setData((prev) => ({
       ...prev,
@@ -121,14 +123,15 @@ export default function Home() {
       ),
     }));
 
+    attendanceWrites.current += 1;
     void updateAttendanceLog(logId, { status }).then(() => {
       setPendingSyncCount(getPendingQueue().length);
       void refreshData();
-    });
+    }).catch(error => { notify(`שמירת הנוכחות נכשלה: ${error.message}`); void refreshData(); }).finally(() => { attendanceWrites.current -= 1; });
   };
   const [sessionReadOnly, setSessionReadOnly] = useState(false); void sessionReadOnly;
   const [selectedAttendanceId, setSelectedAttendanceId] = useState<string | null>(null);
-  const [completedCourseIds, setCompletedCourseIds] = useState<Set<string>>(() => new Set());
+  const completedCourseIds = new Set((data.completedSessions ?? []).filter(id => id.endsWith(`_${today}`)).map(id => id.slice(0, -(today.length + 1))).filter(courseId => data.students.filter(s => s.active && s.courseId === courseId).every(s => data.attendance.some(l => l.studentId === s.id && l.courseId === courseId && l.date === today))));
   const [moreView, setMoreView] = useState<"menu" | "courses" | "students" | "tasks" | "help">("menu");
   const [studentAddSheetOpen, setStudentAddSheetOpen] = useState(false);
   const [customTasks, setCustomTasks] = useState<CourseTask[]>(() => getStoredCustomTasks());
@@ -331,49 +334,54 @@ export default function Home() {
   );
 
   const handleToggleSubmission = useCallback(
-    (studentId: string, taskId: string, completed: boolean) => {
+    async (studentId: string, taskId: string, completed: boolean) => {
       const student = data.students.find((s) => s.id === studentId);
       const courseId = student?.courseId ?? selectedTasksCourseId ?? "";
       const existing = submissions.find((s) => s.studentId === studentId && s.taskId === taskId);
-      const updated = upsertTaskSubmission({
+      const submission: StudentTaskSubmission = {
         id: `${studentId}_${taskId}`,
         studentId,
         courseId,
         taskId,
         completed,
         completedDate: completed
-          ? existing?.completedDate || new Date().toISOString().split("T")[0]
+          ? existing?.completedDate || localDateKey()
           : undefined,
         notes: existing?.notes,
-      });
-      setSubmissions(updated);
+      };
+      try {
+        await saveSharedRecord('submission', submission.id, courseId, submission);
+        setSubmissions(prev => [...prev.filter(s => s.id !== submission.id), submission]);
+      } catch (error) { notify(error instanceof Error ? error.message : 'השמירה נכשלה'); return; }
       notify(completed ? "המטלה סומנה כהושלמה ✓" : "המטלה סומנה כלא הושלמה");
     },
     [data.students, selectedTasksCourseId, submissions, notify]
   );
 
   const handleSaveTaskNote = useCallback(
-    (studentId: string, taskId: string, notes: string, completedDate: string) => {
+    async (studentId: string, taskId: string, notes: string, completedDate: string) => {
       const student = data.students.find((s) => s.id === studentId);
       const courseId = student?.courseId ?? selectedTasksCourseId ?? "";
-      const updated = upsertTaskSubmission({
+      const existing = submissions.find(s => s.studentId === studentId && s.taskId === taskId);
+      const submission: StudentTaskSubmission = {
         id: `${studentId}_${taskId}`,
         studentId,
         courseId,
         taskId,
-        completed: true,
+        completed: existing?.completed ?? false,
         completedDate,
         notes,
-      });
-      setSubmissions(updated);
+      };
+      await saveSharedRecord('submission', submission.id, courseId, submission);
+      setSubmissions(prev => [...prev.filter(s => s.id !== submission.id), submission]);
       setTaskNoteModalData(null);
       notify("הערת המטלה נשמרה ✓");
     },
-    [data.students, selectedTasksCourseId, notify]
+    [data.students, selectedTasksCourseId, submissions, notify]
   );
 
   const handleAddCustomTask = useCallback(
-    (courseId: string, title: string) => {
+    async (courseId: string, title: string) => {
       const newTask: CourseTask = {
         id: `custom_${courseId}_${Date.now()}`,
         courseId,
@@ -381,8 +389,8 @@ export default function Home() {
         requiredForCertificate: true,
         yearlyOnly: false,
       };
-      const updated = upsertCustomTask(newTask);
-      setCustomTasks(updated);
+      await saveSharedRecord('task', newTask.id, courseId, newTask);
+      setCustomTasks(prev => [...prev, newTask]);
       notify("המטלה נוספה לקורס בהצלחה ✓");
     },
     [notify]
@@ -442,19 +450,45 @@ export default function Home() {
   }, [safeBackHistory]);
 
 
+  const refreshVersion = useRef(0);
   const refreshData = useCallback(async () => {
+    const version = ++refreshVersion.current;
     setDataLoading(true);
     setDataError("");
     try {
       const nextData = await fetchAppData();
+      if (version !== refreshVersion.current) return;
       setData(nextData);
+      setLessons(nextData.lessons ?? []);
+      setCustomTasks(nextData.tasks ?? []);
+      setSubmissions(nextData.submissions ?? []);
       setPendingSyncCount(getPendingQueue().length);
     } catch (error) {
-      setDataError(error instanceof Error ? error.message : "שגיאה בטעינת הנתונים");
+      if (version === refreshVersion.current) setDataError(error instanceof Error ? error.message : "שגיאה בטעינת הנתונים");
     } finally {
-      setDataLoading(false);
+      if (version === refreshVersion.current) setDataLoading(false);
     }
   }, []);
+
+  const handleToggleCourseActive = async (course: Course) => {
+    try {
+      await setCourseActive(course.id, !course.active);
+      await refreshData();
+      notify(course.active ? "הקורס הושבת." : "הקורס הופעל.");
+    } catch (error) {
+      notify(error instanceof Error ? `עדכון הקורס נכשל: ${error.message}` : "עדכון הקורס נכשל. נסו שוב.");
+    }
+  };
+
+  const handleToggleStudentActive = async (student: Student) => {
+    try {
+      await setStudentActive(student.id, !student.active);
+      await refreshData();
+      notify(student.active ? "התלמיד/ה הושבת/ה." : "התלמיד/ה הופעל/ה.");
+    } catch (error) {
+      notify(error instanceof Error ? `עדכון התלמיד נכשל: ${error.message}` : "עדכון התלמיד נכשל. נסו שוב.");
+    }
+  };
 
   // Sync and connection status listener
   useEffect(() => {
@@ -465,8 +499,8 @@ export default function Home() {
         setPendingSyncCount(getPendingQueue().length);
         if (synced > 0) {
           notify(`סונכרנו בהצלחה ${synced} פעולות לשרת.`);
-          void refreshData();
         }
+        void refreshData();
       });
     };
 
@@ -492,7 +526,8 @@ export default function Home() {
       notify(`סונכרנו ${synced} שינויים בהצלחה.`);
       await refreshData();
     } else {
-      notify("כל הנתונים מסונכרנים ומעודכנים.");
+      await refreshData();
+      notify(getPendingQueue().length ? 'יש פעולות שטרם סונכרנו. בדקו חיבור והרשאות ונסו שוב.' : 'כל הנתונים סונכרנו.');
     }
   }, [notify, refreshData]);
 
@@ -570,7 +605,7 @@ export default function Home() {
 
   useEffect(() => {
     if (!session) return;
-    void refreshData();
+    void syncPendingQueue().then(() => refreshData());
     const unsubscribe = subscribeToSharedData(() => {
       void refreshData();
     });
@@ -638,6 +673,20 @@ export default function Home() {
     [today, refreshData, notify]
   );
 
+  const missingAttendance = (courseId: string, date: string, studentId = "all") => (
+    <div className="space-y-2">{data.students.filter(s => s.active && s.courseId === courseId && (studentId === "all" || s.id === studentId) && !data.attendance.some(l => l.courseId === courseId && l.date === date && l.studentId === s.id)).map(student => (
+      <label key={student.id} className="block rounded-xl bg-[#005580] p-3 text-white">
+        {student.name} — טרם סומנה נוכחות
+        <select aria-label={`נוכחות חדשה עבור ${student.name}`} value="" className="m-2 rounded bg-[#002B45] p-2" onChange={async e => {
+          try { await addStudentAttendance(student, date, e.target.value as AttendanceStatus); await refreshData(); }
+          catch(error) { notify(error instanceof Error ? error.message : 'השמירה נכשלה'); }
+        }}>
+          <option value="" disabled>בחירת מצב</option><option value="Present">נוכח</option><option value="Late">מאחר</option><option value="Absent">נעדר</option><option value="Excused">מוצדק</option>
+        </select>
+      </label>
+    ))}</div>
+  );
+
   // WhatsApp Share Handler
   const handleShareWhatsApp = useCallback(
     (courseId?: string) => {
@@ -660,8 +709,8 @@ export default function Home() {
     safePushHistory("syllabusModal");
   };
 
-  const handleSaveSyllabus = (courseId: string, syllabusText: string) => {
-    saveStoredCourseSyllabus(courseId, syllabusText);
+  const handleSaveSyllabus = async (courseId: string, syllabusText: string) => {
+    await saveCourseSyllabus(courseId, syllabusText);
     setData((prev) => ({
       ...prev,
       courses: prev.courses.map((c) => (c.id === courseId ? { ...c, syllabus: syllabusText } : c)),
@@ -677,7 +726,7 @@ export default function Home() {
     safePushHistory("lessonTopicModal");
   };
 
-  const handleSaveLessonTopic = (courseId: string, date: string, topic: string, summary?: string) => {
+  const handleSaveLessonTopic = async (courseId: string, date: string, topic: string, summary?: string) => {
     const log: LessonLog = {
       id: `${courseId}_${date}`,
       courseId,
@@ -686,8 +735,8 @@ export default function Home() {
       summary,
       instructorEmail: session?.user?.email ?? undefined,
     };
-    const updated = upsertLessonLog(log);
-    setLessons(updated);
+    await saveLessonLog(log);
+    setLessons(prev => [...prev.filter(l => l.id !== log.id), log]);
     notify("תיעוד השיעור נשמר בהצלחה.");
   };
 
@@ -696,9 +745,7 @@ export default function Home() {
     safePushHistory("aiAnalysisModal");
 
     const cached = getStoredAnalysis(course.id);
-    if (cached) {
-      setCurrentAnalysis(cached);
-    }
+    setCurrentAnalysis(cached);
     setAnalysisLoading(true);
 
     try {
@@ -836,9 +883,21 @@ export default function Home() {
             <div>
               <h2 className="text-xl font-extrabold">שיעורי היום</h2>
               <p className="mt-1 text-sm font-medium leading-6 text-[#B8D8E6]">
-                בחרו כיתה כדי להתחיל נוכחות להיום.
+                {formatLocalDate(today)} · בחרו כיתה כדי להתחיל נוכחות לתאריך זה.
               </p>
             </div>
+            <button
+              type="button"
+              onClick={() => {
+                setHistoryDate(today);
+                setHistoryCourse("all");
+                setHistoryStudent("all");
+                handleTabChange("history");
+              }}
+              className="min-h-10 rounded-xl border border-white/20 bg-white/10 px-3.5 py-2 text-xs font-extrabold text-white transition hover:bg-white/15"
+            >
+              בדיקת נוכחות לפי תאריך
+            </button>
             <button
               type="button"
               onClick={() => handleOpenModal({ type: "course" })}
@@ -1004,7 +1063,7 @@ export default function Home() {
                 <div className="min-w-0 flex-1">
                   <span className="text-[11px] font-bold text-[#00E5E5] flex items-center gap-1.5">
                     <span>📌</span>
-                    <span>נושא המפגש להיום:</span>
+                  <span>נושא המפגש · {formatLocalDate(today)}:</span>
                   </span>
                   <p className="mt-0.5 text-xs sm:text-sm font-extrabold text-white truncate">
                     {todayLesson?.topic || "טרם תועד נושא למפגש זה"}
@@ -1033,7 +1092,9 @@ export default function Home() {
             );
           })()}
 
+          <h2 className="text-lg font-bold">{data.courses.find(c => c.id === activeSessionCourseId)?.name} · {formatLocalDate(today)}</h2>
           <SummaryCards logs={activeSessionLogs} />
+          {missingAttendance(activeSessionCourseId, today)}
 
           <div className="space-y-2.5">
             {filteredSessionLogs.map((log) => {
@@ -1058,10 +1119,17 @@ export default function Home() {
             logs={activeSessionLogs}
             currentTopic={lessons.find((l) => l.courseId === activeSessionCourseId && l.date === today)?.topic}
             onEditTopic={() => handleOpenLessonTopicModal(activeSessionCourseId, today)}
-            onFinish={() => {
-              setCompletedCourseIds((prev) => new Set(prev).add(activeSessionCourseId));
-              exitActiveSession();
-              notify("הנוכחות להיום הושלמה.");
+            onFinish={async () => {
+              try {
+                if (attendanceWrites.current) { notify('הנוכחות עדיין נשמרת. המתינו רגע לפני סיום.'); return; }
+                const missing = data.students.some(s => s.active && s.courseId === activeSessionCourseId && !activeSessionLogs.some(l => l.studentId === s.id));
+                if (missing) { notify('יש תלמידים שטרם סומנה להם נוכחות. השלימו לפני סיום.'); return; }
+                if (getPendingQueue().length) { notify('יש שינויים שממתינים לסנכרון. סנכרנו לפני סיום המפגש.'); return; }
+                await saveSharedRecord('session', `${activeSessionCourseId}_${today}`, activeSessionCourseId, {completed:true,date:today});
+                await refreshData();
+                exitActiveSession();
+                notify('הנוכחות להיום הושלמה ונשמרה בשרת.');
+              } catch(error) { notify(error instanceof Error ? error.message : 'שמירת סיום המפגש נכשלה'); }
             }}
             onShareWhatsApp={() => handleShareWhatsApp(activeSessionCourseId)}
           />
@@ -1193,9 +1261,7 @@ export default function Home() {
                         initialCourseId: studentCourse === "all" ? student.courseId : studentCourse,
                       })
                     }
-                    onToggleActive={() =>
-                      void setStudentActive(student.id, !student.active).then(refreshData)
-                    }
+                    onToggleActive={() => void handleToggleStudentActive(student)}
                   />
                 </div>
               ))
@@ -1211,16 +1277,32 @@ export default function Home() {
       {tab === "history" && (
         <section className="space-y-4 pb-4">
           <h2 className="text-xl font-extrabold text-white">היסטוריה</h2>
-          <div className="flex gap-2">
-            <input
-              type="date"
-              value={historyDate}
-              onChange={(e) => setHistoryDate(e.target.value)}
-              className="min-h-11 rounded-xl border border-white/14 bg-[#005580] px-3 text-xs font-bold text-white"
-            />
+          <div className="flex flex-wrap gap-2">
+            <label className="flex min-h-11 items-center gap-2 rounded-xl border border-white/14 bg-[#005580] px-3 text-xs font-bold text-white">
+              <span>תאריך:</span>
+              <input
+                type="date"
+                value={historyDate}
+                onChange={(e) => setHistoryDate(e.target.value)}
+                aria-label="בחירת תאריך נוכחות"
+                className="min-h-9 min-w-0 bg-transparent text-xs font-bold text-white"
+              />
+            </label>
+            <button
+              type="button"
+              onClick={() => setHistoryDate("")}
+              aria-pressed={!historyDate}
+              className={`min-h-11 rounded-xl border px-3 text-xs font-bold ${!historyDate ? "border-[#00A6A6] bg-[#00A6A6] text-white" : "border-white/14 bg-[#005580] text-[#B8D8E6]"}`}
+            >
+              כל התאריכים
+            </button>
             <select
               value={historyCourse}
-              onChange={(e) => setHistoryCourse(e.target.value)}
+              onChange={(e) => {
+                setHistoryCourse(e.target.value);
+                setHistoryStudent("all");
+              }}
+              aria-label="סינון נוכחות לפי קורס"
               className="min-h-11 flex-1 rounded-xl border border-white/14 bg-[#005580] px-3 text-xs font-bold text-white"
             >
               <option value="all">כל הכיתות</option>
@@ -1230,9 +1312,29 @@ export default function Home() {
                 </option>
               ))}
             </select>
+            <select
+              value={historyStudent}
+              onChange={(e) => setHistoryStudent(e.target.value)}
+              aria-label="סינון נוכחות לפי תלמיד"
+              className="min-h-11 flex-1 rounded-xl border border-white/14 bg-[#005580] px-3 text-xs font-bold text-white"
+            >
+              <option value="all">כל התלמידים</option>
+              {data.students
+                .filter((student) => historyCourse === "all" || student.courseId === historyCourse)
+                .sort((a, b) => a.name.localeCompare(b.name, "he"))
+                .map((student) => (
+                  <option key={student.id} value={student.id}>
+                    {student.name}
+                  </option>
+                ))}
+            </select>
           </div>
+          {historyCourse !== 'all' && historyDate && <>
+            <p className="text-sm font-bold">{data.courses.find(c => c.id === historyCourse)?.name} · {formatLocalDate(historyDate)}</p>
+            {missingAttendance(historyCourse, historyDate, historyStudent)}
+          </>}
           {/* History Lesson Topic & AI Syllabus button */}
-          {historyCourse !== "all" && (() => {
+          {historyCourse !== "all" && historyDate && (() => {
             const hCourse = data.courses.find((c) => c.id === historyCourse);
             const hLesson = lessons.find((l) => l.courseId === historyCourse && l.date === historyDate);
             return (
@@ -1240,7 +1342,7 @@ export default function Home() {
                 <div className="min-w-0 flex-1">
                   <span className="text-[11px] font-bold text-[#00E5E5] flex items-center gap-1">
                     <span>📌</span>
-                    <span>נושא השיעור לתאריך {historyDate}:</span>
+                    <span>נושא השיעור לתאריך {historyDate ? formatLocalDate(historyDate) : "כל התאריכים"}:</span>
                   </span>
                   <p className="mt-0.5 text-xs sm:text-sm font-bold text-white truncate">
                     {hLesson?.topic || "טרם תועד נושא למפגש זה"}
@@ -1273,7 +1375,8 @@ export default function Home() {
             logs={data.attendance.filter(
               (log) =>
                 (!historyDate || log.date === historyDate) &&
-                (historyCourse === "all" || log.courseId === historyCourse)
+                (historyCourse === "all" || log.courseId === historyCourse) &&
+                (historyStudent === "all" || log.studentId === historyStudent)
             )}
           />
 
@@ -1282,7 +1385,8 @@ export default function Home() {
             const historyLogs = data.attendance.filter(
               (log) =>
                 (!historyDate || log.date === historyDate) &&
-                (historyCourse === "all" || log.courseId === historyCourse)
+                (historyCourse === "all" || log.courseId === historyCourse) &&
+                (historyStudent === "all" || log.studentId === historyStudent)
             );
 
             if (historyLogs.length === 0) {
@@ -1297,7 +1401,7 @@ export default function Home() {
               <div className="space-y-2 pt-2">
                 <div className="flex items-center justify-between px-1">
                   <h3 className="text-xs font-bold uppercase tracking-wider text-[#B8D8E6]">
-                    רשומות לתאריך זה ({historyLogs.length}) · לחצו לעריכה ותיקון
+                    {historyDate ? "רשומות לתאריך זה" : "רשומות מכל התאריכים"} ({historyLogs.length}) · לחצו לעריכה ותיקון
                   </h3>
                 </div>
                 <div className="space-y-2">
@@ -1305,14 +1409,18 @@ export default function Home() {
                     const student = data.students.find((s) => s.id === log.studentId);
                     if (!student) return null;
                     return (
-                      <AttendanceStudentRow
-                        key={log.id}
-                        log={log}
-                        student={student}
-                        onOpen={() => handleOpenAttendanceModal(log.id)}
-                        onViewCard={() => handleOpenQuickCard(student)}
-                        onStatusChange={(status) => handleQuickStatusChange(log.id, status)}
-                      />
+                      <div key={log.id} className="space-y-1">
+                        <p className="px-1 text-[11px] font-bold text-[#B8D8E6]">
+                          {formatLocalDate(log.date, { day: "numeric", month: "long", year: "numeric" })} · {log.time}
+                        </p>
+                        <AttendanceStudentRow
+                          log={log}
+                          student={student}
+                          onOpen={() => handleOpenAttendanceModal(log.id)}
+                          onViewCard={() => handleOpenQuickCard(student)}
+                          onStatusChange={(status) => handleQuickStatusChange(log.id, status)}
+                        />
+                      </div>
                     );
                   })}
                 </div>
@@ -1564,9 +1672,7 @@ export default function Home() {
                             }
                           }}
                           onEdit={() => handleOpenModal({ type: "course", course })}
-                          onToggleActive={() =>
-                            void setCourseActive(course.id, !course.active).then(refreshData)
-                          }
+                          onToggleActive={() => void handleToggleCourseActive(course)}
                           onExportCSV={() => handleExportCourseCSV(course)}
                           onViewTasks={() => {
                             safePushHistory("more-tasks");
@@ -1621,9 +1727,7 @@ export default function Home() {
                         <StudentActions
                           student={student}
                           onEdit={() => handleOpenModal({ type: "student", student })}
-                          onToggleActive={() =>
-                            void setStudentActive(student.id, !student.active).then(refreshData)
-                          }
+                            onToggleActive={() => void handleToggleStudentActive(student)}
                         />
                       </div>
                     ))}
@@ -1722,18 +1826,16 @@ export default function Home() {
           log={selectedLog}
           student={selectedStudent}
           onClose={closeAttendanceModal}
-          onStatusChange={(status) => {
-            void updateAttendanceLog(selectedLog.id, { status }).then(() => {
-              setPendingSyncCount(getPendingQueue().length);
-              void refreshData();
-            });
+          onStatusChange={async (status) => {
+            await updateAttendanceLog(selectedLog.id, {status});
+            setPendingSyncCount(getPendingQueue().length);
+            await refreshData();
             closeAttendanceModal();
           }}
-          onNotesChange={(notes) => {
-            void updateAttendanceLog(selectedLog.id, { notes }).then(() => {
-              setPendingSyncCount(getPendingQueue().length);
-              void refreshData();
-            });
+          onNotesChange={async (notes) => {
+            await updateAttendanceLog(selectedLog.id, {notes});
+            setPendingSyncCount(getPendingQueue().length);
+            await refreshData();
           }}
         />
       )}
@@ -1864,8 +1966,8 @@ export default function Home() {
         <CourseSyllabusModal
           course={syllabusModalCourse}
           onClose={() => setSyllabusModalCourse(null)}
-          onSave={(syllabusText) => {
-            handleSaveSyllabus(syllabusModalCourse.id, syllabusText);
+          onSave={async (syllabusText) => {
+            await handleSaveSyllabus(syllabusModalCourse.id, syllabusText);
             setSyllabusModalCourse(null);
           }}
         />
@@ -1878,8 +1980,8 @@ export default function Home() {
           existingLog={lessonTopicModalData.existingLog}
           currentUserEmail={userEmail || undefined}
           onClose={() => setLessonTopicModalData(null)}
-          onSave={(topic, summary) => {
-            handleSaveLessonTopic(
+          onSave={async (topic, summary) => {
+            await handleSaveLessonTopic(
               lessonTopicModalData.course.id,
               lessonTopicModalData.date,
               topic,
@@ -1934,15 +2036,25 @@ function CourseForm({
 }) {
   const [name, setName] = useState(course?.name ?? "");
   const [description, setDescription] = useState(course?.description ?? "");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!name.trim() || saving) return;
+    setSaving(true);
+    setError("");
+    try {
+      await onSave(name.trim(), description.trim() || undefined);
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : "שמירת הכיתה נכשלה. בדקו את החיבור ונסו שוב.");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
-    <form
-      onSubmit={(e) => {
-        e.preventDefault();
-        if (name.trim()) void onSave(name.trim(), description.trim() || undefined);
-      }}
-      className="space-y-4"
-    >
+    <form onSubmit={(e) => void submit(e)} className="space-y-4">
       <label className="block text-xs font-bold text-[#475569]">
         שם הכיתה
         <input
@@ -1962,8 +2074,13 @@ function CourseForm({
           className="mt-1 w-full rounded-xl border border-[#CBD5E1] p-2.5 text-sm font-semibold"
         />
       </label>
-      <button type="submit" className={`${primaryButton} w-full`}>
-        שמירת כיתה
+      {error && (
+        <p role="alert" className="rounded-xl border border-[#DC2626]/30 bg-[#FEE2E2] p-3 text-xs font-bold text-[#991B1B]">
+          השמירה נכשלה: {error}
+        </p>
+      )}
+      <button type="submit" disabled={saving || !name.trim()} className={`${primaryButton} w-full disabled:cursor-wait disabled:opacity-60`}>
+        {saving ? "שומר..." : "שמירת כיתה"}
       </button>
     </form>
   );
@@ -1983,17 +2100,25 @@ function StudentForm({
   const [name, setName] = useState(student?.name ?? "");
   const [email, setEmail] = useState(student?.email ?? "");
   const [courseId, setCourseId] = useState(student?.courseId ?? initialCourseId);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!name.trim() || !courseId || saving) return;
+    setSaving(true);
+    setError("");
+    try {
+      await onSave(name.trim(), email.trim() || undefined, courseId);
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : "שמירת פרטי התלמיד נכשלה. בדקו את החיבור ונסו שוב.");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
-    <form
-      onSubmit={(e) => {
-        e.preventDefault();
-        if (name.trim() && courseId) {
-          void onSave(name.trim(), email.trim() || undefined, courseId);
-        }
-      }}
-      className="space-y-4"
-    >
+    <form onSubmit={(e) => void submit(e)} className="space-y-4">
       <label className="block text-xs font-bold text-[#475569]">
         כיתה
         <select
@@ -2028,8 +2153,13 @@ function StudentForm({
           className="mt-1 w-full rounded-xl border border-[#CBD5E1] p-2.5 text-left text-sm font-semibold"
         />
       </label>
-      <button type="submit" className={`${primaryButton} w-full`}>
-        שמירת פרטים
+      {error && (
+        <p role="alert" className="rounded-xl border border-[#DC2626]/30 bg-[#FEE2E2] p-3 text-xs font-bold text-[#991B1B]">
+          השמירה נכשלה: {error}
+        </p>
+      )}
+      <button type="submit" disabled={saving || !name.trim() || !courseId} className={`${primaryButton} w-full disabled:cursor-wait disabled:opacity-60`}>
+        {saving ? "שומר..." : "שמירת פרטים"}
       </button>
     </form>
   );
@@ -2167,8 +2297,11 @@ function AddStudentBottomSheet({
       }
       await onSaved();
       onClose();
-    } catch {
-      setFileMessage({ type: "error", text: "אירעה שגיאה בשמירת התלמידים." });
+    } catch (error) {
+      setFileMessage({
+        type: "error",
+        text: error instanceof Error ? `אירעה שגיאה בשמירת התלמידים: ${error.message}` : "אירעה שגיאה בשמירת התלמידים.",
+      });
     } finally {
       setIsImporting(false);
     }
@@ -2189,8 +2322,11 @@ function AddStudentBottomSheet({
       });
       await onSaved();
       onClose();
-    } catch {
-      setFileMessage({ type: "error", text: "אירעה שגיאה בשמירת התלמיד." });
+    } catch (error) {
+      setFileMessage({
+        type: "error",
+        text: error instanceof Error ? `אירעה שגיאה בשמירת התלמיד: ${error.message}` : "אירעה שגיאה בשמירת התלמיד.",
+      });
     } finally {
       setIsImporting(false);
     }

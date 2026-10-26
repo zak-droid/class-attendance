@@ -498,10 +498,12 @@ export function StudentActionBottomSheet({
 }: {
   log: AttendanceLog;
   student: Student;
-  onClose: () => void;
-  onStatusChange: (status: AttendanceStatus) => void;
-  onNotesChange: (notes: string) => void;
+  onClose: () => void | Promise<void>;
+  onStatusChange: (status: AttendanceStatus) => void | Promise<void>;
+  onNotesChange: (notes: string) => void | Promise<void>;
 }) {
+  const [saveError, setSaveError] = useState("");
+  const [saving, setSaving] = useState(false);
   const [notes, setNotes] = useState(log.notes ?? "");
 
   return (
@@ -531,7 +533,8 @@ export function StudentActionBottomSheet({
             <button
               key={status}
               type="button"
-              onClick={() => onStatusChange(status)}
+              disabled={saving}
+              onClick={async () => { setSaving(true); setSaveError(""); try { await onStatusChange(status); } catch(error) { setSaveError(error instanceof Error ? error.message : "השמירה נכשלה"); } finally { setSaving(false); } }}
               className={`min-h-11 rounded-xl border px-3 py-2 text-sm font-extrabold ${
                 log.status === status
                   ? "border-[#00A6A6] bg-[#00A6A6] text-white"
@@ -553,16 +556,8 @@ export function StudentActionBottomSheet({
               className="mt-1.5 w-full rounded-xl border border-white/14 bg-white p-3 text-sm font-semibold text-[#0F172A]"
             />
           </label>
-          <button
-            type="button"
-            onClick={() => {
-              onNotesChange(notes);
-              onClose();
-            }}
-            className="mt-3 min-h-11 w-full rounded-xl bg-[#00A6A6] px-4 text-sm font-extrabold text-white hover:bg-[#00B3A4]"
-          >
-            שמירת הערה
-          </button>
+          {saveError && <p role="alert">השמירה נכשלה: {saveError}</p>}
+          <SaveAction action={async () => { await onNotesChange(notes); await onClose(); }}>שמירת הערה</SaveAction>
         </div>
       </div>
     </div>
@@ -594,7 +589,7 @@ export function StudentQuickCardModal({
     absentCount,
     excusedCount,
     attendancePercentage,
-    recentAbsences,
+    history,
   } = stats;
 
   const rateColor =
@@ -652,13 +647,13 @@ export function StudentQuickCardModal({
             </p>
           </div>
           <div className={`shrink-0 rounded-xl border px-3.5 py-1.5 text-center font-extrabold ${rateColor}`}>
-            <span className="text-xl">{attendancePercentage}%</span>
+            <span className="text-xl">{totalSessions ? `${attendancePercentage}%` : 'אין נתונים'}</span>
           </div>
         </div>
 
         {/* Certificate Eligibility Banner (Rotem's requirement) */}
         <div className="mt-2.5">
-          {attendancePercentage >= 80 ? (
+          {totalSessions === 0 ? <p className="text-sm">טרם נרשמה נוכחות. לא ניתן לקבוע זכאות.</p> : attendancePercentage >= 80 ? (
             <div className="flex items-center gap-2 rounded-xl border border-[#16A34A]/30 bg-[#DCFCE7]/15 p-2.5 text-xs font-bold text-[#86EFAC]">
               <span>✅</span>
               <span>עומד/ת ברף הנוכחות לקבלת תעודה (80% ומעלה)</span>
@@ -752,14 +747,14 @@ export function StudentQuickCardModal({
 
         {/* Recent absences / logs */}
         <div className="mt-3.5">
-          <p className="mb-2 text-xs font-bold text-[#B8D8E6]">היעדרויות ואיחורים אחרונים:</p>
-          {recentAbsences.length === 0 ? (
+          <p className="mb-2 text-xs font-bold text-[#B8D8E6]">כל המפגשים בקורס:</p>
+          {history.length === 0 ? (
             <p className="rounded-xl bg-white/5 p-3 text-xs text-[#86EFAC]">
-              ✨ אין היעדרויות או איחורים רשומים לתלמיד זה
+              טרם נרשמה נוכחות לתלמיד/ה בקורס זה
             </p>
           ) : (
             <div className="max-h-36 space-y-1.5 overflow-y-auto">
-              {recentAbsences.map((ab, idx) => (
+              {history.map((ab, idx) => (
                 <div key={idx} className="flex items-center justify-between gap-2 rounded-xl bg-white/5 px-3 py-2 text-xs">
                   <span className="shrink-0 font-bold text-slate-200">מפגש {ab.date}</span>
                   <div className="flex min-w-0 items-center gap-2">
@@ -807,7 +802,7 @@ export function CourseTasksMatrixView({
   customTasks?: CourseTask[];
   onToggleSubmission: (studentId: string, taskId: string, completed: boolean) => void;
   onEditSubmissionNote?: (studentId: string, taskId: string) => void;
-  onAddCustomTask?: (title: string) => void;
+  onAddCustomTask?: (title: string) => void | Promise<void>;
   onViewStudentCard: (student: Student) => void;
   onBack: () => void;
 }) {
@@ -843,12 +838,16 @@ export function CourseTasksMatrixView({
     else notEligibleCount += 1;
   }
 
-  const handleAddSubmit = (e: FormEvent) => {
+  const [taskSaveError, setTaskSaveError] = useState('');
+  const [taskSaving, setTaskSaving] = useState(false);
+  const handleAddSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!newTaskTitle.trim() || !onAddCustomTask) return;
-    onAddCustomTask(newTaskTitle.trim());
-    setNewTaskTitle("");
-    setShowAddForm(false);
+    if (taskSaving) return;
+    setTaskSaving(true); setTaskSaveError('');
+    try { await onAddCustomTask(newTaskTitle.trim()); setNewTaskTitle(''); setShowAddForm(false); }
+    catch(error) { setTaskSaveError(error instanceof Error ? error.message : 'שמירת המטלה נכשלה'); }
+    finally { setTaskSaving(false); }
   };
 
   return (
@@ -890,6 +889,7 @@ export function CourseTasksMatrixView({
       {/* Add Custom Task Form */}
       {showAddForm && (
         <form onSubmit={handleAddSubmit} className="rounded-2xl border border-white/14 bg-[#003859] p-4 space-y-3">
+          {taskSaveError && <p role="alert">{taskSaveError}</p>}
           <p className="text-xs font-extrabold text-[#00E5E5]">הוספת מטלת חובה חדשה לקורס:</p>
           <div className="flex gap-2">
             <input
@@ -921,7 +921,7 @@ export function CourseTasksMatrixView({
         </div>
         <div className="rounded-2xl border border-[#DC2626]/30 bg-[#FEE2E2]/15 p-3">
           <p className="text-xl font-extrabold text-[#FCA5A5]">{notEligibleCount}</p>
-          <p className="text-[11px] font-bold text-slate-300">מתחת לרף (80%)</p>
+          <p className="text-[11px] font-bold text-slate-300">מתחת לרף / ללא נתונים</p>
         </div>
       </div>
 
@@ -980,7 +980,7 @@ export function CourseTasksMatrixView({
                           : "bg-[#FEE2E2] text-[#991B1B]"
                       }`}
                     >
-                      {cert.attendancePercentage}% נוכחות
+                      {cert.hasAttendanceData ? `${cert.attendancePercentage}% נוכחות` : 'אין נתוני נוכחות'}
                     </span>
                     <span className={`rounded-lg border px-2 py-0.5 text-[11px] font-extrabold ${cert.statusBadgeClass}`}>
                       {cert.isFullyEligibleForCertificate ? "זכאי/ת לתעודה ✓" : "טרם הושלם"}
@@ -1048,7 +1048,7 @@ export function TaskNoteModal({
   taskTitle: string;
   initialNote?: string;
   initialDate?: string;
-  onSave: (note: string, date: string) => void;
+  onSave: (note: string, date: string) => void | Promise<void>;
   onClose: () => void;
 }) {
   const [note, setNote] = useState(initialNote);
@@ -1099,13 +1099,7 @@ export function TaskNoteModal({
             />
           </label>
 
-          <button
-            type="button"
-            onClick={() => onSave(note, date)}
-            className="mt-4 min-h-11 w-full rounded-xl bg-[#00A6A6] px-4 text-sm font-extrabold text-white hover:bg-[#00B3A4] transition"
-          >
-            שמירת פרטי מטלה
-          </button>
+          <SaveAction action={() => onSave(note, date)}>שמירת פרטי מטלה</SaveAction>
         </div>
       </div>
     </div>
@@ -1344,7 +1338,7 @@ export function CourseSyllabusModal({
 }: {
   course: Course;
   onClose: () => void;
-  onSave: (syllabusText: string) => void;
+  onSave: (syllabusText: string) => void | Promise<void>;
 }) {
   const [syllabus, setSyllabus] = useState(course.syllabus || "");
   const [uploading, setUploading] = useState(false);
@@ -1499,16 +1493,7 @@ export function CourseSyllabusModal({
             >
               ביטול
             </button>
-            <button
-              type="button"
-              onClick={() => {
-                onSave(syllabus.trim());
-                onClose();
-              }}
-              className="rounded-xl bg-[#00A6A6] px-5 py-2.5 text-xs font-extrabold text-white hover:bg-[#00B3A4] shadow-md shadow-[#00A6A6]/20"
-            >
-              שמירת סילבוס
-            </button>
+            <SaveAction action={async () => { await onSave(syllabus.trim()); onClose(); }}>שמירת סילבוס</SaveAction>
           </div>
         </div>
       </div>
@@ -1529,7 +1514,7 @@ export function LessonTopicModal({
   existingLog?: LessonLog;
   currentUserEmail?: string;
   onClose: () => void;
-  onSave: (topic: string, summary?: string) => void;
+  onSave: (topic: string, summary?: string) => void | Promise<void>;
 }) {
   const [topic, setTopic] = useState(existingLog?.topic || "");
   const [summary, setSummary] = useState(existingLog?.summary || "");
@@ -1602,17 +1587,7 @@ export function LessonTopicModal({
             >
               ביטול
             </button>
-            <button
-              type="button"
-              disabled={!topic.trim()}
-              onClick={() => {
-                onSave(topic.trim(), summary.trim() || undefined);
-                onClose();
-              }}
-              className="rounded-xl bg-[#00A6A6] px-5 py-2.5 text-xs font-extrabold text-white hover:bg-[#00B3A4] shadow-md shadow-[#00A6A6]/20 disabled:opacity-50"
-            >
-              שמירת שיעור
-            </button>
+            <SaveAction action={async () => { await onSave(topic.trim(), summary.trim() || undefined); onClose(); }} disabled={!topic.trim()}>שמירת שיעור</SaveAction>
           </div>
         </div>
       </div>
@@ -2025,4 +2000,14 @@ export function GeminiSettingsModal({
       </div>
     </div>
   );
+}
+
+function SaveAction({ action, children, disabled = false }: { action: () => void | Promise<void>; children: ReactNode; disabled?: boolean }) {
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  return <div>{error && <p role="alert" className="mb-2 rounded bg-red-100 p-3 text-sm text-red-900">{error}</p>}
+    <button type="button" disabled={saving || disabled} className="rounded-xl bg-[#00A6A6] px-5 py-3 text-sm font-bold text-white disabled:opacity-50" onClick={async () => {
+      setSaving(true); setError('');
+      try { await action(); } catch(e) { setError(e instanceof Error ? e.message : 'השמירה נכשלה. נסו שוב.'); } finally { setSaving(false); }
+    }}>{saving ? 'שומר...' : children}</button></div>;
 }

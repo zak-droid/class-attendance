@@ -1,7 +1,9 @@
+import { readAllRows } from "../app/paginated-read.ts";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import test from "node:test";
+import { extractTextFromXlsxArrayBuffer } from "../app/gemini-ai.ts";
 import { prepareStudentImport } from "../app/student-import.ts";
 import {
   BIOMETRIC_STORAGE_KEY,
@@ -45,6 +47,53 @@ function read(relativePath) {
   return fs.readFileSync(path.resolve(relativePath), "utf8");
 }
 
+function zipStoredFiles(files) {
+  const crc32 = (bytes) => {
+    let crc = 0xffffffff;
+    for (const byte of bytes) {
+      crc ^= byte;
+      for (let bit = 0; bit < 8; bit += 1) crc = (crc >>> 1) ^ (crc & 1 ? 0xedb88320 : 0);
+    }
+    return (crc ^ 0xffffffff) >>> 0;
+  };
+  const localParts = [];
+  const centralParts = [];
+  let localOffset = 0;
+  for (const [name, content] of Object.entries(files)) {
+    const nameBytes = Buffer.from(name);
+    const data = Buffer.from(content);
+    const crc = crc32(data);
+    const local = Buffer.alloc(30);
+    local.writeUInt32LE(0x04034b50, 0);
+    local.writeUInt16LE(20, 4);
+    local.writeUInt32LE(crc, 14);
+    local.writeUInt32LE(data.length, 18);
+    local.writeUInt32LE(data.length, 22);
+    local.writeUInt16LE(nameBytes.length, 26);
+    localParts.push(local, nameBytes, data);
+
+    const central = Buffer.alloc(46);
+    central.writeUInt32LE(0x02014b50, 0);
+    central.writeUInt16LE(20, 4);
+    central.writeUInt16LE(20, 6);
+    central.writeUInt32LE(crc, 16);
+    central.writeUInt32LE(data.length, 20);
+    central.writeUInt32LE(data.length, 24);
+    central.writeUInt16LE(nameBytes.length, 28);
+    central.writeUInt32LE(localOffset, 42);
+    centralParts.push(central, nameBytes);
+    localOffset += local.length + nameBytes.length + data.length;
+  }
+  const centralDirectory = Buffer.concat(centralParts);
+  const end = Buffer.alloc(22);
+  end.writeUInt32LE(0x06054b50, 0);
+  end.writeUInt16LE(Object.keys(files).length, 8);
+  end.writeUInt16LE(Object.keys(files).length, 10);
+  end.writeUInt32LE(centralDirectory.length, 12);
+  end.writeUInt32LE(localOffset, 16);
+  return Buffer.concat([...localParts, centralDirectory, end]);
+}
+
 test("production build contains the phone-accessible app", () => {
   const html = read("dist/index.html");
   const globalCss = read("app/globals.css");
@@ -78,7 +127,7 @@ test("teacher-first auth-gated flow, synced Today production copy, and schema st
 
   // Task A: Synced Today-screen Hebrew labels
   assert.doesNotMatch(page, /בחרו כיתה\. כל התלמידים יסומנו כנוכחים כברירת מחדל\./);
-  assert.match(page, /בחרו כיתה כדי להתחיל נוכחות להיום\./);
+  assert.match(page, /בחרו כיתה כדי להתחיל נוכחות לתאריך זה\./);
   assert.match(page, /כל התלמידים יסומנו כנוכחים כברירת מחדל\./);
   assert.match(page, /לא התחילה היום/);
   assert.match(page, /הושלמה היום/);
@@ -103,7 +152,7 @@ test("teacher-first auth-gated flow, synced Today production copy, and schema st
   assert.match(page, /function AddStudentBottomSheet/);
   assert.match(page, /log\.status !== "Present"/);
   assert.match(page, /Boolean\(log\.notes\)/);
-  assert.match(page, /setCompletedCourseIds/);
+  assert.match(page, /data.completedSessions/);
   assert.match(page, /setSessionReadOnly/);
   assert.match(page, /setTab\("more"\)/);
   assert.match(page, /dir="auto"/);
@@ -290,6 +339,60 @@ test("bulk student import parses rows, validates emails, and skips course duplic
   assert.equal(preview.duplicates.length, 3);
   assert.equal(preview.invalid.length, 1);
   assert.match(preview.invalid[0].reason, /כתובת ה?אימייל (לא|אינה) תקינה/);
+});
+
+test("student import preserves first and last names from labeled and split columns", () => {
+  const labeled = prepareStudentImport(
+    "שם פרטי\tשם משפחה\tאימייל\nיעל\tכהן\tyael@example.com",
+    "course-a",
+    []
+  );
+  assert.deepEqual(labeled.ready.map(({ name, email }) => ({ name, email })), [
+    { name: "יעל כהן", email: "yael@example.com" },
+  ]);
+
+  const splitColumns = prepareStudentImport("\tיעל\tכהן\tyael@example.com", "course-a", []);
+  assert.deepEqual(splitColumns.ready.map(({ name, email }) => ({ name, email })), [
+    { name: "יעל כהן", email: "yael@example.com" },
+  ]);
+});
+
+test("student import handles quoted CSV names and a full-name header", () => {
+  const preview = prepareStudentImport(
+    'שם מלא,אימייל\n"כהן, יעל",yael@example.com',
+    "course-a",
+    []
+  );
+  assert.deepEqual(preview.ready.map(({ name, email }) => ({ name, email })), [
+    { name: "כהן, יעל", email: "yael@example.com" },
+  ]);
+});
+
+test("daily attendance exposes its date, historical student filters, and course save failures", () => {
+  const page = read("app/page.tsx");
+  assert.match(page, /formatLocalDate\(today\)/);
+  assert.match(page, /בדיקת נוכחות לפי תאריך/);
+  assert.match(page, /כל התאריכים/);
+  assert.match(page, /historyStudent === "all" \|\| log\.studentId === historyStudent/);
+  assert.match(page, /role="alert" className=.*\n\s*השמירה נכשלה:/s);
+  assert.match(page, /שומר\.\.\./);
+});
+
+test("XLSX extraction preserves blank columns so names and emails stay in the correct fields", async () => {
+  const sharedStrings = ["שם פרטי", "שם משפחה", "אימייל", "יעל", "כהן", "yael@example.com"]
+    .map((value) => `<si><t>${value}</t></si>`)
+    .join("");
+  const cell = (reference, sharedStringIndex) => `<c r="${reference}" t="s"><v>${sharedStringIndex}</v></c>`;
+  const sheet = `<worksheet><sheetData><row r="1">${cell("A1", 0)}${cell("C1", 1)}${cell("D1", 2)}</row><row r="2">${cell("A2", 3)}${cell("C2", 4)}${cell("D2", 5)}</row></sheetData></worksheet>`;
+  const xlsx = zipStoredFiles({
+    "xl/sharedStrings.xml": `<sst>${sharedStrings}</sst>`,
+    "xl/worksheets/sheet1.xml": sheet,
+  });
+  const extracted = await extractTextFromXlsxArrayBuffer(xlsx.buffer.slice(xlsx.byteOffset, xlsx.byteOffset + xlsx.byteLength));
+  const preview = prepareStudentImport(extracted, "course-a", []);
+  assert.deepEqual(preview.ready.map(({ name, email }) => ({ name, email })), [
+    { name: "יעל כהן", email: "yael@example.com" },
+  ]);
 });
 
 test("offline storage cache, pending queue lifecycle, and optimistic data projection", () => {
@@ -548,8 +651,35 @@ test("Phase 4.3 Gemini AI Syllabus Monitor and Lesson Logging contracts", () => 
   assert.match(page, /handleOpenLessonTopicModal/);
   assert.match(page, /handleOpenAIAnalysis/);
   assert.match(page, /handleSaveGeminiKey/);
-  assert.match(page, /נושא המפגש להיום/);
+  assert.match(page, /נושא המפגש/);
   assert.match(page, /בינה מלאכותית \(Google Gemini\)/);
   assert.match(page, /AISyllabusAnalysisModal/);
   assert.match(page, /GeminiSettingsModal/);
+});
+
+
+test("all pages are loaded beyond PostgREST default and errors are not swallowed", async () => {
+  const rows = Array.from({length:1205}, (_,id)=>({id}));
+  let calls=0;
+  const result=await readAllRows(async(from,to)=>{calls++;return {data:rows.slice(from,to+1),error:null};});
+  assert.equal(result.length,1205); assert.equal(calls,3);
+  await assert.rejects(readAllRows(async()=>({data:null,error:new Error('denied')})),/denied/);
+});
+test("no attendance is unknown and cannot make a student eligible",()=>{
+  const student={id:'s',name:'יעל כהן',courseId:'c',active:true};
+  const stats=calculateStudentAttendanceStats(student,[]);
+  assert.equal(stats.totalSessions,0);
+  assert.equal(stats.isAttendanceEligible,false);
+  assert.equal(stats.eligibilityLabel,'אין נתוני נוכחות');
+  const cert=calculateStudentCertificateEligibility(student,{id:'c',name:'קורס',active:true},[],[]);
+  assert.equal(cert.hasAttendanceData,false);
+  assert.equal(cert.isFullyEligibleForCertificate,false);
+});
+
+test("surname-only second columns are names and ragged spreadsheets do not crash",()=>{
+  for(const input of ['שם פרטי,שם משפחה\nיעל,כהן','שם,משפחה\nיעל,כהן','יעל,כהן']) {
+    assert.equal(prepareStudentImport(input,'c',[]).ready[0].name,'יעל כהן');
+  }
+  assert.equal(prepareStudentImport('שם פרטי,שם משפחה\nיעל','c',[]).ready[0].name,'יעל');
+  assert.equal(prepareStudentImport('שם פרטי,שם משפחה,אימייל\nיעל,כהן,bad-address','c',[]).invalid.length,1);
 });

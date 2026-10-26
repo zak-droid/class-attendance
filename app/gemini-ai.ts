@@ -739,6 +739,13 @@ export async function extractTextFromXlsxArrayBuffer(buffer: ArrayBuffer): Promi
     while ((cellMatch = cellRegex.exec(rowMatch[1])) !== null) {
       const attrs = cellMatch[1];
       const content = cellMatch[2];
+      const reference = /\br="([A-Z]+)\d+"/i.exec(attrs)?.[1]?.toUpperCase();
+      let columnIndex = cells.length;
+      if (reference) {
+        columnIndex = 0;
+        for (const char of reference) columnIndex = columnIndex * 26 + char.charCodeAt(0) - 64;
+        columnIndex -= 1;
+      }
       const typeMatch = /\bt="([^"]+)"/.exec(attrs);
       const cellType = typeMatch ? typeMatch[1] : "";
       let val = "";
@@ -755,10 +762,10 @@ export async function extractTextFromXlsxArrayBuffer(buffer: ArrayBuffer): Promi
         const vMatch = /<v\b[^>]*>([\s\S]*?)<\/v>/.exec(content);
         if (vMatch) val = decodeXmlEntities(vMatch[1].trim());
       }
-      if (val.trim()) cells.push(val.trim());
+      cells[columnIndex] = val.trim();
     }
-    if (cells.length > 0) {
-      rows.push(cells.join("\t"));
+    if (cells.some((cell) => Boolean(cell?.trim()))) {
+      rows.push(cells.map((cell) => cell ?? "").join("\t"));
     }
   }
   return rows.join("\n");

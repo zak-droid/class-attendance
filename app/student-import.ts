@@ -22,7 +22,43 @@ const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const hasLettersPattern = /[\u0590-\u05FFa-zA-Z]{2,}/;
 const phoneOrIdPattern = /^[\d\-\s\+\(\)\.\/]{5,}$/;
 
-function cleanName(value: string): string {
+function parseDelimitedRow(input: string, delimiter: string): string[] {
+  const cells: string[] = [];
+  let cell = "";
+  let quoted = false;
+  for (let i = 0; i < input.length; i += 1) {
+    const char = input[i];
+    if (char === '"') {
+      if (quoted && input[i + 1] === '"') {
+        cell += '"';
+        i += 1;
+      } else {
+        quoted = !quoted;
+      }
+    } else if (char === delimiter && !quoted) {
+      cells.push(cell.trim());
+      cell = "";
+    } else {
+      cell += char;
+    }
+  }
+  cells.push(cell.trim());
+  return cells;
+}
+
+function normalizedHeader(value: string): string {
+  return value.toLowerCase().normalize("NFKC").replace(/[\s_.'\"׳״:()\-]/g, "");
+}
+
+function isHeaderRow(values: string[]): boolean {
+  const headers = values.map(normalizedHeader);
+  const hasName = headers.some((h) => /^(שם|שםמלא|שםתלמיד|שםהתלמיד|שםפרטי|firstname|fullname|studentname)$/.test(h));
+  const hasSurname = headers.some((h) => /^(שםמשפחה|משפחה|lastname|surname|familyname)$/.test(h));
+  const hasContactOrId = headers.some((h) => /^(מייל|אימייל|דואראלקטרוני|email|טלפון|נייד|phone|תז|תעודתזהות|id|מספרזהות)$/.test(h));
+  return (hasName || hasSurname) && (hasContactOrId || hasSurname || headers.length > 1);
+}
+
+function cleanName(value: string = ""): string {
   return value.trim().replace(/^["\x27]|["\x27]$/g, "").replace(/\s+/g, " ");
 }
 
@@ -53,69 +89,84 @@ export function prepareStudentImport(
   const invalid: InvalidStudentRow[] = [];
 
   const lines = text.split(/\r?\n/);
+  let nameColumns: { fullName: number; firstName: number; lastName: number } | null = null;
+  let emailColumn = -1;
 
   lines.forEach((input, index) => {
     const trimmedInput = input.trim();
     if (!trimmedInput) return;
     const line = index + 1;
 
-    let rawValues: string[] = [];
-    if (input.includes("\t")) {
-      rawValues = input.split("\t");
-    } else if (input.includes(";")) {
-      rawValues = input.split(";");
-    } else {
-      rawValues = input.split(",");
-    }
+    const delimiter = input.includes("\t") ? "\t" : input.includes(";") ? ";" : ",";
+    const rawValues = parseDelimitedRow(input, delimiter);
 
     const values = rawValues.map((v) => v.trim().replace(/^["\x27]|["\x27]$/g, ""));
 
-    // Skip header row if detected in the first 3 lines
-    if (index < 3) {
-      const joined = values.join(" ").toLowerCase();
-      if (
-        (joined.includes("שם") || joined.includes("student") || joined.includes("name")) &&
-        (joined.includes("מייל") ||
-          joined.includes("אימייל") ||
-          joined.includes("email") ||
-          joined.includes("טלפון") ||
-          joined.includes("נייד") ||
-          joined.includes("phone") ||
-          joined.includes("ת.ז") ||
-          joined.includes("תעודת זהות") ||
-          joined.includes("id"))
-      ) {
-        return;
-      }
+    // Recognize headers even when the file starts with a title or blank row.
+    if (index < 5 && isHeaderRow(values)) {
+      const headers = values.map(normalizedHeader);
+      const findColumn = (pattern: RegExp) => headers.findIndex((header) => pattern.test(header));
+      nameColumns = {
+        fullName: findColumn(/^(שםמלא|שםתלמיד|שםהתלמיד|fullname|studentname|שם)$/),
+        firstName: findColumn(/^(שםפרטי|firstname|givenname)$/),
+        lastName: findColumn(/^(שםמשפחה|משפחה|lastname|surname|familyname)$/),
+      };
+      emailColumn = findColumn(/^(מייל|אימייל|דואראלקטרוני|email)$/);
+
+      return;
     }
 
-    // Find email across any column
+    if (nameColumns && nameColumns.fullName < 0 && nameColumns.firstName < 0 && nameColumns.lastName < 0) {
+      nameColumns = null;
+    }
+
     let email = "";
-    let emailColIdx = -1;
-    for (let i = 0; i < values.length; i += 1) {
-      if (emailPattern.test(values[i])) {
-        email = normalizedEmail(values[i]);
-        emailColIdx = i;
-        break;
+    let emailColIdx = emailColumn;
+    if (emailColumn >= 0 && values[emailColumn] && emailPattern.test(values[emailColumn])) {
+      email = normalizedEmail(values[emailColumn]);
+    } else {
+      emailColIdx = -1;
+      for (let i = 0; i < values.length; i += 1) {
+        if (emailPattern.test(values[i])) {
+          email = normalizedEmail(values[i]);
+          emailColIdx = i;
+          break;
+        }
       }
     }
 
-    // Backward compatibility: if 2 columns and 2nd column looks like a malformed email/token without spaces
-    if (values.length === 2 && values[1] && !email) {
-      if (values[1].includes("@") || (!values[1].includes(" ") && !phoneOrIdPattern.test(values[1]))) {
-        invalid.push({ line, input: trimmedInput, reason: "כתובת אימייל לא תקינה" });
-        return;
-      }
+    // A surname column is not an email column. Validate only an explicitly
+    // labeled email or an unmistakable email-looking value in an unlabeled row.
+    const invalidEmail = emailColumn >= 0 && values[emailColumn] && !emailPattern.test(values[emailColumn]);
+    const malformedUnlabeled = !nameColumns && values.length === 2 && !email &&
+      (values[1]?.includes("@") || /^[a-z]+-[a-z-]+$/i.test(values[1] ?? ""));
+    if (invalidEmail || malformedUnlabeled) {
+      invalid.push({ line, input: trimmedInput, reason: "כתובת אימייל לא תקינה" });
+      return;
     }
 
-    // Find student name column: first non-email column that contains actual letters (skipping row numbers, IDs, phones)
     let name = "";
-    for (let i = 0; i < values.length; i += 1) {
-      if (i === emailColIdx) continue;
-      const val = cleanName(values[i]);
-      if (val && hasLettersPattern.test(val) && !phoneOrIdPattern.test(val) && !val.includes("@")) {
-        name = val;
-        break;
+    if (nameColumns) {
+      const { fullName, firstName, lastName } = nameColumns;
+      if (firstName >= 0 || lastName >= 0) {
+        name = [firstName >= 0 ? values[firstName] : lastName >= 0 && fullName >= 0 ? values[fullName] : "", lastName >= 0 ? values[lastName] : ""]
+          .map(cleanName)
+          .filter(Boolean)
+          .join(" ");
+      }
+      if (!name && fullName >= 0) name = cleanName(values[fullName] ?? "");
+    }
+
+    if (!name) {
+      const nameCells = values
+        .map((value, i) => ({ value: cleanName(value), index: i }))
+        .filter(({ value, index }) => index !== emailColIdx && value && hasLettersPattern.test(value) && !phoneOrIdPattern.test(value) && !value.includes("@"));
+      // If one column already contains the complete name, prefer it over its parts.
+      const fullName = nameCells.find(({ value }) => nameCells.some(({ value: other }) => other !== value && value.toLowerCase().includes(other.toLowerCase())));
+      if (fullName) {
+        name = fullName.value;
+      } else {
+        name = nameCells.slice(0, 2).map(({ value }) => value).join(" ");
       }
     }
 
