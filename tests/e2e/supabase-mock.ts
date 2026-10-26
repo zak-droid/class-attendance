@@ -11,7 +11,7 @@ const attendance_logs = [
   { id: "log-1", student_id: "student-1", course_id: "course-1", date: "2026-10-25", time: "09:00", status: "Present", notes: null, marked_by: "e2e" },
   { id: "log-2", student_id: "student-2", course_id: "course-1", date: "2026-10-25", time: "09:00", status: "Absent", notes: null, marked_by: "e2e" },
 ];
-const tables: Record<string, any[]> = { courses, students, attendance_logs, app_records: [] };
+const tables: Record<string, any[]> = { courses, students, attendance_logs, app_records: courses.map(c => ({kind:'schedule', id:c.id, course_id:c.id, payload:{revision:'initial', updatedAt:'2026-10-26', meetings:[{id:`meeting-${c.id}`,date:'2026-10-26',topic:'מפגש בדיקה',status:'scheduled'}]}})) };
 const saved = sessionStorage.getItem('e2e-database');
 if (saved) for (const [name, rows] of Object.entries(JSON.parse(saved))) tables[name].splice(0, tables[name].length, ...(rows as any[]));
 const persist = () => sessionStorage.setItem('e2e-database', JSON.stringify(tables));
@@ -26,8 +26,9 @@ function query(table: string) {
     order: (key: string, options?: any) => { orders.push([key, options?.ascending !== false]); return q; },
     range: (from: number, to: number) => { start=from; end=to; return q; },
     upsert: (row: any, options?: any) => { action = "upsert"; payload = row; opts=options ?? {}; return q; },
+    insert: (row: any) => { action = "insert"; payload = row; return q; },
     update: (row: any) => { action = "update"; payload = row; return q; },
-    eq: (key: string, value: any) => { filters.push(r => r[key] === value); return q; },
+    eq: (key: string, value: any) => { filters.push(r => (key.includes('->>') ? r[key.split('->>')[0]]?.[key.split('->>')[1]] : r[key]) === value); return q; },
     neq: (key: string, value: any) => { filters.push(r => r[key] !== value); return q; },
     single: async () => { const res = await q.execute(); return { data: res.data?.[0] ?? null, error: res.error ?? (res.data?.length ? null : { message: "No row returned", code: "PGRST116" }) }; },
     execute: async () => { const result = await q.run(); persist(); return result; },
@@ -38,11 +39,17 @@ function query(table: string) {
       const failKey = table === 'courses' ? 'e2e-fail-course' : `e2e-fail-${table}`;
       if (action !== 'select' && sessionStorage.getItem(failKey)) { sessionStorage.removeItem(failKey); return { data: null, error: { message: 'Simulated database rejection', code: '42501' } }; }
       const rows = tables[table] ?? [];
+      if (table === 'app_records' && action === 'update' && payload?.kind === 'schedule' && sessionStorage.getItem('e2e-concurrent-schedule')) {
+        sessionStorage.removeItem('e2e-concurrent-schedule');
+        const current = rows.find(r => r.kind === 'schedule' && r.id === payload.id);
+        if (current) current.payload = {...current.payload, revision:'other-teacher',sourceName:'עדכון ממורה אחר'};
+      }
+      if (action === "insert") { if (rows.some(r => r.kind === payload.kind && r.id === payload.id)) return {data:null,error:{message:'duplicate'}}; rows.push(payload); return {data:[payload],error:null}; }
       if (action === "upsert") {
         const result = [];
         for (const value of Array.isArray(payload) ? payload : [payload]) {
           const keys = (opts.onConflict ?? 'id').split(',');
-          const hit = rows.find(r => keys.every((key: string) => r[key] === value[key]));
+          const hit = rows.find(r => keys.every((key: string) => (key.includes('->>') ? r[key.split('->>')[0]]?.[key.split('->>')[1]] : r[key]) === value[key]));
           if (hit) { if (!opts.ignoreDuplicates) Object.assign(hit, value); result.push({...hit}); }
           else { const row = {id: crypto.randomUUID(), ...value}; rows.push(row); result.push({...row}); }
         }

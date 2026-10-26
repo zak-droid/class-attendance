@@ -9,6 +9,28 @@ export interface Course {
   active: boolean;
   isYearly?: boolean;
   syllabus?: string;
+  schedule?: CourseSchedule;
+}
+
+export interface ScheduledMeeting {
+  id: string;
+  date: string;
+  number?: string;
+  topic: string;
+  location?: string;
+  startTime?: string;
+  endTime?: string;
+  status: 'scheduled' | 'cancelled';
+  groupId?: string;
+  previousDates?: string[];
+}
+
+export interface CourseSchedule {
+  revision: string;
+  meetings: ScheduledMeeting[];
+  sourceName?: string;
+  sourceText?: string;
+  updatedAt: string;
 }
 
 export interface Student {

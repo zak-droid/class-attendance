@@ -2,7 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent, type ReactNode } from "react";
 import type { Session } from "@supabase/supabase-js";
-import { saveSharedRecord } from "./shared-records";
+import { ScheduleModal } from "./ScheduleModal";
+import { meetingOn } from "./schedule";
+import { saveCourseSchedule, saveSharedRecord } from "./shared-records";
 import { AuthScreen } from "./AuthScreen";
 import {
   clearBiometricRecord,
@@ -93,7 +95,11 @@ const primaryButton =
   "min-h-12 rounded-xl bg-[#00A6A6] px-4 text-sm font-extrabold text-white hover:bg-[#00B3A4]";
 
 export default function Home() {
-  const today = localDateKey();
+  const [realToday, setRealToday] = useState(localDateKey);
+  const [selectedDay, setToday] = useState<string | null>(null);
+  const today = selectedDay ?? realToday;
+  useEffect(() => { const timer = setInterval(() => setRealToday(localDateKey()), 30000); return () => clearInterval(timer); }, []);
+  const [scheduleCourse, setScheduleCourse] = useState<Course | null>(null);
   const [data, setData] = useState<AppData>({ courses: [], students: [], attendance: [] });
   const [session, setSession] = useState<Session | null>(null);
   const [authReady, setAuthReady] = useState(false);
@@ -316,6 +322,7 @@ export default function Home() {
 
   const handleTabChange = useCallback(
     (nextTab: AppTab) => {
+      if (nextTab === 'today' && !activeSessionCourseId) setToday(null);
       if (nextTab === navStateRef.current.tab) return;
       if (nextTab !== "today" && navStateRef.current.tab === "today") {
         safePushHistory(`tab-${nextTab}`);
@@ -325,7 +332,7 @@ export default function Home() {
       }
       setTab(nextTab);
     },
-    [safePushHistory, safeBackHistory]
+    [safePushHistory, safeBackHistory, activeSessionCourseId]
   );
 
   const handleOpenMoreView = useCallback(
@@ -659,11 +666,24 @@ export default function Home() {
     [data.attendance, today]
   );
 
+  const openScheduledDate = (courseId: string, date: string) => {
+    setScheduleCourse(null); setActiveSessionCourseId(null);
+    setHistoryCourse(courseId); setHistoryDate(date); setHistoryStudent("all"); setTab("history");
+  };
+  const scheduledCourses = data.courses.filter(c => c.active && meetingOn(c.schedule?.meetings, today));
+  const upcoming = data.courses.filter(c => c.active).flatMap(c => {
+    const next = c.schedule?.meetings.filter(m => m.status === 'scheduled' && m.date > today).sort((a,b) => a.date.localeCompare(b.date))[0];
+    return next ? [{course:c, meeting:next}] : [];
+  }).sort((a,b) => a.meeting.date.localeCompare(b.meeting.date));
+
   const startAttendance = useCallback(
     async (courseId: string) => {
       try {
+        const course = data.courses.find(c => c.id === courseId);
+        if (!meetingOn(course?.schedule?.meetings, today)) { if (course) setScheduleCourse(course); return; }
         await createTodayAttendance(courseId, today, localTimeKey());
         await refreshData();
+        setToday(today);
         setTodayFilter("all");
         setSessionReadOnly(false);
         safePushHistory("session");
@@ -673,7 +693,7 @@ export default function Home() {
         notify(error instanceof Error ? error.message : "שגיאה בפתיחת נוכחות");
       }
     },
-    [today, refreshData, notify]
+    [today, data.courses, refreshData, notify]
   );
 
   const missingAttendance = (courseId: string, date: string, studentId = "all") => (
@@ -884,7 +904,9 @@ export default function Home() {
 
           <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
             <div>
-              <h2 className="text-xl font-extrabold">שיעורי היום</h2>
+              <h2 className="text-xl font-extrabold">{today === realToday ? "שיעורי היום" : "מפגשים בתאריך הנבחר"}</h2>
+              <label className="mt-3 block text-sm">בחירת תאריך מפגשים<input aria-label="בחירת תאריך מפגשים" className="m-2 rounded-lg bg-[#005580] p-2" type="date" value={today} onChange={e => { if (e.target.value) setToday(e.target.value); }}/></label>
+              {selectedDay && <button className="underline" onClick={() => setToday(null)}>חזרה לתאריך של היום</button>}
               <p className="mt-1 text-sm font-medium leading-6 text-[#B8D8E6]">
                 {formatLocalDate(today)} · בחרו כיתה כדי להתחיל נוכחות לתאריך זה.
               </p>
@@ -913,23 +935,21 @@ export default function Home() {
             </p>
           </div>
 
-          {data.courses.some((course) => course.active) ? (
+          {scheduledCourses.length > 0 ? (
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {data.courses
-                .filter((course) => course.active)
-                .map((course, index) => {
+              {scheduledCourses.map((course, index) => {
                   const studentCount = data.students.filter(
                     (student) => student.courseId === course.id && student.active
                   ).length;
                   const startedToday = todayLogs.some((log) => log.courseId === course.id);
                   const completed = completedCourseIds.has(course.id);
                   const stateLabel = completed
-                    ? "הושלמה היום"
+                    ? (today === realToday ? "הושלמה היום" : "הושלמה לתאריך זה")
                     : startedToday
                     ? "בתהליך"
-                    : "לא התחילה היום";
+                    : "טרם דווחה";
                   const actionLabel = completed
-                    ? "עריכת נוכחות להיום"
+                    ? (today === realToday ? "עריכת נוכחות להיום" : "עריכת נוכחות לתאריך זה")
                     : startedToday
                     ? "המשך נוכחות"
                     : "התחלת נוכחות";
@@ -948,6 +968,8 @@ export default function Home() {
                           <h3 dir="auto" className="break-words text-lg font-extrabold">
                             {course.name}
                           </h3>
+                          <p className="mt-2 text-sm text-[#B8D8E6]">{(() => { const m = meetingOn(course.schedule?.meetings, today)!; return [m.number ? `מפגש ${m.number}` : '', m.topic, m.location, m.startTime ? `${m.startTime}–${m.endTime ?? ''}` : ''].filter(Boolean).join(' · '); })()}</p>
+                          <button className="mt-2 text-sm underline" onClick={() => setScheduleCourse(course)}>לוח מפגשים וסילבוס</button>
                           <p className="mt-1 text-xs font-semibold text-[#B8D8E6]">
                             {studentCount} {studentCount === 1 ? "תלמיד אחד" : "תלמידים"}
                           </p>
@@ -985,6 +1007,7 @@ export default function Home() {
                             onClick={() => {
                               if (!startedToday) void startAttendance(course.id);
                               else {
+                                setToday(today);
                                 setTodayFilter("all");
                                 setSessionReadOnly(false);
                                 safePushHistory("session");
@@ -1013,12 +1036,21 @@ export default function Home() {
             </div>
           ) : (
             <EmptyState
-              title="אין כיתות פעילות"
-              body="הוסיפו כיתה כדי להתחיל לנהל נוכחות."
+              title={today === realToday ? "אין מפגשים מתוכננים להיום" : "אין מפגשים מתוכננים לתאריך זה"}
+              body="אפשר לבחור תאריך אחר או לפתוח את לוח המפגשים של הכיתה."
               action="מעבר לעוד"
               onAction={() => setTab("more")}
             />
           )}
+          <div className="mt-6 space-y-3">
+            <h3 className="font-bold">המפגשים הקרובים</h3>
+            {upcoming.map(({course,meeting}) => <div key={course.id} className="rounded-xl border border-white/20 p-3">
+              <p className="font-bold">{course.name}</p><p>{formatLocalDate(meeting.date)} · {meeting.topic}</p>
+              <div className="mt-2 flex flex-wrap gap-3"><button className="underline" onClick={() => setToday(meeting.date)}>מעבר לתאריך המפגש</button><button className="underline" onClick={() => setScheduleCourse(course)}>לוח מפגשים וסילבוס — {course.name}</button></div>
+            </div>)}
+            {data.courses.filter(c => c.active && !c.schedule).map(c => <div key={c.id} className="rounded-xl bg-amber-100 p-3 text-amber-950"><p>{c.name} — נדרש להגדיר מועדי מפגשים</p><button className="font-bold underline" onClick={() => setScheduleCourse(c)}>הגדרת לוח מפגשים — {c.name}</button></div>)}
+            {data.courses.filter(c => todayLogs.some(l => l.courseId === c.id) && !meetingOn(c.schedule?.meetings,today)).map(c => <div key={c.id} className="rounded-xl bg-amber-100 p-3 text-amber-950"><p>{c.name} — קיים דיווח בתאריך זה מחוץ ללוח המפגשים</p><button className="font-bold underline" onClick={() => openScheduledDate(c.id,today)}>בדיקת הדיווח — {c.name}</button></div>)}
+          </div>
         </section>
       )}
 
@@ -1334,6 +1366,7 @@ export default function Home() {
           </div>
           {historyCourse !== 'all' && historyDate && <>
             <p className="text-sm font-bold">{data.courses.find(c => c.id === historyCourse)?.name} · {formatLocalDate(historyDate)}</p>
+            {(() => { const c = data.courses.find(c => c.id === historyCourse); const m = meetingOn(c?.schedule?.meetings,historyDate); return <div className="rounded-xl border border-white/20 p-3"><p>{m ? `בתוכנית: ${m.topic || 'מפגש מתוכנן'}${m.number ? ` · מפגש ${m.number}` : ''}` : 'אין מפגש מתוכנן בתאריך זה. דיווח ידני יישמר מחוץ ללוח המפגשים.'}</p>{c && <button className="underline" onClick={() => setScheduleCourse(c)}>לוח מפגשים וסילבוס</button>}</div>; })()}
             {missingAttendance(historyCourse, historyDate, historyStudent)}
           </>}
           {/* History Lesson Topic & AI Syllabus button */}
@@ -1662,18 +1695,8 @@ export default function Home() {
                           studentCount={studentCount}
                           startedToday={todayLogs.some((l) => l.courseId === course.id)}
                           completedToday={completedCourseIds.has(course.id)}
-                          onStart={() => {
-                            setTab("today");
-                            const started = todayLogs.some((l) => l.courseId === course.id);
-                            if (!started) {
-                              void startAttendance(course.id);
-                            } else {
-                              setTodayFilter("all");
-                              setSessionReadOnly(false);
-                              safePushHistory("session");
-                              setActiveSessionCourseId(course.id);
-                            }
-                          }}
+                          onStart={() => setScheduleCourse(course)}
+                          startLabel="לוח מפגשים ונוכחות"
                           onEdit={() => handleOpenModal({ type: "course", course })}
                           onToggleActive={() => void handleToggleCourseActive(course)}
                           onExportCSV={() => handleExportCourseCSV(course)}
@@ -1846,7 +1869,7 @@ export default function Home() {
       {/* Student Quick Card Modal */}
       {quickCardStudent && (
         <StudentQuickCardModal
-          stats={calculateStudentAttendanceStats(quickCardStudent, data.attendance)}
+          stats={calculateStudentAttendanceStats(quickCardStudent, data.attendance, data.courses.find(c => c.id === quickCardStudent.courseId))}
           courseName={data.courses.find((c) => c.id === quickCardStudent.courseId)?.name}
           isYearly={isYearlyCourse(
             data.courses.find((c) => c.id === quickCardStudent.courseId)?.name,
@@ -1903,18 +1926,24 @@ export default function Home() {
           <CourseForm
             course={modal.course}
             onSave={async (name, description) => {
-              await saveCourse({
-                id: modal.course?.id ?? makeId(),
-                name,
-                description,
-                active: modal.course?.active ?? true,
-              });
+              const savedCourse = { id: modal.course?.id ?? makeId(), name, description, active: modal.course?.active ?? true };
+              await saveCourse(savedCourse);
               await refreshData();
               closeModal();
+              if (!modal.course) setScheduleCourse(savedCourse);
             }}
           />
         </Modal>
       )}
+
+      {scheduleCourse && <ScheduleModal course={scheduleCourse}
+        recordedDates={[...data.attendance.filter(l => l.courseId === scheduleCourse.id).map(l => l.date), ...lessons.filter(l => l.courseId === scheduleCourse.id).map(l => l.date)]}
+        onClose={() => setScheduleCourse(null)}
+        onOpenDate={date => openScheduledDate(scheduleCourse.id,date)}
+        onSave={async schedule => {
+          await saveCourseSchedule(scheduleCourse, schedule);
+          await refreshData(); setScheduleCourse(null); notify('לוח המפגשים נשמר לכל המורים.');
+        }}/>}
 
       {modal?.type === "student" && (
         <Modal
@@ -1968,6 +1997,7 @@ export default function Home() {
       {syllabusModalCourse && (
         <CourseSyllabusModal
           course={syllabusModalCourse}
+          onSchedule={() => { setScheduleCourse(syllabusModalCourse); setSyllabusModalCourse(null); }}
           onClose={() => setSyllabusModalCourse(null)}
           onSave={async (syllabusText) => {
             await handleSaveSyllabus(syllabusModalCourse.id, syllabusText);
@@ -2068,6 +2098,7 @@ function CourseForm({
           className="mt-1 w-full rounded-xl border border-[#CBD5E1] p-2.5 text-sm font-semibold"
         />
       </label>
+      {!course && <p className="text-sm text-slate-600">לאחר שמירת הכיתה תעברו להגדרת לוח המפגשים: העלאת סילבוס, תאריכים ידניים או סדרה שבועית.</p>}
       <label className="block text-xs font-bold text-[#475569]">
         תיאור קצר (רשות)
         <input

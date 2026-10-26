@@ -78,11 +78,15 @@ export function getDefaultCourseTasks(courseId: string, courseName?: string): Co
  */
 export function calculateStudentAttendanceStats(
   student: Student,
-  logs: AttendanceLog[]
+  logs: AttendanceLog[],
+  course?: Course,
+  asOf = new Intl.DateTimeFormat('sv-SE', {timeZone:'Asia/Jerusalem'}).format(new Date())
 ): StudentAttendanceStats {
-  const studentLogs = logs.filter(
+  const history = logs.filter(
     (log) => log.studentId === student.id && (!student.courseId || log.courseId === student.courseId)
   );
+  const cancelled = new Set(course?.schedule?.meetings.filter(m => m.status === 'cancelled').map(m => m.date) ?? []);
+  const studentLogs = history.filter(log => log.date <= asOf && !cancelled.has(log.date));
 
   let presentCount = 0;
   let lateCount = 0;
@@ -146,7 +150,7 @@ export function calculateStudentAttendanceStats(
     isAttendanceEligible,
     eligibilityStatus,
     eligibilityLabel,
-    history: [...studentLogs].sort((a,b) => b.date.localeCompare(a.date)),
+    history: [...history].sort((a,b) => b.date.localeCompare(a.date)),
     recentAbsences,
   };
 }
@@ -173,7 +177,7 @@ export function calculateStudentCertificateEligibility(
   submissions: StudentTaskSubmission[] = [],
   customTasks: CourseTask[] = []
 ): StudentCertificateEligibility {
-  const stats = calculateStudentAttendanceStats(student, logs);
+  const stats = calculateStudentAttendanceStats(student, logs, course);
   const yearly = isYearlyCourse(course.name, course.description);
 
   // Combine default tasks with any custom course tasks
@@ -330,7 +334,7 @@ export function generateCourseAttendanceCSV(
 
   for (const student of courseStudents) {
     const courseStudent = {...student, courseId:course.id};
-    const stats = calculateStudentAttendanceStats(courseStudent, courseLogs);
+    const stats = calculateStudentAttendanceStats(courseStudent, courseLogs, course);
     const cert = calculateStudentCertificateEligibility(
       courseStudent,
       course,

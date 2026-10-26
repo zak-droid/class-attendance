@@ -129,10 +129,10 @@ test("teacher-first auth-gated flow, synced Today production copy, and schema st
   assert.doesNotMatch(page, /בחרו כיתה\. כל התלמידים יסומנו כנוכחים כברירת מחדל\./);
   assert.match(page, /בחרו כיתה כדי להתחיל נוכחות לתאריך זה\./);
   assert.match(page, /כל התלמידים יסומנו כנוכחים כברירת מחדל\./);
-  assert.match(page, /לא התחילה היום/);
+  assert.match(page, /טרם דווחה/);
   assert.match(page, /הושלמה היום/);
   assert.match(page, /בתהליך/);
-  assert.match(page, /הוסיפו כיתה כדי להתחיל לנהל נוכחות\./);
+  assert.match(page, /אין מפגשים מתוכננים להיום/);
   assert.match(page, /מעבר לעוד/);
 
   assert.match(components, /grid grid-cols-4/);

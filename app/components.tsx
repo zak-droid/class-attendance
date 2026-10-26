@@ -239,6 +239,7 @@ export function CourseCard({
   studentCount,
   startedToday,
   completedToday = false,
+  startLabel,
   onStart,
   onEdit,
   onToggleActive,
@@ -252,6 +253,7 @@ export function CourseCard({
   studentCount: number;
   startedToday: boolean;
   completedToday?: boolean;
+  startLabel?: string;
   onStart: () => void;
   onEdit?: () => void;
   onToggleActive?: () => void;
@@ -262,7 +264,7 @@ export function CourseCard({
   onEditSyllabus?: () => void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
-  const stateLabel = !course.active ? "בארכיון" : completedToday
+  const stateLabel = !course.active ? "בארכיון" : startLabel ? (course.schedule ? `${course.schedule.meetings.filter(m => m.status === 'scheduled').length} ימי מפגש` : 'ללא לוח מפגשים') : completedToday
     ? "הושלמה היום"
     : startedToday
     ? "בתהליך"
@@ -290,7 +292,7 @@ export function CourseCard({
           onClick={onStart}
           className="min-h-11 flex-1 rounded-xl bg-[#00A6A6] px-4 text-sm font-extrabold text-white hover:bg-[#00B3A4]"
         >
-          {completedToday ? "עריכת נוכחות להיום" : startedToday ? "המשך נוכחות" : "התחלת נוכחות"}
+          {startLabel ?? (completedToday ? "עריכת נוכחות להיום" : startedToday ? "המשך נוכחות" : "התחלת נוכחות")}
         </button>
         {(onEdit || onToggleActive || onViewStudents || onExportCSV || onViewTasks || onViewAIAnalysis || onEditSyllabus) && (
           <div className="relative">
@@ -652,6 +654,7 @@ export function StudentQuickCardModal({
         </div>
 
         {/* Certificate Eligibility Banner (Rotem's requirement) */}
+        <p className="mt-2 text-xs text-[#B8D8E6]">האחוז מחושב מדיווחים עד היום; מפגשים מבוטלים אינם נספרים. דיווחים עתידיים נשמרים בהיסטוריה.</p>
         <div className="mt-2.5">
           {totalSessions === 0 ? <p className="text-sm">טרם נרשמה נוכחות. לא ניתן לקבוע זכאות.</p> : attendancePercentage >= 80 ? (
             <div className="flex items-center gap-2 rounded-xl border border-[#16A34A]/30 bg-[#DCFCE7]/15 p-2.5 text-xs font-bold text-[#86EFAC]">
@@ -1337,8 +1340,10 @@ export function CourseSyllabusModal({
   course,
   onClose,
   onSave,
+  onSchedule,
 }: {
   course: Course;
+  onSchedule?: () => void;
   onClose: () => void;
   onSave: (syllabusText: string) => void | Promise<void>;
 }) {
@@ -1433,6 +1438,7 @@ export function CourseSyllabusModal({
         </div>
 
         <div className="mt-4 space-y-3">
+      {onSchedule && <button type="button" onClick={onSchedule} className="mb-4 min-h-11 w-full rounded-xl bg-[#006F78] p-3 font-bold text-white">לוח מפגשים — חילוץ תאריכים מהסילבוס</button>}
           <div className="flex items-center justify-between gap-2">
             <label className="block text-xs font-bold text-[#B8D8E6]">
               ראשי פרקים / רשימת נושאים:
