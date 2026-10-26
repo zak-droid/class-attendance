@@ -357,6 +357,16 @@ test("student import preserves first and last names from labeled and split colum
   ]);
 });
 
+test("unlabeled rosters do not mistake occupation text or surname substrings for a full name", () => {
+  const preview = prepareStudentImport([
+    "tamar@example.com\tתמר\tכהן\t123456789\t0500000000\tרחוב הדוגמה 1\tמנחת קבוצות ומטפלת\tתואר שני\tמנחת קבוצות",
+    "bar@example.com\tבר\tברק\t987654321\t0500000001\tרחוב הדוגמה 2\tמורה",
+    "keren@example.com\tקרן הוד\tישראלי כהן\t123456780\t0500000002\tרחוב הדוגמה 3",
+  ].join("\n"), "course-a", []);
+  assert.deepEqual(preview.ready.map(row => row.name), ["תמר כהן", "בר ברק", "קרן הוד ישראלי כהן"]);
+  assert.equal(preview.invalid.length, 0);
+});
+
 test("student import handles quoted CSV names and a full-name header", () => {
   const preview = prepareStudentImport(
     'שם מלא,אימייל\n"כהן, יעל",yael@example.com',

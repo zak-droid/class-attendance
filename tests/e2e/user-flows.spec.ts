@@ -47,6 +47,22 @@ test('import an actual CSV file with first and family names', async ({ page }) =
   await expect(page.getByRole('button', { name: 'תמר ישראלי', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'תמר כהן', exact: true })).toBeVisible();
 });
+test('unlabeled roster keeps names when later columns contain overlapping occupation text', async ({ page }) => {
+  await page.getByRole('button', { name: 'עוד', exact: true }).click();
+  await page.getByRole('button', { name: /^ייבוא תלמידים/ }).click();
+  await page.getByRole('dialog').getByRole('combobox').selectOption('course-1');
+  await page.locator('input[type=file]').setInputFiles({
+    name: 'roster.tsv', mimeType: 'text/tab-separated-values',
+    buffer: Buffer.from('tamar@example.com\tתמר\tישראלי\t123456789\t0500000000\tרחוב הדוגמה\tמנחת קבוצות ומטפלת\tתואר שני\tמנחת קבוצות'),
+  });
+  await page.getByRole('button', { name: 'ייבוא 1 תלמידים לכיתה' }).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await page.reload();
+  await page.locator('article').filter({ hasText: 'מתמטיקה בדיקה' }).getByRole('button', { name: 'התחלת נוכחות' }).click();
+  await expect(page.getByRole('button', { name: 'תמר ישראלי', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'מנחת קבוצות ומטפלת', exact: true })).toHaveCount(0);
+});
+
 test('daily attendance, notes, finish and historical correction keep dates separate', async ({ page }) => {
   await page.locator('article').filter({ hasText: 'מתמטיקה בדיקה' }).getByRole('button', { name: 'התחלת נוכחות' }).click();
   const status = page.getByLabel('סימון נוכחות עבור יעל כהן', { exact: true });

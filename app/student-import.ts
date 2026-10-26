@@ -161,13 +161,10 @@ export function prepareStudentImport(
       const nameCells = values
         .map((value, i) => ({ value: cleanName(value), index: i }))
         .filter(({ value, index }) => index !== emailColIdx && value && hasLettersPattern.test(value) && !phoneOrIdPattern.test(value) && !value.includes("@"));
-      // If one column already contains the complete name, prefer it over its parts.
-      const fullName = nameCells.find(({ value }) => nameCells.some(({ value: other }) => other !== value && value.toLowerCase().includes(other.toLowerCase())));
-      if (fullName) {
-        name = fullName.value;
-      } else {
-        name = nameCells.slice(0, 2).map(({ value }) => value).join(" ");
-      }
+      // In an unlabeled roster the first two text fields are the name parts.
+      // Later fields can contain addresses or occupations that happen to
+      // include another cell's text; they are never evidence of a full name.
+      name = nameCells.slice(0, 2).map(({ value }) => value).join(" ");
     }
 
     if (!name) {

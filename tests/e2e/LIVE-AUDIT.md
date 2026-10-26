@@ -104,3 +104,11 @@ Limitations: physical fingerprint hardware and simultaneous edits to the same fi
 
 
 Final live checks: downloaded the post-fix CSV and verified full name, 2026-10-05/2026-10-26 dates, custom task, instructor feedback and attendance-note text in its bytes. Archived and restored the synthetic course successfully; its records remained. This exposed a navigation issue: Today from a management subview only closed one layer. Programmatic Back now executes its intended close/navigation callback; a new desktop/mobile test verifies one-click Today, archive badge, restore and retained history. Shared feedback was independently confirmed `completed:false` in SQL. Real student records remained untouched.
+
+## Original roster recovery — 2026-10-26
+
+- User supplied three original workbooks. Matched all 19 active NATAL records by exact normalized email and verified the stored first name against the source. All 19 needed surnames, including one compound given name previously missed by the single-word count.
+- Updated only students.name on the existing UUIDs in a guarded transaction. Attendance and shared records were compared before/after within the transaction; 43 course attendance records and all shared records remained identical. Saved the original student rows, source-to-UUID mapping and SQL privately under ignored outputs/roster-recovery. No private roster data was committed.
+- Reloaded production in the owner's account: all 19 full names visible in Students. Selected one restored student in History and confirmed the original 2026-10-23 Present record retained its association.
+- Running the actual XLSX through the production parser exposed one occupation cell being selected as a name due to unrelated substring overlap. Removed that whole-row heuristic. The original XLSX now yields 19 exact full-name/email matches, no invalid rows or duplicates. Added anonymized unit and desktop/mobile regressions. Local validation: 19 code tests and 32 browser tests passed.
+- The other two supplied workbooks are legacy XLS rosters for groups A/B with 19/18 rows. Those courses currently have no active students. This surname recovery updates existing NATAL identities; it does not enroll additional students. The current legacy-XLS path still requires XLSX/CSV conversion if no Gemini key is configured.
