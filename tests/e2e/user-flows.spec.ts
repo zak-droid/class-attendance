@@ -215,3 +215,19 @@ test('finishing a session shows progress while the server is saving',async({page
   await expect(page.getByRole('button',{name:'שומר סיום מפגש...',exact:true})).toBeDisabled();
   await expect(page.locator('article').filter({hasText:'מתמטיקה בדיקה'})).toContainText('הושלמה היום');
 });
+
+test('Today navigation returns home in one click from a management subview; archive restores without losing history',async({page})=>{
+  await courseMenu(page,/העברה לארכיון/);
+  const card=page.locator('article').filter({hasText:'מתמטיקה בדיקה'});
+  await expect(card).toContainText('בארכיון');
+  await page.getByRole('button',{name:'היום',exact:true}).click();
+  await expect(page.getByRole('heading',{name:'שיעורי היום',exact:true})).toBeVisible();
+  await expect(page.getByRole('heading',{name:'מתמטיקה בדיקה',exact:true})).toHaveCount(0);
+  await courseMenu(page,/שחזור כיתה/);
+  await expect(card).not.toContainText('בארכיון');
+  await page.getByRole('button',{name:'היום',exact:true}).click();
+  await expect(page.getByRole('heading',{name:'מתמטיקה בדיקה',exact:true})).toBeVisible();
+  await page.getByRole('button',{name:'היסטוריה',exact:true}).click();
+  await page.getByLabel('בחירת תאריך נוכחות').fill('2026-10-25');
+  await expect(page.getByLabel('סימון נוכחות עבור יעל כהן')).toHaveValue('Present');
+});

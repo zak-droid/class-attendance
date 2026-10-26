@@ -90,7 +90,7 @@ A subsequent query included pg_policies.permissive and confirmed all `Backup ide
 The earlier findings above describe the pre-fix build. They are superseded by these results for the repaired workflows.
 
 - Source fixes published to `teacher-first-v2`; GitHub build/test/deploy runs 40372045741 and 40373203581 succeeded. Additive `shared_daily_workflows` migration applied (remote version 20261026174117).
-- 18 code tests and 28 Chromium UI tests (desktop and Pixel 7 viewport). Browser suite uses isolated mock DB; live checks below use real Supabase through normal UI.
+- 18 code tests and 30 Chromium UI tests (desktop and Pixel 7 viewport). Browser suite uses isolated mock DB; live checks below use real Supabase through normal UI.
 - Chrome owner account: new student Noa appeared as unmarked in the existing session, was explicitly marked Late, and persisted. Lesson topic saved to shared server records. Session completion survived reload. A slow server response exposed absent progress feedback; added disabled “saving completion” state and shared-write timeout, with regression test.
 - Past date 2026-10-05: created a Present record for the renamed synthetic Yael through History UI, then saved a separate dated lesson topic. No SQL fixture was used for this new past record.
 - Independent in-app browser with separate storage: signed in normally through a newly requested email link. Saw the completed session, lesson topic, custom task and prior submissions from Chrome. This verifies server persistence beyond the original localStorage.
@@ -101,3 +101,6 @@ The earlier findings above describe the pre-fix build. They are superseded by th
 - Existing real data: 18 active students in the NATAL course still have single-word names from past imports. Original roster requested; no family names invented or real student records rewritten. Overlong malformed historical names seen in an inactive test course were not repurposed as a roster.
 
 Limitations: physical fingerprint hardware and simultaneous edits to the same field by different instructors were not exercised. Existing browser-local data on other devices imports when each device next opens the updated app. Conflicts preserve the first shared version and archive every original local version for recovery (see supabase/README.md).
+
+
+Final live checks: downloaded the post-fix CSV and verified full name, 2026-10-05/2026-10-26 dates, custom task, instructor feedback and attendance-note text in its bytes. Archived and restored the synthetic course successfully; its records remained. This exposed a navigation issue: Today from a management subview only closed one layer. Programmatic Back now executes its intended close/navigation callback; a new desktop/mobile test verifies one-click Today, archive badge, restore and retained history. Shared feedback was independently confirmed `completed:false` in SQL. Real student records remained untouched.

@@ -232,9 +232,11 @@ export default function Home() {
     }
   }, []);
 
+  const pendingBackAction = useRef<(() => void) | null>(null);
   const safeBackHistory = useCallback((fallback: () => void) => {
     try {
       if (typeof window !== "undefined" && window.history?.state?.appNav) {
+        pendingBackAction.current = fallback;
         window.history.back();
         return;
       }
@@ -248,6 +250,7 @@ export default function Home() {
     if (typeof window === "undefined") return;
 
     const onPopState = () => {
+      if (pendingBackAction.current) { const action = pendingBackAction.current; pendingBackAction.current = null; action(); return; }
       const state = navStateRef.current;
 
       // Layer 1: Modals & Bottom Sheets (highest priority)
@@ -317,7 +320,7 @@ export default function Home() {
       if (nextTab !== "today" && navStateRef.current.tab === "today") {
         safePushHistory(`tab-${nextTab}`);
       } else if (nextTab === "today" && typeof window !== "undefined" && window.history.state?.appNav) {
-        safeBackHistory(() => setTab("today"));
+        safeBackHistory(() => { setMoreView("menu"); setTab("today"); });
         return;
       }
       setTab(nextTab);

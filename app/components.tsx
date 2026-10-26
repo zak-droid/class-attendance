@@ -262,7 +262,7 @@ export function CourseCard({
   onEditSyllabus?: () => void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
-  const stateLabel = completedToday
+  const stateLabel = !course.active ? "בארכיון" : completedToday
     ? "הושלמה היום"
     : startedToday
     ? "בתהליך"
