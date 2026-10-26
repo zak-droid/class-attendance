@@ -83,3 +83,21 @@ Repeated CSV export with a browser download observer: app remained responsive, b
 ### Permission concern resolved by inspection
 
 A subsequent query included pg_policies.permissive and confirmed all `Backup identity cannot ...` policies are RESTRICTIVE, not PERMISSIVE. They do not broaden access. No existing policy was dropped or changed. The new shared-record table has approved-teacher RLS and copies the existing backup SELECT predicate.
+
+
+## Fixes deployed and verified — 2026-10-26
+
+The earlier findings above describe the pre-fix build. They are superseded by these results for the repaired workflows.
+
+- Source fixes published to `teacher-first-v2`; GitHub build/test/deploy runs 40372045741 and 40373203581 succeeded. Additive `shared_daily_workflows` migration applied (remote version 20261026174117).
+- 18 code tests and 28 Chromium UI tests (desktop and Pixel 7 viewport). Browser suite uses isolated mock DB; live checks below use real Supabase through normal UI.
+- Chrome owner account: new student Noa appeared as unmarked in the existing session, was explicitly marked Late, and persisted. Lesson topic saved to shared server records. Session completion survived reload. A slow server response exposed absent progress feedback; added disabled “saving completion” state and shared-write timeout, with regression test.
+- Past date 2026-10-05: created a Present record for the renamed synthetic Yael through History UI, then saved a separate dated lesson topic. No SQL fixture was used for this new past record.
+- Independent in-app browser with separate storage: signed in normally through a newly requested email link. Saw the completed session, lesson topic, custom task and prior submissions from Chrome. This verifies server persistence beyond the original localStorage.
+- Independent browser: saved feedback on the first synthetic Yael's outstanding peer obligation; completion remained false. Feedback persisted in app_records.
+- Uploaded an XLSX file through the production file picker with first name, blank column, family name and email. Imported synthetic `תמר ישראלי` with the full name intact. The new enrolment reopened the completed course as in progress and appeared unmarked. Explicitly marked Present and completed again.
+- Downloaded the actual production CSV to disk and read its bytes: full name and both historical/current dates present. This exposed missing custom tasks/feedback/notes; export corrected and covered by code regression, including transferred-student history and CSV escaping.
+- SQL RLS assertions in rollback transactions: all three approved teacher emails can read/insert/update shared rows; unapproved email cannot read/insert. Course rename permission also verified with Rotem's actual auth user ID/email claims in a rollback transaction. This is a policy test, not a login as Rotem.
+- Existing real data: 18 active students in the NATAL course still have single-word names from past imports. Original roster requested; no family names invented or real student records rewritten. Overlong malformed historical names seen in an inactive test course were not repurposed as a roster.
+
+Limitations: physical fingerprint hardware and simultaneous edits to the same field by different instructors were not exercised. Existing browser-local data on other devices imports when each device next opens the updated app. Conflicts preserve the first shared version and archive every original local version for recovery (see supabase/README.md).

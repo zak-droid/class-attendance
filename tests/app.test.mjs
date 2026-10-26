@@ -683,3 +683,14 @@ test("surname-only second columns are names and ragged spreadsheets do not crash
   assert.equal(prepareStudentImport('שם פרטי,שם משפחה\nיעל','c',[]).ready[0].name,'יעל');
   assert.equal(prepareStudentImport('שם פרטי,שם משפחה,אימייל\nיעל,כהן,bad-address','c',[]).invalid.length,1);
 });
+
+test("CSV includes custom obligations, feedback, attendance notes and transferred students",()=>{
+  const course={id:'c',name:'קורס',active:true};
+  const student={id:'s',name:'יעל כהן',courseId:'next-course',active:true};
+  const logs=[{id:'l',studentId:'s',courseId:'c',date:'2026-10-05',time:'10:00',status:'Present',notes:'הערת נוכחות'}];
+  const tasks=[{id:'custom',courseId:'c',title:'מטלה, נוספת',requiredForCertificate:true}];
+  const subs=[{id:'s_custom',studentId:'s',courseId:'c',taskId:'custom',completed:false,notes:'משוב, עם פסיק',completedDate:'2026-10-05'}];
+  const csv=generateCourseAttendanceCSV(course,[student],logs,subs,tasks);
+  assert.match(csv,/יעל כהן/); assert.match(csv,/100%/); assert.match(csv,/הועבר\/ה לקורס אחר/);
+  assert.match(csv,/"מטלה, נוספת"/); assert.match(csv,/הערת נוכחות/); assert.match(csv,/"משוב, עם פסיק"/);
+});

@@ -279,7 +279,8 @@ export function openWhatsAppShare(text: string): void {
 }
 
 function escapeCsvCell(cell: string | number): string {
-  const str = String(cell ?? "");
+  const raw = String(cell ?? "");
+  const str = typeof cell === "string" && /^[=+@-]/.test(raw) ? `'${raw}` : raw;
   if (str.includes(",") || str.includes('"') || str.includes("\n")) {
     return `"${str.replace(/"/g, '""')}"`;
   }
@@ -293,10 +294,13 @@ export function generateCourseAttendanceCSV(
   submissions: StudentTaskSubmission[] = [],
   customTasks: CourseTask[] = []
 ): string {
-  const courseStudents = allStudents.filter((s) => s.courseId === course.id);
   const courseLogs = allLogs.filter((l) => l.courseId === course.id);
+  const historicalIds = new Set(courseLogs.map(l => l.studentId));
+  const courseStudents = allStudents.filter(s => s.courseId === course.id || historicalIds.has(s.id));
   const yearly = isYearlyCourse(course.name, course.description);
 
+  const extraTasks = customTasks.filter(t => t.courseId === course.id && (!t.yearlyOnly || yearly));
+  const reportTasks = [...getDefaultCourseTasks(course.id,course.name).filter(t => !t.yearlyOnly || yearly), ...extraTasks];
   // Extract distinct dates sorted chronologically
   const dates = Array.from(new Set(courseLogs.map((l) => l.date))).sort();
 
@@ -309,23 +313,26 @@ export function generateCourseAttendanceCSV(
     "תרגיל עמיתים",
     ...(yearly ? ["פרקטיקום (שנתי)"] : []),
     "מסע מדברי / יומיים",
+    ...extraTasks.map(t => t.title),
     "נוכח",
     "מאחר",
     "נעדר",
     "מוצדק",
-    ...dates.map((d) => `מפגש ${d}`),
+    ...dates.flatMap(d => [`מפגש ${d}`, `הערה ${d}`]),
+    ...reportTasks.flatMap(t => [`תאריך — ${t.title}`, `משוב — ${t.title}`]),
   ];
 
-  const rows: string[][] = [headers];
+  const rows: string[][] = [headers.map(escapeCsvCell)];
 
   const peerTaskId = `${course.id}_peer`;
   const practicumTaskId = `${course.id}_practicum`;
   const journeyTaskId = `${course.id}_journey`;
 
   for (const student of courseStudents) {
-    const stats = calculateStudentAttendanceStats(student, courseLogs);
+    const courseStudent = {...student, courseId:course.id};
+    const stats = calculateStudentAttendanceStats(courseStudent, courseLogs);
     const cert = calculateStudentCertificateEligibility(
-      student,
+      courseStudent,
       course,
       courseLogs,
       submissions,
@@ -345,12 +352,13 @@ export function generateCourseAttendanceCSV(
     const row: string[] = [
       escapeCsvCell(student.name),
       escapeCsvCell(student.email || ""),
-      student.active ? "פעיל" : "לא פעיל",
+      student.courseId !== course.id ? "הועבר/ה לקורס אחר" : student.active ? "פעיל" : "לא פעיל",
       stats.totalSessions ? `${stats.attendancePercentage}%` : "אין נתונים",
       escapeCsvCell(cert.statusLabel),
       hasPeer ? "בוצע" : "לא בוצע",
       ...(yearly ? [hasPracticum ? "בוצע" : "לא בוצע"] : []),
       hasJourney ? "בוצע" : "לא בוצע",
+      ...extraTasks.map(t => submissions.some(s => s.studentId===student.id && s.taskId===t.id && s.completed) ? "בוצע" : "לא בוצע"),
       String(stats.presentCount),
       String(stats.lateCount),
       String(stats.absentCount),
@@ -360,12 +368,16 @@ export function generateCourseAttendanceCSV(
     for (const d of dates) {
       const matchLog = courseLogs.find((l) => l.studentId === student.id && l.date === d);
       if (matchLog) {
-        row.push(statusHebrewMap[matchLog.status] || matchLog.status);
+        row.push(statusHebrewMap[matchLog.status] || matchLog.status, escapeCsvCell(matchLog.notes || ""));
       } else {
-        row.push("-");
+        row.push("-", "");
       }
     }
 
+    for (const task of reportTasks) {
+      const submission = submissions.find(s => s.studentId === student.id && s.taskId === task.id);
+      row.push(escapeCsvCell(submission?.completedDate || ""), escapeCsvCell(submission?.notes || ""));
+    }
     rows.push(row);
   }
 

@@ -1320,7 +1320,7 @@ export default function Home() {
             >
               <option value="all">כל התלמידים</option>
               {data.students
-                .filter((student) => historyCourse === "all" || student.courseId === historyCourse)
+                .filter((student) => historyCourse === "all" || student.courseId === historyCourse || data.attendance.some(l => l.courseId === historyCourse && l.studentId === student.id))
                 .sort((a, b) => a.name.localeCompare(b.name, "he"))
                 .map((student) => (
                   <option key={student.id} value={student.id}>
