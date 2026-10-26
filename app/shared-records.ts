@@ -10,7 +10,7 @@ let migration: Promise<void> | undefined;
 
 export async function saveSharedRecord(kind: SharedKind, id: string, courseId: string, payload: object): Promise<void> {
   if (!supabase || !isOnline()) throw new Error('נדרש חיבור לאינטרנט לשמירה משותפת. התוכן נשאר בטופס; נסו שוב כשיחזור החיבור.');
-  const { error } = await supabase.from('app_records').upsert({ kind, id, course_id: courseId, payload }, { onConflict: 'kind,id' }).select('id').single();
+  const { error } = await supabase.from('app_records').upsert({ kind, id, course_id: courseId, payload }, { onConflict: 'kind,id' }).select('id').abortSignal(AbortSignal.timeout(15000)).single();
   if (error) throw new Error(error.message);
 }
 

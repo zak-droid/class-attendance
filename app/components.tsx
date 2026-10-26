@@ -1114,11 +1114,12 @@ export function FinishAttendanceBar({
   onEditTopic,
 }: {
   logs: AttendanceLog[];
-  onFinish: () => void;
+  onFinish: () => void | Promise<void>;
   onShareWhatsApp?: () => void;
   currentTopic?: string;
   onEditTopic?: () => void;
 }) {
+  const [finishing, setFinishing] = useState(false);
   const presentCount = logs.filter((l) => l.status === "Present").length;
   const lateCount = logs.filter((l) => l.status === "Late").length;
   const absentCount = logs.filter((l) => l.status === "Absent").length;
@@ -1164,10 +1165,11 @@ export function FinishAttendanceBar({
           )}
           <button
             type="button"
-            onClick={onFinish}
+            disabled={finishing}
+            onClick={async () => { if (finishing) return; setFinishing(true); try { await onFinish(); } finally { setFinishing(false); } }}
             className="min-h-11 flex-1 sm:flex-initial rounded-xl bg-[#00A6A6] px-5 text-sm font-extrabold text-white transition hover:bg-[#00B3A4]"
           >
-            סיום נוכחות
+            {finishing ? "שומר סיום מפגש..." : "סיום נוכחות"}
           </button>
         </div>
         </div>

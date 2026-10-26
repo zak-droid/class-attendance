@@ -22,7 +22,7 @@ function query(table: string) {
   const orders: [string, boolean][] = [];
   let start = 0, end = 999;
   const q: any = {
-    select: () => q,
+    select: () => q, abortSignal: () => q,
     order: (key: string, options?: any) => { orders.push([key, options?.ascending !== false]); return q; },
     range: (from: number, to: number) => { start=from; end=to; return q; },
     upsert: (row: any, options?: any) => { action = "upsert"; payload = row; opts=options ?? {}; return q; },
@@ -32,6 +32,9 @@ function query(table: string) {
     single: async () => { const res = await q.execute(); return { data: res.data?.[0] ?? null, error: res.error ?? (res.data?.length ? null : { message: "No row returned", code: "PGRST116" }) }; },
     execute: async () => { const result = await q.run(); persist(); return result; },
     run: async () => {
+      if (table === 'app_records' && payload?.kind === 'session' && sessionStorage.getItem('e2e-slow-finish')) {
+        sessionStorage.removeItem('e2e-slow-finish'); await new Promise(resolve=>setTimeout(resolve,400));
+      }
       const failKey = table === 'courses' ? 'e2e-fail-course' : `e2e-fail-${table}`;
       if (action !== 'select' && sessionStorage.getItem(failKey)) { sessionStorage.removeItem(failKey); return { data: null, error: { message: 'Simulated database rejection', code: '42501' } }; }
       const rows = tables[table] ?? [];
@@ -72,4 +75,3 @@ export const supabase: any = {
   },
   channel: () => ({ on() { return this; }, subscribe() { return this; } }), removeChannel: async () => {},
 };
-

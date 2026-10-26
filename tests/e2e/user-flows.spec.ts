@@ -207,3 +207,11 @@ test('downloaded course report contains full names, dates and Hebrew statuses',a
   const csv=await fs.readFile((await download.path())!, 'utf8');
   expect(csv).toContain('יעל כהן'); expect(csv).toContain('2026-10-26'); expect(csv).toContain('מאחר');
 });
+
+test('finishing a session shows progress while the server is saving',async({page})=>{
+  await startMath(page);
+  await page.evaluate(()=>sessionStorage.setItem('e2e-slow-finish','1'));
+  await page.getByRole('button',{name:'סיום נוכחות',exact:true}).click();
+  await expect(page.getByRole('button',{name:'שומר סיום מפגש...',exact:true})).toBeDisabled();
+  await expect(page.locator('article').filter({hasText:'מתמטיקה בדיקה'})).toContainText('הושלמה היום');
+});
