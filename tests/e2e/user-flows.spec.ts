@@ -11,6 +11,23 @@ test('renders the actual application with isolated courses', async ({ page }) =>
   await page.screenshot({ path: test.info().outputPath('today.png'), fullPage: true });
 });
 
+test('long course and student names wrap so group letters and family names stay visible', async ({ page }) => {
+  const fullCourseName='תרפיה בטבע שנתי קבוצה ללימוד והכשרה 2א';
+  await openCourseEdit(page);
+  await page.getByLabel('שם הכיתה', { exact: true }).fill(fullCourseName);
+  await page.getByRole('button', { name: 'שמירת כיתה' }).click();
+  await page.getByRole('button', { name: 'היום', exact: true }).click();
+  const heading=page.getByRole('heading',{name:fullCourseName,exact:true});
+  await expect(heading).toBeVisible();
+  const titleLayout=await heading.evaluate(el=>({whiteSpace:getComputedStyle(el).whiteSpace,clipped:el.scrollWidth>el.clientWidth+1}));
+  expect(titleLayout.whiteSpace).not.toBe('nowrap');
+  expect(titleLayout.clipped).toBe(false);
+  await page.getByRole('button',{name:'תלמידים',exact:true}).click();
+  const studentName=page.getByText('יעל כהן',{exact:true});
+  await expect(studentName).toBeVisible();
+  expect(await studentName.evaluate(el=>getComputedStyle(el).whiteSpace)).not.toBe('nowrap');
+});
+
 async function openCourseEdit(page: Page) {
   await page.getByRole('button', { name: 'עוד', exact: true }).click();
   await page.getByRole('button', { name: /ניהול קורסים/ }).click();

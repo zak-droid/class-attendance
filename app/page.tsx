@@ -945,7 +945,7 @@ export default function Home() {
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0 flex-1">
-                          <h3 dir="auto" className="truncate text-lg font-extrabold">
+                          <h3 dir="auto" className="break-words text-lg font-extrabold">
                             {course.name}
                           </h3>
                           <p className="mt-1 text-xs font-semibold text-[#B8D8E6]">
@@ -1247,7 +1247,7 @@ export default function Home() {
                       ℹ️
                     </button>
                     <div className="min-w-0 flex-1">
-                      <p dir="auto" className="truncate font-bold text-white">
+                      <p dir="auto" className="break-words font-bold text-white">
                         {student.name}
                       </p>
                       <p className="truncate text-xs text-[#B8D8E6]">
@@ -1556,7 +1556,7 @@ export default function Home() {
                           className="flex items-center justify-between rounded-xl border border-white/14 bg-[#002B45] p-3 text-right hover:bg-[#005580] transition"
                         >
                           <div className="min-w-0 flex-1">
-                            <p dir="auto" className="truncate text-xs font-bold text-white">
+                            <p dir="auto" className="break-words text-xs font-bold text-white">
                               {course.name}
                             </p>
                             <p className="text-[11px] text-[#00E5E5]">הורדת דוח Excel (CSV)</p>
@@ -1719,10 +1719,10 @@ export default function Home() {
                             ℹ️
                           </button>
                           <div className="min-w-0 flex-1">
-                            <p dir="auto" className="truncate font-bold text-white">
+                            <p dir="auto" className="break-words font-bold text-white">
                               {student.name}
                             </p>
-                            <p className="truncate text-xs text-[#B8D8E6]">
+                            <p className="break-words text-xs text-[#B8D8E6]">
                               {data.courses.find((c) => c.id === student.courseId)?.name || ""}
                             </p>
                           </div>

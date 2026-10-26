@@ -272,7 +272,7 @@ export function CourseCard({
     <article className="rounded-[20px] border border-white/14 bg-[#005580] p-4 text-white">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
-          <h3 dir="auto" className="truncate text-lg font-extrabold">
+          <h3 dir="auto" className="break-words text-lg font-extrabold">
             {course.name}
           </h3>
           <p className="mt-1 text-xs font-semibold text-[#B8D8E6]">
@@ -436,7 +436,7 @@ export function AttendanceStudentRow({
           onClick={onOpen}
           className="min-w-0 flex-1 text-right focus:outline-none"
         >
-          <p dir="auto" className="truncate text-sm sm:text-base font-bold">
+          <p dir="auto" className="break-words text-sm sm:text-base font-bold">
             {student.name}
           </p>
           {log.notes && (
@@ -619,10 +619,10 @@ export function StudentQuickCardModal({
             <span className="text-[11px] font-extrabold uppercase tracking-wider text-[#00A6A6]">
               כרטיס תלמיד/ה
             </span>
-            <h2 dir="auto" className="truncate text-xl font-extrabold text-white">
+            <h2 dir="auto" className="break-words text-xl font-extrabold text-white">
               {student.name}
             </h2>
-            {courseName && <p className="truncate text-xs text-[#B8D8E6]">{courseName}</p>}
+            {courseName && <p className="break-words text-xs text-[#B8D8E6]">{courseName}</p>}
             {student.email && (
               <p className="truncate text-xs text-[#94A3B8]" dir="ltr">
                 {student.email}
@@ -968,7 +968,7 @@ export function CourseTasksMatrixView({
                     >
                       ℹ️
                     </button>
-                    <span className="font-extrabold text-sm truncate text-white">{student.name}</span>
+                    <span className="min-w-0 break-words font-extrabold text-sm text-white">{student.name}</span>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     <span
