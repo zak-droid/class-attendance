@@ -60,6 +60,8 @@ for(const [teacher,course] of [['rotman555@gmail.com','course-1'],['dotanhaim@gm
   await row.evaluate(el => el.scrollIntoView({block: 'start'}));
   await capture(page,`06-recorded-${info.project.name}-${course}`);
   await page.getByRole('button',{name:/תיעוד שיעור/}).first().click();
+  await expect(page.getByRole('dialog',{name:'תיעוד נושא השיעור'}).getByRole('button',{name:'סגירה',exact:true})).toBeFocused();
+  await expect(page.getByLabel('מה לימדנו במפגש זה? (נושא / ראשי פרקים):',{exact:true})).toBeVisible();
   await page.getByPlaceholder('למשל: משוב עמיתים וסגנונות תקשורת').fill('תיעוד יום עבודה');
   await page.getByRole('button',{name:'שמירת שיעור',exact:true}).click();
   await page.getByRole('button',{name:'סיום נוכחות',exact:true}).click();

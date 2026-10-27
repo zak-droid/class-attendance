@@ -1470,9 +1470,10 @@ export function LessonTopicModal({
 }) {
   const [topic, setTopic] = useState(existingLog?.topic || "");
   const [summary, setSummary] = useState(existingLog?.summary || "");
+  const dialogRef = useDialogFocus(onClose);
 
   return (
-    <div
+    <div ref={dialogRef} role="dialog" aria-modal="true" aria-label="תיעוד נושא השיעור" tabIndex={-1}
       onClick={onClose}
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
     >
@@ -1498,10 +1499,11 @@ export function LessonTopicModal({
 
         <div className="mt-4 space-y-3.5">
           <div>
-            <label className="block text-xs font-bold text-white mb-1.5">
+            <label htmlFor="lesson-topic" className="block text-xs font-bold text-white mb-1.5">
               מה לימדנו במפגש זה? (נושא / ראשי פרקים):
             </label>
             <input
+              id="lesson-topic"
               type="text"
               dir="auto"
               value={topic}
@@ -1512,10 +1514,11 @@ export function LessonTopicModal({
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-[#B8D8E6] mb-1.5">
+            <label htmlFor="lesson-summary" className="block text-xs font-bold text-[#B8D8E6] mb-1.5">
               תקציר נוסף / הערות פדגוגיות (אופציונלי):
             </label>
             <textarea
+              id="lesson-summary"
               rows={3}
               dir="auto"
               value={summary}
