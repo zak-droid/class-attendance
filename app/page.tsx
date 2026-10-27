@@ -1049,7 +1049,7 @@ export default function Home() {
               <div className="mt-2 flex flex-wrap gap-3"><button className="underline" onClick={() => setToday(meeting.date)}>מעבר לתאריך המפגש</button><button className="underline" onClick={() => setScheduleCourse(course)}>לוח מפגשים וסילבוס — {course.name}</button></div>
             </div>)}
             {data.courses.filter(c => c.active && !c.schedule).map(c => <div key={c.id} className="rounded-xl bg-amber-100 p-3 text-amber-950"><p>{c.name} — נדרש להגדיר מועדי מפגשים</p><button className="font-bold underline" onClick={() => setScheduleCourse(c)}>הגדרת לוח מפגשים — {c.name}</button></div>)}
-            {data.courses.filter(c => todayLogs.some(l => l.courseId === c.id) && !meetingOn(c.schedule?.meetings,today)).map(c => <div key={c.id} className="rounded-xl bg-amber-100 p-3 text-amber-950"><p>{c.name} — קיים דיווח בתאריך זה מחוץ ללוח המפגשים</p><button className="font-bold underline" onClick={() => openScheduledDate(c.id,today)}>בדיקת הדיווח — {c.name}</button></div>)}
+            {data.courses.filter(c => c.active && todayLogs.some(l => l.courseId === c.id) && !meetingOn(c.schedule?.meetings,today)).map(c => <div key={c.id} className="rounded-xl bg-amber-100 p-3 text-amber-950"><p>{c.name} — קיים דיווח בתאריך זה מחוץ ללוח המפגשים</p><button className="font-bold underline" onClick={() => openScheduledDate(c.id,today)}>בדיקת הדיווח — {c.name}</button></div>)}
           </div>
         </section>
       )}
