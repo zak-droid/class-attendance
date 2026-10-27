@@ -691,7 +691,7 @@ export default function Home() {
   const attendanceRoster = (courseId: string, date: string, studentId = 'all', exceptions = false) => {
     const logs = data.attendance.filter(l => l.courseId === courseId && l.date === date);
     const roster = data.students.filter(s => ((s.active && s.courseId === courseId) || logs.some(l => l.studentId === s.id)) && (studentId === 'all' || studentId === s.id)).sort((a,b) => a.name.localeCompare(b.name,'he'));
-    return <div className="space-y-3">{roster.filter(s => !exceptions || !logs.some(l => l.studentId === s.id && l.status === 'Present' && !l.notes)).map(student => {
+    return <div className="space-y-2">{roster.filter(s => !exceptions || !logs.some(l => l.studentId === s.id && l.status === 'Present' && !l.notes)).map(student => {
       const log = logs.find(l => l.studentId === student.id);
       return <AttendanceStudentRow key={student.id} log={log} student={student} onViewCard={() => handleOpenQuickCard(student)} onOpen={() => log ? handleOpenAttendanceModal(log.id) : handleOpenQuickCard(student)} onStatusChange={async status => {
         if (log) await handleQuickStatusChange(log.id,status);
@@ -1117,7 +1117,7 @@ export default function Home() {
             );
           })()}
 
-          <p className="text-sm text-[#D7EAF2]">הסימונים נשמרים אוטומטית. אפשר לתקן בכל עת. לחצו על היסטוריה ופרטי תלמיד לצפייה לאורך הקורס.</p>
+          <p className="text-sm text-[#D7EAF2]">הסימונים נשמרים אוטומטית. ״היסטוריה״ מציגה את פרטי התלמיד והדיווחים לאורך הקורס. להערה, סמנו נוכחות תחילה.</p>
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/20 p-3"><p role="status" className="font-bold">סומנו {activeSessionLogs.length} · נותרו לסימון {remainingStudents}</p>{remainingStudents > 0 && <button type="button" disabled={bulkMarking} className={primaryButton} onClick={() => markRemainingPresent(activeSessionCourseId,today)}>{bulkMarking ? 'שומר סימון...' : 'סימון כל מי שטרם סומן כנוכח'}</button>}</div>
           <SummaryCards logs={activeSessionLogs} />
           {attendanceRoster(activeSessionCourseId,today,'all',todayFilter === 'exceptions')}

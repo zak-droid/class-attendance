@@ -85,8 +85,8 @@ test('import an actual CSV file with first and family names', async ({ page }) =
   await page.getByRole('button', { name: 'היום', exact: true }).click();
   await page.locator('article').filter({ hasText: 'מתמטיקה בדיקה' }).getByRole('button', { name: 'התחלת נוכחות' }).click();
   await page.getByRole('button',{name:'סימון כל מי שטרם סומן כנוכח',exact:true}).click();
-  await expect(page.getByRole('button', { name: 'תמר ישראלי', exact: true })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'תמר כהן', exact: true })).toBeVisible();
+  await expect(page.getByText('תמר ישראלי', { exact: true })).toBeVisible();
+  await expect(page.getByText('תמר כהן', { exact: true })).toBeVisible();
 });
 test('unlabeled roster keeps names when later columns contain overlapping occupation text', async ({ page }) => {
   await page.getByRole('button', { name: 'עוד', exact: true }).click();
@@ -101,8 +101,8 @@ test('unlabeled roster keeps names when later columns contain overlapping occupa
   await page.reload();
   await page.locator('article').filter({ hasText: 'מתמטיקה בדיקה' }).getByRole('button', { name: 'התחלת נוכחות' }).click();
   await page.getByRole('button',{name:'סימון כל מי שטרם סומן כנוכח',exact:true}).click();
-  await expect(page.getByRole('button', { name: 'תמר ישראלי', exact: true })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'מנחת קבוצות ומטפלת', exact: true })).toHaveCount(0);
+  await expect(page.getByText('תמר ישראלי', { exact: true })).toBeVisible();
+  await expect(page.getByText('מנחת קבוצות ומטפלת', { exact: true })).toHaveCount(0);
 });
 
 test('daily attendance, notes, finish and historical correction keep dates separate', async ({ page }) => {
@@ -252,7 +252,7 @@ test('XLSX upload preserves full names across empty columns',async({page})=>{
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await page.getByRole('button',{name:'היום',exact:true}).click();
   await startMath(page);
-  await expect(page.getByRole('button',{name:'תמר ישראלי',exact:true})).toBeVisible();
+  await expect(page.getByText('תמר ישראלי',{exact:true})).toBeVisible();
 });
 test('downloaded course report contains full names, dates and Hebrew statuses',async({page})=>{
   await startMath(page);

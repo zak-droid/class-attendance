@@ -409,11 +409,12 @@ export function AttendanceStudentRow({ log, student, onOpen, onViewCard, onStatu
 }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  return <div data-testid="attendance-row" data-student-id={student.id} className="rounded-2xl border border-white/20 bg-[#005580] p-3 text-white">
-    <div className="flex flex-wrap items-center justify-between gap-2">
-      <button type="button" onClick={onViewCard ?? onOpen} className="min-h-11 min-w-0 flex-1 text-right font-bold"><span dir="auto" className="break-words">{student.name}</span></button>
-      <label className="shrink-0 text-xs font-bold"><span className="sr-only">נוכחות</span>
-        <select disabled={saving || !onStatusChange} value={log?.status ?? ''} aria-label={`${log ? 'סימון נוכחות עבור' : 'נוכחות חדשה עבור'} ${student.name}`} className={`min-h-11 w-36 rounded-xl border px-2 text-sm font-bold ${log ? statusStyles[log.status] : 'border-slate-400 bg-slate-100 text-slate-900'}`} onChange={async e => {
+  return <div data-testid="attendance-row" data-student-id={student.id} className="rounded-xl border border-white/20 bg-[#005580] p-2 text-white">
+    <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-3">
+      <p dir="auto" className="min-w-0 flex-1 break-words text-right text-base font-bold leading-6">{student.name}</p>
+      <div className="grid grid-cols-[1.2fr_1fr_1fr] items-center gap-1 sm:w-72 sm:shrink-0">
+      <label className="min-w-0 text-xs font-bold"><span className="sr-only">נוכחות</span>
+        <select disabled={saving || !onStatusChange} value={log?.status ?? ''} aria-label={`${log ? 'סימון נוכחות עבור' : 'נוכחות חדשה עבור'} ${student.name}`} className={`min-h-11 w-full min-w-0 rounded-lg border px-1 text-sm font-bold ${log ? statusStyles[log.status] : 'border-slate-400 bg-slate-100 text-slate-900'}`} onChange={async e => {
           const status = e.target.value as AttendanceStatus;
           setSaving(true); setError('');
           try { await onStatusChange?.(status); }
@@ -424,13 +425,11 @@ export function AttendanceStudentRow({ log, student, onOpen, onViewCard, onStatu
           <option value="Present">נוכח</option><option value="Late">מאחר</option><option value="Absent">נעדר</option><option value="Excused">מוצדק</option>
         </select>
       </label>
+      {onViewCard && <button type="button" onClick={onViewCard} aria-label={`כרטיס תלמיד עבור ${student.name}`} title="היסטוריה ופרטי תלמיד" className="min-h-11 min-w-11 rounded-lg border border-white/30 px-1 text-sm font-bold">היסטוריה</button>}
+      <button type="button" onClick={onOpen} disabled={!log || saving} aria-label={`הוספת הערה עבור ${student.name}`} title={log?.notes ? 'עריכת הערה' : log ? 'הוספת הערה' : 'בחרו נוכחות כדי להוסיף הערה'} className="min-h-11 min-w-11 rounded-lg border border-white/30 px-1 text-sm font-bold disabled:opacity-60">הערה</button>
+      </div>
     </div>
-    <div className="mt-2 flex flex-wrap items-center gap-2">
-      {onViewCard && <button type="button" onClick={onViewCard} aria-label={`כרטיס תלמיד עבור ${student.name}`} className="min-h-11 rounded-lg border border-white/30 px-3 text-sm font-bold">היסטוריה ופרטי תלמיד</button>}
-      <button type="button" onClick={onOpen} disabled={!log || saving} aria-label={`הוספת הערה עבור ${student.name}`} title={log ? 'הוספת הערה או תיקון נוכחות' : 'בחרו נוכחות כדי להוסיף הערה'} className="min-h-11 rounded-lg border border-white/30 px-3 text-sm font-bold disabled:opacity-60">{log?.notes ? 'עריכת הערה' : 'הערה'}</button>
-      {saving && <span role="status" className="text-sm">שומר…</span>}
-    </div>
-    <p className="mt-1 min-h-4 text-xs text-[#D7EAF2]">{log ? 'אפשר לתקן את הסימון או להוסיף הערה.' : 'בחרו נוכחות. לאחר הסימון אפשר להוסיף הערה.'}</p>
+    {saving && <span role="status" className="text-xs">שומר…</span>}
     {log?.notes && <p className="mt-1 break-words text-sm text-[#FDE047]">הערה: {log.notes}</p>}
     {error && <p role="alert" className="mt-2 rounded-lg bg-red-50 p-2 text-sm text-red-900">{error}</p>}
   </div>;

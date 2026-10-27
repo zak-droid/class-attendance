@@ -105,6 +105,9 @@ test('keyboard, focus, narrow screen and footer do not hide row actions',async({
   await last.getByRole('button',{name:/כרטיס תלמיד עבור/}).scrollIntoViewIfNeeded();
   await page.evaluate(()=>window.scrollTo(0,document.documentElement.scrollHeight));
   const box = await last.boundingBox(), footer = await page.getByTestId('attendance-footer').boundingBox();
+  expect(box!.height).toBeLessThanOrEqual(94);
+  await expect(last.getByRole('button',{name:/כרטיס תלמיד עבור/})).toHaveText('היסטוריה');
+  await expect(last).not.toContainText('אפשר לתקן את הסימון');
   expect(box!.y+box!.height).toBeLessThanOrEqual(footer!.y);
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
   for(const action of await last.locator('button,select').all()) {
@@ -115,6 +118,27 @@ test('keyboard, focus, narrow screen and footer do not hide row actions',async({
   await expect(page.getByRole('dialog')).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(page.getByRole('dialog')).toHaveCount(0);
+});
+
+test('compact mobile rows preserve full names and fit six pupils above the footer',async({page},info)=>{
+  await prepare(page); await openMeeting(page);
+  await page.setViewportSize({width:393,height:852});
+  const rows=page.getByTestId('attendance-row');
+  const firstRow=rows.filter({hasText:first});
+  await expect(firstRow.locator('p').first()).toHaveText(first);
+  const nameBox=await firstRow.locator('p').first().boundingBox();
+  expect(nameBox!.height).toBeLessThanOrEqual(48);
+  await firstRow.evaluate(el=>el.scrollIntoView({block:'start'}));
+  const footer=await page.getByTestId('attendance-footer').boundingBox();
+  let visible=0;
+  for (const row of await rows.all()) { const b=await row.boundingBox(); if(b!.y>=0 && b!.y+b!.height<=footer!.y) visible++; }
+  expect(visible).toBeGreaterThanOrEqual(6);
+  await fs.mkdir('outputs/compact-attendance',{recursive:true});
+  await page.screenshot({path:`outputs/compact-attendance/compact-unmarked-${info.project.name}.png`});
+  await page.getByLabel(`נוכחות חדשה עבור ${first}`,{exact:true}).selectOption('Present');
+  await expect(page.getByLabel(`סימון נוכחות עבור ${first}`,{exact:true})).toBeEnabled();
+  await firstRow.evaluate(el=>el.scrollIntoView({block:'start'}));
+  await page.screenshot({path:`outputs/compact-attendance/compact-marked-${info.project.name}.png`});
 });
 
 test('failed first attendance save stays unmarked and can be retried',async({page})=>{
