@@ -73,7 +73,7 @@ export const supabase: any = {
   },
   from: (table: string) => query(table),
   rpc: async (name: string, args: any) => {
-    if (name === "start_attendance") for (const s of students.filter((x) => x.course_id === args.p_course_id && x.active)) {
+    if (name === "start_attendance") for (const s of students.filter((x) => x.course_id === args.p_course_id && x.active && courses.some(c => c.id === x.course_id && c.active))) {
       const id = `log-${Date.now()}-${s.id}`;
       if (!attendance_logs.some((l) => l.student_id === s.id && l.course_id === args.p_course_id && l.date === args.p_date)) attendance_logs.push({ id, student_id: s.id, course_id: args.p_course_id, date: args.p_date, time: args.p_time, status: "Present", notes: null, marked_by: "e2e" });
     }

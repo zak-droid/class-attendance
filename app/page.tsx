@@ -682,6 +682,7 @@ export default function Home() {
   const [bulkMarking, setBulkMarking] = useState(false);
   const markRemainingPresent = async (courseId: string, date: string) => {
     if (bulkMarking) return;
+    if (!data.courses.some(c => c.id === courseId && c.active)) { notify('הכיתה בארכיון. לסימון מרוכז יש לשחזר אותה בניהול קורסים. אפשר לתקן דיווחים בנפרד.'); return; }
     setBulkMarking(true); attendanceWrites.current += 1;
     try { await createTodayAttendance(courseId,date,localTimeKey()); setPendingSyncCount(getPendingQueue().length); await refreshData(); notify('התלמידים שטרם סומנו סומנו כנוכחים. סימונים קיימים נשמרו.'); }
     catch(error) { notify(error instanceof Error ? error.message : 'השמירה נכשלה'); }

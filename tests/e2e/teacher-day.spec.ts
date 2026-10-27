@@ -56,6 +56,7 @@ for(const [teacher,course] of [['rotman555@gmail.com','course-1'],['dotanhaim@gm
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await page.getByLabel(`סימון נוכחות עבור ${first}`,{exact:true}).selectOption('Late');
   await expect(page.getByLabel(`סימון נוכחות עבור ${first}`,{exact:true})).toBeEnabled();
+  await expect(page.getByText('התלמידים שטרם סומנו סומנו כנוכחים. סימונים קיימים נשמרו.',{exact:true})).toBeHidden();
   await row.evaluate(el => el.scrollIntoView({block: 'start'}));
   await capture(page,`06-recorded-${info.project.name}-${course}`);
   await page.getByRole('button',{name:/תיעוד שיעור/}).first().click();
@@ -125,4 +126,17 @@ test('failed first attendance save stays unmarked and can be retried',async({pag
   await page.getByRole('button',{name:'סיום נוכחות',exact:true}).click();
   await expect(page.getByText('יש תלמידים שטרם סומנה להם נוכחות. השלימו לפני סיום.',{exact:true})).toBeVisible();
   expect(await page.evaluate(()=>JSON.parse(sessionStorage.getItem('e2e-database')!).app_records.filter((r:any)=>r.kind==='session').length)).toBe(0);
+});
+
+test('archived course cannot falsely report bulk attendance success',async({page})=>{
+  await prepare(page);
+  await page.evaluate(()=>{ const db=JSON.parse(sessionStorage.getItem('e2e-database')!); db.courses.find((c:any)=>c.id==='course-1').active=false; sessionStorage.setItem('e2e-database',JSON.stringify(db)); });
+  await page.reload();
+  await page.getByRole('button',{name:'היסטוריה',exact:true}).click();
+  await page.getByLabel('סינון נוכחות לפי קורס').selectOption('course-1');
+  await page.getByRole('button',{name:'לוח מפגשים וסילבוס',exact:true}).click();
+  await page.getByRole('button',{name:'נוכחות ודיווח ל־2026-10-28',exact:true}).click();
+  await page.getByRole('button',{name:'סימון כל מי שטרם סומן כנוכח',exact:true}).click();
+  await expect(page.getByText('הכיתה בארכיון. לסימון מרוכז יש לשחזר אותה בניהול קורסים. אפשר לתקן דיווחים בנפרד.',{exact:true})).toBeVisible();
+  expect(await page.evaluate(()=>JSON.parse(sessionStorage.getItem('e2e-database')!).attendance_logs.length)).toBe(1);
 });
