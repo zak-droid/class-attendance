@@ -43,6 +43,29 @@ test('rename a course and retain the new name after reload', async ({ page }) =>
   await page.reload();
   await expect(page.getByRole('heading', { name: 'מתמטיקה מתקדמת' })).toBeVisible();
 });
+
+test('half-year course excludes the annual practicum in obligations and exported report', async ({ page }) => {
+  await openCourseEdit(page);
+  await page.getByLabel('שם הכיתה', { exact: true }).fill('חצי שנתי');
+  await page.getByRole('button', { name: 'שמירת כיתה' }).click();
+  const card = page.locator('article').filter({ hasText: 'חצי שנתי' });
+  await card.getByRole('button', { name: '•••', exact: true }).click();
+  await page.getByRole('button', { name: /מעקב חובות וזכאות/ }).click();
+  await expect(page.getByText('קורס סמסטריאלי', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: /הגשת פרקטיקום/ })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /הגשת תרגיל עמיתים/ })).toHaveCount(2);
+  await page.reload();
+  await page.getByRole('button', { name: 'עוד', exact: true }).click();
+  await page.getByRole('button', { name: /ניהול קורסים/ }).click();
+  await card.getByRole('button', { name: '•••', exact: true }).click();
+  const downloadPromise = page.waitForEvent('download');
+  await page.getByRole('button', { name: /ייצוא ל-Excel/ }).click();
+  const download = await downloadPromise;
+  const csv = await fs.readFile((await download.path())!, 'utf8');
+  expect(download.suggestedFilename()).toContain('חצי שנתי');
+  expect(csv).toContain('יעל כהן');
+  expect(csv).not.toContain('פרקטיקום');
+});
 test('course save failure is visible and can be retried', async ({ page }) => {
   await openCourseEdit(page);
   await page.getByLabel('שם הכיתה', { exact: true }).fill('תיקון שם');

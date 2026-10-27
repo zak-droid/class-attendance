@@ -38,6 +38,9 @@ export const statusHebrewMap: Record<AttendanceStatus, string> = {
 
 export function isYearlyCourse(courseName?: string, description?: string): boolean {
   const combined = `${courseName ?? ""} ${description ?? ""}`.toLowerCase();
+  // A half-year course contains the Hebrew word for annual, but must not
+  // inherit annual-only tasks such as the practicum.
+  if (/חצי[\s\-־–—]*שנתי|\b(?:half[\s-]*year(?:ly)?|semi[\s-]*annual)\b/.test(combined)) return false;
   return combined.includes("שנתי") || combined.includes("yearly") || combined.includes("annual");
 }
 

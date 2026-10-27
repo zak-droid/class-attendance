@@ -47,6 +47,24 @@ function read(relativePath) {
   return fs.readFileSync(path.resolve(relativePath), "utf8");
 }
 
+test("half-year courses do not inherit annual-only certificate requirements", () => {
+  for (const name of ["חצי שנתי", "תרפיה בטבע חצי־שנתי", "חצי-שנתי", "Half-year course", "Semiannual course"]) {
+    assert.equal(isYearlyCourse(name), false, name);
+  }
+  for (const name of ["שנתי 2", "שנתי 3", "Annual course", "Yearly course"]) {
+    assert.equal(isYearlyCourse(name), true, name);
+  }
+  assert.equal(isYearlyCourse('נט"ל'), false);
+  assert.equal(isYearlyCourse("תרפיה בטבע", "קורס חצי שנתי"), false);
+  const course = { id: "half", name: "חצי שנתי", active: true };
+  const student = { id: "student", name: "תמר ישראלי", courseId: "half", active: true };
+  const logs = [{ id: "log", studentId: student.id, courseId: course.id, date: "2026-10-20", time: "10:00", status: "Present" }];
+  const submissions = ["peer", "journey"].map(task => ({ id: task, studentId: student.id, courseId: course.id, taskId: `half_${task}`, completed: true }));
+  assert.equal(calculateStudentCertificateEligibility(student, course, logs, submissions).allTasksCompleted, true);
+  assert.doesNotMatch(generateCourseAttendanceCSV(course, [student], logs, submissions), /פרקטיקום/);
+  assert.equal(calculateStudentCertificateEligibility(student, { ...course, name: "שנתי 2" }, logs, submissions).allTasksCompleted, false);
+});
+
 function zipStoredFiles(files) {
   const crc32 = (bytes) => {
     let crc = 0xffffffff;
