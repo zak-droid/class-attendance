@@ -31,6 +31,7 @@ jobs:
           npm test
           npx playwright install --with-deps chromium
           npm run test:e2e
+          npm run test:updates
 
       - name: Save built dist
         run: |
@@ -45,7 +46,7 @@ jobs:
 
       - name: Publish built assets to main/docs
         run: |
-          rm -rf docs/assets
+          # Keep older hashed chunks available to teachers finishing an open lesson.
           cp -R /tmp/v2-dist/. docs/
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"

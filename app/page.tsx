@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent, type ReactNode } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { MeetingPicker } from "./MeetingPicker";
+import { useAppUpdates } from "./useAppUpdates";
 import { ScheduleModal } from "./ScheduleModal";
 import { meetingOn } from "./schedule";
 import { saveCourseSchedule, saveSharedRecord } from "./shared-records";
@@ -177,6 +178,14 @@ export default function Home() {
   const [biometricEnabled, setBiometricEnabled] = useState(false);
   const [biometricUnlocked, setBiometricUnlocked] = useState(() => isBiometricSessionUnlocked());
   const [biometricDismissed, setBiometricDismissed] = useState(() => isBiometricPromptDismissed());
+  const biometricRequestPending = useRef(false);
+
+  useAppUpdates(() => Boolean(authReady && session && !dataLoading && tab === "today" &&
+    !activeSessionCourseId && !modal && !scheduleCourse && !selectedAttendanceId &&
+    !studentAddSheetOpen && !taskNoteModalData && !quickCardStudent && !syllabusModalCourse &&
+    !lessonTopicModalData && !aiAnalysisModalCourse && !geminiSettingsOpen && !analysisLoading &&
+    (!biometricEnabled || biometricUnlocked) && !biometricRequestPending.current && attendanceWrites.current === 0 &&
+    !isOffline && pendingSyncCount === 0 && getPendingQueue().length === 0));
 
   const notify = useCallback((message: string) => {
     setToast(message);
@@ -636,6 +645,7 @@ export default function Home() {
 
   const handleEnableBiometric = useCallback(async () => {
     if (!userEmail) return;
+    biometricRequestPending.current = true;
     try {
       await registerBiometric(userEmail);
       setBiometricEnabled(true);
@@ -643,6 +653,8 @@ export default function Home() {
       notify("כניסה בטביעת אצבע הופעלה במכשיר זה");
     } catch (error) {
       notify(error instanceof Error ? error.message : "האימות הביומטרי בוטל או נכשל. נסו שוב.");
+    } finally {
+      biometricRequestPending.current = false;
     }
   }, [userEmail, notify]);
 

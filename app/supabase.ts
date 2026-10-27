@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { fetchWithWriteTracking } from "./pending-writes";
 
 // The publishable key is intentionally safe for browser applications. Database
 // access is enforced by Supabase Auth and row-level security, never by this key.
@@ -11,6 +12,7 @@ export const isSupabaseConfigured = Boolean(supabaseUrl && supabasePublishableKe
 
 export const supabase = isSupabaseConfigured
   ? createClient(supabaseUrl!, supabasePublishableKey!, {
+      global: { fetch: fetchWithWriteTracking },
       auth: {
         persistSession: true,
         autoRefreshToken: true,
