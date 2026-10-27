@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent, type ReactNode } from "react";
 import type { Session } from "@supabase/supabase-js";
+import { MeetingPicker } from "./MeetingPicker";
 import { ScheduleModal } from "./ScheduleModal";
 import { meetingOn } from "./schedule";
 import { saveCourseSchedule, saveSharedRecord } from "./shared-records";
@@ -86,6 +87,7 @@ import type {
 import { formatLocalDate, localDateKey, localTimeKey, makeId } from "./utils";
 
 type ModalState =
+  | { type: "meeting-picker" }
   | { type: "course"; course?: Course }
   | { type: "student"; student?: Student; initialCourseId?: string }
   | { type: "import"; initialCourseId?: string }
@@ -121,7 +123,7 @@ export default function Home() {
   const [activeSessionCourseId, setActiveSessionCourseId] = useState<string | null>(null);
 
   const attendanceWrites = useRef(0);
-  const handleQuickStatusChange = (logId: string, status: AttendanceStatus) => {
+  const handleQuickStatusChange = async (logId: string, status: AttendanceStatus) => {
     setData((prev) => ({
       ...prev,
       attendance: prev.attendance.map((log) =>
@@ -130,10 +132,10 @@ export default function Home() {
     }));
 
     attendanceWrites.current += 1;
-    void updateAttendanceLog(logId, { status }).then(() => {
+    await updateAttendanceLog(logId, { status }).then(async () => {
       setPendingSyncCount(getPendingQueue().length);
-      void refreshData();
-    }).catch(error => { notify(`שמירת הנוכחות נכשלה: ${error.message}`); void refreshData(); }).finally(() => { attendanceWrites.current -= 1; });
+      await refreshData();
+    }).catch(async error => { notify(`שמירת הנוכחות נכשלה: ${error.message}`); await refreshData(); throw error; }).finally(() => { attendanceWrites.current -= 1; });
   };
   const [sessionReadOnly, setSessionReadOnly] = useState(false); void sessionReadOnly;
   const [selectedAttendanceId, setSelectedAttendanceId] = useState<string | null>(null);
@@ -667,48 +669,35 @@ export default function Home() {
   );
 
   const openScheduledDate = (courseId: string, date: string) => {
-    setScheduleCourse(null); setActiveSessionCourseId(null);
-    setHistoryCourse(courseId); setHistoryDate(date); setHistoryStudent("all"); setTab("history");
+    setScheduleCourse(null); setModal(null); setToday(date); setTab("today");
+    setTodayFilter("all"); setSessionReadOnly(false); safePushHistory("session"); setActiveSessionCourseId(courseId);
+    window.scrollTo({top:0});
   };
   const scheduledCourses = data.courses.filter(c => c.active && meetingOn(c.schedule?.meetings, today));
   const upcoming = data.courses.filter(c => c.active).flatMap(c => {
     const next = c.schedule?.meetings.filter(m => m.status === 'scheduled' && m.date > today).sort((a,b) => a.date.localeCompare(b.date))[0];
     return next ? [{course:c, meeting:next}] : [];
   }).sort((a,b) => a.meeting.date.localeCompare(b.meeting.date));
-
-  const startAttendance = useCallback(
-    async (courseId: string) => {
-      try {
-        const course = data.courses.find(c => c.id === courseId);
-        if (!meetingOn(course?.schedule?.meetings, today)) { if (course) setScheduleCourse(course); return; }
-        await createTodayAttendance(courseId, today, localTimeKey());
-        await refreshData();
-        setToday(today);
-        setTodayFilter("all");
-        setSessionReadOnly(false);
-        safePushHistory("session");
-        setActiveSessionCourseId(courseId);
-        notify("כל התלמידים סומנו כנוכחים. סמנו רק חריגים.");
-      } catch (error) {
-        notify(error instanceof Error ? error.message : "שגיאה בפתיחת נוכחות");
-      }
-    },
-    [today, data.courses, refreshData, notify]
-  );
-
-  const missingAttendance = (courseId: string, date: string, studentId = "all") => (
-    <div className="space-y-2">{data.students.filter(s => s.active && s.courseId === courseId && (studentId === "all" || s.id === studentId) && !data.attendance.some(l => l.courseId === courseId && l.date === date && l.studentId === s.id)).map(student => (
-      <label key={student.id} className="block rounded-xl bg-[#005580] p-3 text-white">
-        {student.name} — טרם סומנה נוכחות
-        <select aria-label={`נוכחות חדשה עבור ${student.name}`} value="" className="m-2 rounded bg-[#002B45] p-2" onChange={async e => {
-          try { await addStudentAttendance(student, date, e.target.value as AttendanceStatus); await refreshData(); }
-          catch(error) { notify(error instanceof Error ? error.message : 'השמירה נכשלה'); }
-        }}>
-          <option value="" disabled>בחירת מצב</option><option value="Present">נוכח</option><option value="Late">מאחר</option><option value="Absent">נעדר</option><option value="Excused">מוצדק</option>
-        </select>
-      </label>
-    ))}</div>
-  );
+  const startAttendance = (courseId: string) => openScheduledDate(courseId,today);
+  const [bulkMarking, setBulkMarking] = useState(false);
+  const markRemainingPresent = async (courseId: string, date: string) => {
+    if (bulkMarking) return;
+    setBulkMarking(true); attendanceWrites.current += 1;
+    try { await createTodayAttendance(courseId,date,localTimeKey()); setPendingSyncCount(getPendingQueue().length); await refreshData(); notify('התלמידים שטרם סומנו סומנו כנוכחים. סימונים קיימים נשמרו.'); }
+    catch(error) { notify(error instanceof Error ? error.message : 'השמירה נכשלה'); }
+    finally { attendanceWrites.current -= 1; setBulkMarking(false); }
+  };
+  const attendanceRoster = (courseId: string, date: string, studentId = 'all', exceptions = false) => {
+    const logs = data.attendance.filter(l => l.courseId === courseId && l.date === date);
+    const roster = data.students.filter(s => ((s.active && s.courseId === courseId) || logs.some(l => l.studentId === s.id)) && (studentId === 'all' || studentId === s.id)).sort((a,b) => a.name.localeCompare(b.name,'he'));
+    return <div className="space-y-3">{roster.filter(s => !exceptions || !logs.some(l => l.studentId === s.id && l.status === 'Present' && !l.notes)).map(student => {
+      const log = logs.find(l => l.studentId === student.id);
+      return <AttendanceStudentRow key={student.id} log={log} student={student} onViewCard={() => handleOpenQuickCard(student)} onOpen={() => log ? handleOpenAttendanceModal(log.id) : handleOpenQuickCard(student)} onStatusChange={async status => {
+        if (log) await handleQuickStatusChange(log.id,status);
+        else { attendanceWrites.current += 1; try { await addStudentAttendance(student,date,status); await refreshData(); } finally { attendanceWrites.current -= 1; } }
+      }}/>;
+    })}</div>;
+  };
 
   // WhatsApp Share Handler
   const handleShareWhatsApp = useCallback(
@@ -834,10 +823,7 @@ export default function Home() {
   const activeSessionLogs = activeSessionCourseId
     ? todayLogs.filter((log) => log.courseId === activeSessionCourseId)
     : [];
-  const filteredSessionLogs =
-    todayFilter === "exceptions"
-      ? activeSessionLogs.filter((log) => log.status !== "Present" || Boolean(log.notes))
-      : activeSessionLogs;
+  const remainingStudents = data.students.filter(s => s.active && s.courseId === activeSessionCourseId && !activeSessionLogs.some(l => l.studentId === s.id)).length;
 
   const selectedLog = selectedAttendanceId
     ? data.attendance.find((log) => log.id === selectedAttendanceId) ?? null
@@ -931,10 +917,11 @@ export default function Home() {
               + כיתה חדשה
             </button>
             <p className="text-xs font-medium leading-5 text-[#B8D8E6]">
-              כל התלמידים יסומנו כנוכחים כברירת מחדל.
+              פתיחת מפגש אינה מסמנת נוכחות. בתוך המפגש אפשר לסמן תלמידים בנפרד או לסמן את כולם כנוכחים.
             </p>
           </div>
 
+          <button type="button" className={`${primaryButton} w-full`} onClick={() => handleOpenModal({type:'meeting-picker'})}>בחירת כיתה ומפגש</button>
           {scheduledCourses.length > 0 ? (
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               {scheduledCourses.map((course, index) => {
@@ -1038,15 +1025,15 @@ export default function Home() {
             <EmptyState
               title={today === realToday ? "אין מפגשים מתוכננים להיום" : "אין מפגשים מתוכננים לתאריך זה"}
               body="אפשר לבחור תאריך אחר או לפתוח את לוח המפגשים של הכיתה."
-              action="מעבר לעוד"
-              onAction={() => setTab("more")}
+              action="בחירת מפגש מתאריך אחר"
+              onAction={() => handleOpenModal({type:"meeting-picker"})}
             />
           )}
           <div className="mt-6 space-y-3">
             <h3 className="font-bold">המפגשים הקרובים</h3>
             {upcoming.map(({course,meeting}) => <div key={course.id} className="rounded-xl border border-white/20 p-3">
               <p className="font-bold">{course.name}</p><p>{formatLocalDate(meeting.date)} · {meeting.topic}</p>
-              <div className="mt-2 flex flex-wrap gap-3"><button className="underline" onClick={() => setToday(meeting.date)}>מעבר לתאריך המפגש</button><button className="underline" onClick={() => setScheduleCourse(course)}>לוח מפגשים וסילבוס — {course.name}</button></div>
+              <div className="mt-2 flex flex-wrap gap-3"><button className="min-h-11 rounded-lg border border-white/30 px-3 font-bold" onClick={() => openScheduledDate(course.id,meeting.date)}>פתיחת המפגש</button><button className="underline" onClick={() => setScheduleCourse(course)}>לוח מפגשים וסילבוס — {course.name}</button></div>
             </div>)}
             {data.courses.filter(c => c.active && !c.schedule).map(c => <div key={c.id} className="rounded-xl bg-amber-100 p-3 text-amber-950"><p>{c.name} — נדרש להגדיר מועדי מפגשים</p><button className="font-bold underline" onClick={() => setScheduleCourse(c)}>הגדרת לוח מפגשים — {c.name}</button></div>)}
             {data.courses.filter(c => c.active && todayLogs.some(l => l.courseId === c.id) && !meetingOn(c.schedule?.meetings,today)).map(c => <div key={c.id} className="rounded-xl bg-amber-100 p-3 text-amber-950"><p>{c.name} — קיים דיווח בתאריך זה מחוץ ללוח המפגשים</p><button className="font-bold underline" onClick={() => openScheduledDate(c.id,today)}>בדיקת הדיווח — {c.name}</button></div>)}
@@ -1057,11 +1044,11 @@ export default function Home() {
       {/* ACTIVE ATTENDANCE SESSION */}
       {tab === "today" && activeSessionCourseId && (
         <section className="space-y-4 pb-8">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <button
               type="button"
               onClick={exitActiveSession}
-              className="text-xs font-extrabold text-[#B8D8E6] hover:text-white"
+              className="min-h-11 rounded-lg border border-white/30 px-3 text-sm font-bold text-white"
             >
               → חזרה להיום
             </button>
@@ -1069,7 +1056,7 @@ export default function Home() {
               <button
                 type="button"
                 onClick={() => setTodayFilter("all")}
-                className={`rounded-lg px-3 py-1.5 text-xs font-extrabold ${
+                className={`min-h-11 rounded-lg px-3 py-1.5 text-xs font-extrabold ${
                   todayFilter === "all" ? "bg-[#00A6A6] text-white" : "text-[#B8D8E6]"
                 }`}
               >
@@ -1078,7 +1065,7 @@ export default function Home() {
               <button
                 type="button"
                 onClick={() => setTodayFilter("exceptions")}
-                className={`rounded-lg px-3 py-1.5 text-xs font-extrabold ${
+                className={`min-h-11 rounded-lg px-3 py-1.5 text-xs font-extrabold ${
                   todayFilter === "exceptions" ? "bg-[#00A6A6] text-white" : "text-[#B8D8E6]"
                 }`}
               >
@@ -1087,6 +1074,8 @@ export default function Home() {
             </div>
           </div>
 
+          <h2 className="text-lg font-bold">{data.courses.find(c => c.id === activeSessionCourseId)?.name} · {formatLocalDate(today)}</h2>
+          {(() => { const c = data.courses.find(c => c.id === activeSessionCourseId); const m = meetingOn(c?.schedule?.meetings,today); return <p className="rounded-xl border border-white/20 p-3 text-sm">{m ? `בתוכנית: ${m.topic || 'מפגש מתוכנן'}${m.number ? ` · מפגש ${m.number}` : ''}${m.status === 'cancelled' ? ' · המפגש מבוטל בלוח' : ''}` : 'אין מפגש מתוכנן בתאריך זה. דיווח ידני יישמר מחוץ ללוח המפגשים.'}</p>; })()}
           {/* Lesson Topic banner & AI Syllabus button */}
           {(() => {
             const activeCourse = data.courses.find((c) => c.id === activeSessionCourseId);
@@ -1094,21 +1083,21 @@ export default function Home() {
               (l) => l.courseId === activeSessionCourseId && l.date === today
             );
             return (
-              <div className="flex flex-wrap items-center justify-between gap-2.5 rounded-2xl border border-white/14 bg-[#003859] p-3.5 shadow-md">
+              <div className="flex flex-col gap-3 rounded-2xl border border-white/14 bg-[#003859] p-3.5 shadow-md">
                 <div className="min-w-0 flex-1">
                   <span className="text-[11px] font-bold text-[#00E5E5] flex items-center gap-1.5">
                     <span>📌</span>
-                  <span>נושא המפגש · {formatLocalDate(today)}:</span>
+                  <span>נושא המפגש:</span>
                   </span>
-                  <p className="mt-0.5 text-xs sm:text-sm font-extrabold text-white truncate">
+                  <p className="mt-0.5 break-words text-sm font-bold text-white">
                     {todayLesson?.topic || "טרם תועד נושא למפגש זה"}
                   </p>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <button
                     type="button"
                     onClick={() => handleOpenLessonTopicModal(activeSessionCourseId, today)}
-                    className="rounded-xl border border-white/15 bg-white/10 hover:bg-white/15 px-3 py-1.5 text-xs font-bold text-slate-200 transition"
+                    className="min-h-11 rounded-xl border border-white/15 bg-white/10 hover:bg-white/15 px-3 py-1.5 text-xs font-bold text-slate-200 transition"
                   >
                     {todayLesson ? "עריכת נושא" : "+ תיעוד שיעור"}
                   </button>
@@ -1116,7 +1105,7 @@ export default function Home() {
                     <button
                       type="button"
                       onClick={() => handleOpenAIAnalysis(activeCourse)}
-                      className="rounded-xl bg-[#00A6A6] hover:bg-[#00B3A4] px-3.5 py-1.5 text-xs font-extrabold text-white transition flex items-center gap-1.5 shadow-md shadow-[#00A6A6]/20"
+                      className="min-h-11 rounded-xl border border-white/20 bg-white/5 hover:bg-white/10 px-3.5 py-1.5 text-xs font-extrabold text-white transition flex items-center gap-1.5 shadow-md shadow-[#00A6A6]/20"
                     >
                       <span>✨</span>
                       <span>בדיקת סילבוס (AI)</span>
@@ -1127,33 +1116,15 @@ export default function Home() {
             );
           })()}
 
-          <h2 className="text-lg font-bold">{data.courses.find(c => c.id === activeSessionCourseId)?.name} · {formatLocalDate(today)}</h2>
+          <p className="text-sm text-[#D7EAF2]">הסימונים נשמרים אוטומטית. אפשר לתקן בכל עת. לחצו על היסטוריה ופרטי תלמיד לצפייה לאורך הקורס.</p>
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/20 p-3"><p role="status" className="font-bold">סומנו {activeSessionLogs.length} · נותרו לסימון {remainingStudents}</p>{remainingStudents > 0 && <button type="button" disabled={bulkMarking} className={primaryButton} onClick={() => markRemainingPresent(activeSessionCourseId,today)}>{bulkMarking ? 'שומר סימון...' : 'סימון כל מי שטרם סומן כנוכח'}</button>}</div>
           <SummaryCards logs={activeSessionLogs} />
-          {missingAttendance(activeSessionCourseId, today)}
-
-          <div className="space-y-2.5">
-            {filteredSessionLogs.map((log) => {
-              const student = data.students.find((s) => s.id === log.studentId);
-              if (!student) return null;
-              return (
-                <AttendanceStudentRow
-                  key={log.id}
-                  log={log}
-                  student={student}
-                  onOpen={() => {
-                    handleOpenAttendanceModal(log.id);
-                  }}
-                  onViewCard={() => handleOpenQuickCard(student)}
-                  onStatusChange={(status) => handleQuickStatusChange(log.id, status)}
-                />
-              );
-            })}
-          </div>
+          {attendanceRoster(activeSessionCourseId,today,'all',todayFilter === 'exceptions')}
 
           <FinishAttendanceBar
+            meetingLabel={`${data.courses.find(c => c.id === activeSessionCourseId)?.name} · ${today.split("-").reverse().join("/")}`}
+            remaining={remainingStudents}
             logs={activeSessionLogs}
-            currentTopic={lessons.find((l) => l.courseId === activeSessionCourseId && l.date === today)?.topic}
-            onEditTopic={() => handleOpenLessonTopicModal(activeSessionCourseId, today)}
             onFinish={async () => {
               try {
                 if (attendanceWrites.current) { notify('הנוכחות עדיין נשמרת. המתינו רגע לפני סיום.'); return; }
@@ -1163,7 +1134,7 @@ export default function Home() {
                 await saveSharedRecord('session', `${activeSessionCourseId}_${today}`, activeSessionCourseId, {completed:true,date:today});
                 await refreshData();
                 exitActiveSession();
-                notify('הנוכחות להיום הושלמה ונשמרה בשרת.');
+                notify(`הנוכחות לתאריך ${formatLocalDate(today)} הושלמה ונשמרה בשרת.`);
               } catch(error) { notify(error instanceof Error ? error.message : 'שמירת סיום המפגש נכשלה'); }
             }}
             onShareWhatsApp={() => handleShareWhatsApp(activeSessionCourseId)}
@@ -1208,6 +1179,7 @@ export default function Home() {
               className="min-h-11 min-w-0 flex-1 rounded-xl border border-white/14 bg-white px-3.5 text-sm font-semibold text-[#0F172A]"
             />
             <select
+              aria-label="בחירת כיתה לתלמידים"
               value={studentCourse}
               onChange={(e) => setStudentCourse(e.target.value)}
               className="min-h-11 max-w-[130px] sm:max-w-[180px] shrink-0 truncate rounded-xl border border-white/14 bg-[#005580] px-3 text-xs font-bold text-white"
@@ -1215,7 +1187,7 @@ export default function Home() {
               <option value="all">כל הכיתות</option>
               {data.courses.map((course) => (
                 <option key={course.id} value={course.id}>
-                  {course.name}
+                  {course.name}{course.active ? "" : " (בארכיון)"}
                 </option>
               ))}
             </select>
@@ -1223,7 +1195,7 @@ export default function Home() {
 
           {(() => {
             const courseFiltered = data.students.filter(
-              (s) => studentCourse === "all" || s.courseId === studentCourse
+              (s) => studentCourse === "all" ? data.courses.some(c => c.id === s.courseId && (showInactiveStudents || c.active)) : s.courseId === studentCourse
             );
             const activeCount = courseFiltered.filter((s) => s.active).length;
             const inactiveCount = courseFiltered.length - activeCount;
@@ -1245,7 +1217,7 @@ export default function Home() {
               <>
                 <div className="flex items-center justify-between text-xs font-bold text-[#B8D8E6] px-1">
                   <span>
-                    מציג {displayed.length} תלמידים פעילים {inactiveCount > 0 && !showInactiveStudents ? "(" + inactiveCount + " לא פעילים מוסתרים)" : ""}
+                    מציג {displayed.length} תלמידים{showInactiveStudents ? "" : " פעילים"} {inactiveCount > 0 && !showInactiveStudents ? "(" + inactiveCount + " לא פעילים מוסתרים)" : ""}
                   </span>
                   {inactiveCount > 0 && (
                     <button
@@ -1274,9 +1246,9 @@ export default function Home() {
                       type="button"
                       onClick={() => handleOpenQuickCard(student)}
                       aria-label="כרטיס תלמיד"
-                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-white/10 text-xs font-bold text-[#B8D8E6] transition hover:bg-[#00A6A6] hover:text-white"
+                      className="flex min-h-11 shrink-0 items-center justify-center rounded-xl border border-white/30 px-2 text-xs font-bold text-white"
                     >
-                      ℹ️
+                      היסטוריה
                     </button>
                     <div className="min-w-0 flex-1">
                       <p dir="auto" className="break-words font-bold text-white">
@@ -1338,12 +1310,12 @@ export default function Home() {
                 setHistoryStudent("all");
               }}
               aria-label="סינון נוכחות לפי קורס"
-              className="min-h-11 flex-1 rounded-xl border border-white/14 bg-[#005580] px-3 text-xs font-bold text-white"
+              className="min-h-11 min-w-0 w-full sm:w-auto flex-1 rounded-xl border border-white/14 bg-[#005580] px-3 text-xs font-bold text-white"
             >
               <option value="all">כל הכיתות</option>
               {data.courses.map((course) => (
                 <option key={course.id} value={course.id}>
-                  {course.name}
+                  {course.name}{course.active ? "" : " (בארכיון)"}
                 </option>
               ))}
             </select>
@@ -1351,11 +1323,12 @@ export default function Home() {
               value={historyStudent}
               onChange={(e) => setHistoryStudent(e.target.value)}
               aria-label="סינון נוכחות לפי תלמיד"
-              className="min-h-11 flex-1 rounded-xl border border-white/14 bg-[#005580] px-3 text-xs font-bold text-white"
+              className="min-h-11 min-w-0 w-full sm:w-auto flex-1 rounded-xl border border-white/14 bg-[#005580] px-3 text-xs font-bold text-white"
             >
               <option value="all">כל התלמידים</option>
               {data.students
-                .filter((student) => historyCourse === "all" || student.courseId === historyCourse || data.attendance.some(l => l.courseId === historyCourse && l.studentId === student.id))
+                .filter(student => student.active || data.attendance.some(l => l.studentId === student.id))
+                .filter((student) => historyCourse === "all" ? data.courses.some(c => c.active && c.id === student.courseId) : student.courseId === historyCourse || data.attendance.some(l => l.courseId === historyCourse && l.studentId === student.id))
                 .sort((a, b) => a.name.localeCompare(b.name, "he"))
                 .map((student) => (
                   <option key={student.id} value={student.id}>
@@ -1367,28 +1340,28 @@ export default function Home() {
           {historyCourse !== 'all' && historyDate && <>
             <p className="text-sm font-bold">{data.courses.find(c => c.id === historyCourse)?.name} · {formatLocalDate(historyDate)}</p>
             {(() => { const c = data.courses.find(c => c.id === historyCourse); const m = meetingOn(c?.schedule?.meetings,historyDate); return <div className="rounded-xl border border-white/20 p-3"><p>{m ? `בתוכנית: ${m.topic || 'מפגש מתוכנן'}${m.number ? ` · מפגש ${m.number}` : ''}` : 'אין מפגש מתוכנן בתאריך זה. דיווח ידני יישמר מחוץ ללוח המפגשים.'}</p>{c && <button className="underline" onClick={() => setScheduleCourse(c)}>לוח מפגשים וסילבוס</button>}</div>; })()}
-            {missingAttendance(historyCourse, historyDate, historyStudent)}
+
           </>}
           {/* History Lesson Topic & AI Syllabus button */}
           {historyCourse !== "all" && historyDate && (() => {
             const hCourse = data.courses.find((c) => c.id === historyCourse);
             const hLesson = lessons.find((l) => l.courseId === historyCourse && l.date === historyDate);
             return (
-              <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-white/14 bg-[#003859] p-3 text-right">
+              <div className="flex flex-col gap-3 rounded-2xl border border-white/14 bg-[#003859] p-3 text-right">
                 <div className="min-w-0 flex-1">
                   <span className="text-[11px] font-bold text-[#00E5E5] flex items-center gap-1">
                     <span>📌</span>
                     <span>נושא השיעור לתאריך {historyDate ? formatLocalDate(historyDate) : "כל התאריכים"}:</span>
                   </span>
-                  <p className="mt-0.5 text-xs sm:text-sm font-bold text-white truncate">
+                  <p className="mt-0.5 break-words text-sm font-bold text-white">
                     {hLesson?.topic || "טרם תועד נושא למפגש זה"}
                   </p>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <button
                     type="button"
                     onClick={() => handleOpenLessonTopicModal(historyCourse, historyDate)}
-                    className="rounded-xl border border-white/15 bg-white/10 hover:bg-white/15 px-3 py-1.5 text-xs font-bold text-slate-200 transition"
+                    className="min-h-11 rounded-xl border border-white/15 bg-white/10 hover:bg-white/15 px-3 py-1.5 text-xs font-bold text-slate-200 transition"
                   >
                     {hLesson ? "עריכת נושא" : "+ תיעוד שיעור"}
                   </button>
@@ -1396,7 +1369,7 @@ export default function Home() {
                     <button
                       type="button"
                       onClick={() => handleOpenAIAnalysis(hCourse)}
-                      className="rounded-xl bg-[#00A6A6] hover:bg-[#00B3A4] px-3 py-1.5 text-xs font-extrabold text-white transition flex items-center gap-1 shadow-md shadow-[#00A6A6]/20"
+                      className="min-h-11 rounded-xl border border-white/20 bg-white/5 hover:bg-white/10 px-3 py-1.5 text-xs font-extrabold text-white transition flex items-center gap-1"
                     >
                       <span>✨</span>
                       <span>בדיקת סילבוס (AI)</span>
@@ -1411,17 +1384,18 @@ export default function Home() {
             logs={data.attendance.filter(
               (log) =>
                 (!historyDate || log.date === historyDate) &&
-                (historyCourse === "all" || log.courseId === historyCourse) &&
+                (historyCourse === "all" ? data.courses.some(c => c.active && c.id === log.courseId) : log.courseId === historyCourse) &&
                 (historyStudent === "all" || log.studentId === historyStudent)
             )}
           />
 
           {/* Interactive history logs list allowing retroactive edits */}
           {(() => {
+            if (historyCourse !== 'all' && historyDate) return attendanceRoster(historyCourse,historyDate,historyStudent);
             const historyLogs = data.attendance.filter(
               (log) =>
                 (!historyDate || log.date === historyDate) &&
-                (historyCourse === "all" || log.courseId === historyCourse) &&
+                (historyCourse === "all" ? data.courses.some(c => c.active && c.id === log.courseId) : log.courseId === historyCourse) &&
                 (historyStudent === "all" || log.studentId === historyStudent)
             );
 
@@ -1737,7 +1711,7 @@ export default function Home() {
                             type="button"
                             onClick={() => handleOpenQuickCard(student)}
                             aria-label="כרטיס תלמיד"
-                            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-white/10 text-xs font-bold text-[#B8D8E6] transition hover:bg-[#00A6A6] hover:text-white"
+                            className="flex min-h-11 shrink-0 items-center justify-center rounded-xl border border-white/30 px-2 text-xs font-bold text-white"
                           >
                             ℹ️
                           </button>
@@ -1769,7 +1743,7 @@ export default function Home() {
                     <select
                       value={selectedTasksCourseId || data.courses[0]?.id || ""}
                       onChange={(e) => setSelectedTasksCourseId(e.target.value)}
-                      className="min-h-11 flex-1 rounded-xl border border-white/14 bg-[#005580] px-3 text-xs font-bold text-white"
+                      className="min-h-11 min-w-0 w-full sm:w-auto flex-1 rounded-xl border border-white/14 bg-[#005580] px-3 text-xs font-bold text-white"
                     >
                       {data.courses
                         .filter((c) => c.active)
@@ -1847,6 +1821,7 @@ export default function Home() {
         </section>
       )}
 
+      {modal?.type === 'meeting-picker' && <MeetingPicker courses={data.courses} onClose={closeModal} onOpen={openScheduledDate} onEdit={course => { setModal(null); setScheduleCourse(course); }}/>}
       {selectedLog && selectedStudent && (
         <StudentActionBottomSheet
           log={selectedLog}
@@ -1886,6 +1861,7 @@ export default function Home() {
           onToggleTask={(taskId, completed) =>
             handleToggleSubmission(quickCardStudent.id, taskId, completed)
           }
+          onViewHistory={() => { setQuickCardStudent(null); setActiveSessionCourseId(null); setHistoryCourse(quickCardStudent.courseId); setHistoryStudent(quickCardStudent.id); setHistoryDate(''); setTab('history'); window.scrollTo({top:0}); }}
           onClose={closeQuickCard}
         />
       )}
@@ -2048,7 +2024,7 @@ export default function Home() {
       )}
 
       <div
-        className={`pointer-events-none fixed inset-x-4 bottom-24 z-[60] mx-auto max-w-md rounded-2xl bg-[#0F172A] px-4 py-3 text-center text-sm font-bold text-white shadow-[0_16px_36px_rgba(11,59,73,0.20)] transition lg:bottom-6 ${
+        className={`pointer-events-none fixed inset-x-4 top-3 z-[60] mx-auto max-w-md rounded-2xl bg-[#0F172A] px-4 py-3 text-center text-sm font-bold text-white shadow-[0_16px_36px_rgba(11,59,73,0.20)] transition ${
           toast ? "translate-y-0 opacity-100" : "translate-y-3 opacity-0"
         }`}
         role="status"

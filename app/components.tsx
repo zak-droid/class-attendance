@@ -1,8 +1,10 @@
 "use client";
 
+import { useDialogFocus } from "./use-dialog-focus";
+
 export { InstructorHelpHub } from "./InstructorHelpHub";
 
-import { useEffect, useState, type ChangeEvent, type FormEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent, type ReactNode } from "react";
 import type {
   AISyllabusAnalysis,
   AppTab,
@@ -144,7 +146,7 @@ export function Layout({
                 className="shrink-0 flex items-center gap-1.5 min-h-10 rounded-xl border border-[#00A6A6]/40 bg-[#00A6A6]/20 px-3 py-1.5 text-xs font-extrabold text-[#00E5E5] hover:bg-[#00A6A6]/30 transition"
               >
                 <span>💡</span>
-                <span className="hidden sm:inline">עזרה ומשוב</span>
+                <span>עזרה</span>
               </button>
             )}
             <button
@@ -158,7 +160,7 @@ export function Layout({
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-4xl px-4 sm:px-5 pt-4 sm:pt-5 pb-[calc(7.25rem+env(safe-area-inset-bottom))]">
+      <main style={attendanceActive ? {paddingBottom:"calc(var(--attendance-footer-height, 14rem) + 1rem)"} : undefined} className="mx-auto w-full max-w-4xl px-4 sm:px-5 pt-4 sm:pt-5 pb-[calc(7.25rem+env(safe-area-inset-bottom))]">
         {children}
       </main>
 
@@ -220,7 +222,7 @@ export function SummaryCards({ logs }: { logs: AttendanceLog[] }) {
   };
 
   return (
-    <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+    <div className="grid grid-cols-4 gap-2">
       {(["Present", "Late", "Absent", "Excused"] as AttendanceStatus[]).map((status) => (
         <div
           key={status}
@@ -398,97 +400,40 @@ export function CourseCard({
   );
 }
 
-export function AttendanceStudentRow({
-  log,
-  student,
-  onOpen,
-  onViewCard,
-  onStatusChange,
-}: {
-  log: AttendanceLog;
+export function AttendanceStudentRow({ log, student, onOpen, onViewCard, onStatusChange }: {
+  log?: AttendanceLog;
   student: Student;
   onOpen: () => void;
   onViewCard?: () => void;
-  onStatusChange?: (status: AttendanceStatus) => void;
+  onStatusChange?: (status: AttendanceStatus) => void | Promise<void>;
 }) {
-  const statusStyles: Record<AttendanceStatus, { bg: string; text: string; border: string }> = {
-    Present: { bg: "bg-[#10B981]/20", text: "text-[#34D399]", border: "border-[#10B981]/40" },
-    Late: { bg: "bg-[#F59E0B]/20", text: "text-[#FBBF24]", border: "border-[#F59E0B]/40" },
-    Absent: { bg: "bg-[#EF4444]/20", text: "text-[#F87171]", border: "border-[#EF4444]/40" },
-    Excused: { bg: "bg-[#38BDF8]/20", text: "text-[#38BDF8]", border: "border-[#38BDF8]/40" },
-  };
-
-  const currentStyle = statusStyles[log.status] || statusStyles.Present;
-
-  return (
-    <div className="flex min-h-14 w-full items-center justify-between gap-2.5 rounded-2xl border border-white/14 bg-[#005580] px-3.5 py-2.5 text-right text-white transition hover:bg-[#005580]/90 shadow-sm">
-      <div className="flex min-w-0 flex-1 items-center gap-2">
-        {onViewCard && (
-          <button
-            type="button"
-            onClick={onViewCard}
-            aria-label={`כרטיס תלמיד עבור ${student.name}`}
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-white/10 text-xs font-bold text-[#B8D8E6] transition hover:bg-[#00A6A6] hover:text-white"
-          >
-            ℹ️
-          </button>
-        )}
-        <button
-          type="button"
-          onClick={onOpen}
-          className="min-w-0 flex-1 text-right focus:outline-none"
-        >
-          <p dir="auto" className="break-words text-sm sm:text-base font-bold">
-            {student.name}
-          </p>
-          {log.notes && (
-            <p className="mt-0.5 truncate text-[11px] font-medium text-[#FDE047]">
-              📝 {log.notes}
-            </p>
-          )}
-        </button>
-      </div>
-
-      <div className="flex items-center gap-1.5 shrink-0">
-        {onStatusChange ? (
-          <div className="relative">
-            <select
-              value={log.status}
-              onChange={(e) => onStatusChange(e.target.value as AttendanceStatus)}
-              aria-label={`סימון נוכחות עבור ${student.name}`}
-              className={`min-h-10 cursor-pointer appearance-none rounded-xl border ${currentStyle.border} ${currentStyle.bg} ${currentStyle.text} pl-7 pr-3 py-1.5 text-xs font-extrabold focus:outline-none focus:ring-2 focus:ring-[#00A6A6]`}
-            >
-              <option value="Present" className="bg-[#002B45] text-[#34D399]">🟢 נוכח</option>
-              <option value="Late" className="bg-[#002B45] text-[#FBBF24]">🟡 מאחר</option>
-              <option value="Absent" className="bg-[#002B45] text-[#F87171]">🔴 נעדר</option>
-              <option value="Excused" className="bg-[#002B45] text-[#38BDF8]">🔵 מוצדק</option>
-            </select>
-            <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-white/60">
-              ▼
-            </span>
-          </div>
-        ) : (
-          <button type="button" onClick={onOpen} className="shrink-0 focus:outline-none">
-            <StatusBadge status={log.status} />
-          </button>
-        )}
-
-        <button
-          type="button"
-          onClick={onOpen}
-          aria-label={`הוספת הערה עבור ${student.name}`}
-          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/10 text-xs transition ${
-            log.notes
-              ? "bg-[#F59E0B]/20 text-[#FBBF24] border-[#F59E0B]/40"
-              : "bg-white/5 text-[#B8D8E6] hover:bg-white/10 hover:text-white"
-          }`}
-          title={log.notes ? `עריכת הערה: ${log.notes}` : "הוספת הערה"}
-        >
-          {log.notes ? "📝" : "💬"}
-        </button>
-      </div>
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  return <div data-testid="attendance-row" data-student-id={student.id} className="rounded-2xl border border-white/20 bg-[#005580] p-3 text-white">
+    <div className="flex flex-wrap items-center justify-between gap-2">
+      <button type="button" onClick={onViewCard ?? onOpen} className="min-h-11 min-w-0 flex-1 text-right font-bold"><span dir="auto" className="break-words">{student.name}</span></button>
+      <label className="shrink-0 text-xs font-bold"><span className="sr-only">נוכחות</span>
+        <select disabled={saving || !onStatusChange} value={log?.status ?? ''} aria-label={`${log ? 'סימון נוכחות עבור' : 'נוכחות חדשה עבור'} ${student.name}`} className={`min-h-11 w-36 rounded-xl border px-2 text-sm font-bold ${log ? statusStyles[log.status] : 'border-slate-400 bg-slate-100 text-slate-900'}`} onChange={async e => {
+          const status = e.target.value as AttendanceStatus;
+          setSaving(true); setError('');
+          try { await onStatusChange?.(status); }
+          catch(e) { setError(e instanceof Error ? e.message : 'השמירה נכשלה. נסו שוב.'); }
+          finally { setSaving(false); }
+        }}>
+          <option value="" disabled>טרם סומן</option>
+          <option value="Present">נוכח</option><option value="Late">מאחר</option><option value="Absent">נעדר</option><option value="Excused">מוצדק</option>
+        </select>
+      </label>
     </div>
-  );
+    <div className="mt-2 flex flex-wrap items-center gap-2">
+      {onViewCard && <button type="button" onClick={onViewCard} aria-label={`כרטיס תלמיד עבור ${student.name}`} className="min-h-11 rounded-lg border border-white/30 px-3 text-sm font-bold">היסטוריה ופרטי תלמיד</button>}
+      <button type="button" onClick={onOpen} disabled={!log || saving} aria-label={`הוספת הערה עבור ${student.name}`} title={log ? 'הוספת הערה או תיקון נוכחות' : 'בחרו נוכחות כדי להוסיף הערה'} className="min-h-11 rounded-lg border border-white/30 px-3 text-sm font-bold disabled:opacity-60">{log?.notes ? 'עריכת הערה' : 'הערה'}</button>
+      {saving && <span role="status" className="text-sm">שומר…</span>}
+    </div>
+    <p className="mt-1 min-h-4 text-xs text-[#D7EAF2]">{log ? 'אפשר לתקן את הסימון או להוסיף הערה.' : 'בחרו נוכחות. לאחר הסימון אפשר להוסיף הערה.'}</p>
+    {log?.notes && <p className="mt-1 break-words text-sm text-[#FDE047]">הערה: {log.notes}</p>}
+    {error && <p role="alert" className="mt-2 rounded-lg bg-red-50 p-2 text-sm text-red-900">{error}</p>}
+  </div>;
 }
 
 export function StudentActionBottomSheet({
@@ -504,12 +449,13 @@ export function StudentActionBottomSheet({
   onStatusChange: (status: AttendanceStatus) => void | Promise<void>;
   onNotesChange: (notes: string) => void | Promise<void>;
 }) {
+  const dialogRef = useDialogFocus(onClose);
   const [saveError, setSaveError] = useState("");
   const [saving, setSaving] = useState(false);
   const [notes, setNotes] = useState(log.notes ?? "");
 
   return (
-    <div
+    <div ref={dialogRef} role="dialog" aria-modal="true" aria-label={`נוכחות והערה — ${student.name}`} tabIndex={-1}
       onClick={onClose}
       className="fixed inset-0 left-0 right-0 top-0 bottom-0 z-50 flex items-end justify-center bg-black/60 p-0 sm:items-center sm:p-4"
     >
@@ -574,6 +520,7 @@ export function StudentQuickCardModal({
   submissions = [],
   onToggleTask,
   onClose,
+  onViewHistory,
 }: {
   stats: StudentAttendanceStats;
   courseName?: string;
@@ -582,7 +529,9 @@ export function StudentQuickCardModal({
   submissions?: StudentTaskSubmission[];
   onToggleTask?: (taskId: string, completed: boolean) => void;
   onClose: () => void;
+  onViewHistory?: () => void;
 }) {
+  const dialogRef = useDialogFocus(onClose);
   const {
     student,
     totalSessions,
@@ -606,6 +555,7 @@ export function StudentQuickCardModal({
 
   return (
     <div
+      ref={dialogRef} tabIndex={-1}
       role="dialog"
       aria-modal="true"
       aria-label={`כרטיס תלמיד עבור ${student.name}`}
@@ -639,6 +589,8 @@ export function StudentQuickCardModal({
             ✕ סגור
           </button>
         </div>
+
+        {onViewHistory && <button type="button" onClick={onViewHistory} className="mt-4 min-h-12 w-full rounded-xl bg-[#00A6A6] px-3 font-bold text-[#002B45]">כל הנוכחות ותיקון דיווחים</button>}
 
         {/* Attendance rate highlight with Rotem's 80% threshold */}
         <div className="mt-3.5 flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-[#003859] p-3.5 sm:p-4">
@@ -714,10 +666,10 @@ export function StudentQuickCardModal({
               const isDone = sub?.completed ?? false;
 
               return (
-                <div
+                <button type="button" aria-pressed={isDone}
                   key={task.id}
                   onClick={() => onToggleTask && onToggleTask(task.id, !isDone)}
-                  className={`flex items-center justify-between gap-2.5 rounded-xl border p-2.5 transition cursor-pointer ${
+                  className={`flex min-h-11 w-full items-center justify-between gap-2.5 rounded-xl border p-2.5 text-right transition cursor-pointer ${
                     isDone
                       ? "border-[#16A34A]/40 bg-[#16A34A]/15 text-white"
                       : "border-white/10 bg-white/5 text-slate-300 hover:bg-white/10"
@@ -742,7 +694,7 @@ export function StudentQuickCardModal({
                   >
                     {isDone ? "בוצע" : "טרם הוגש"}
                   </span>
-                </div>
+                </button>
               );
             })}
           </div>
@@ -1113,15 +1065,23 @@ export function FinishAttendanceBar({
   logs,
   onFinish,
   onShareWhatsApp,
-  currentTopic,
-  onEditTopic,
+  remaining = 0,
+  meetingLabel,
 }: {
   logs: AttendanceLog[];
+  remaining?: number;
+  meetingLabel?: string;
   onFinish: () => void | Promise<void>;
   onShareWhatsApp?: () => void;
-  currentTopic?: string;
-  onEditTopic?: () => void;
 }) {
+  const footerRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = footerRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver(() => document.documentElement.style.setProperty('--attendance-footer-height', `${el.getBoundingClientRect().height}px`));
+    observer.observe(el);
+    return () => { observer.disconnect(); document.documentElement.style.removeProperty('--attendance-footer-height'); };
+  }, []);
   const [finishing, setFinishing] = useState(false);
   const presentCount = logs.filter((l) => l.status === "Present").length;
   const lateCount = logs.filter((l) => l.status === "Late").length;
@@ -1129,37 +1089,19 @@ export function FinishAttendanceBar({
   const excusedCount = logs.filter((l) => l.status === "Excused").length;
 
   return (
-    <div className="fixed inset-x-0 bottom-0 z-40 border-t border-white/14 bg-[#002B45]/95 px-4 pt-2.5 pb-[calc(0.75rem+env(safe-area-inset-bottom))] backdrop-blur">
-      <div className="mx-auto flex max-w-md flex-col gap-2">
-        {(currentTopic !== undefined || onEditTopic) && (
-          <div className="flex items-center justify-between gap-2 border-b border-white/10 pb-2">
-            <div className="min-w-0 flex-1 flex items-center gap-1.5 text-xs text-[#B8D8E6]">
-              <span>📌</span>
-              <span className="font-bold text-white truncate">
-                {currentTopic ? `נושא: ${currentTopic}` : "טרם תועד נושא למפגש זה"}
-              </span>
-            </div>
-            {onEditTopic && (
-              <button
-                type="button"
-                onClick={onEditTopic}
-                className="text-[11px] font-bold text-[#00E5E5] hover:underline shrink-0"
-              >
-                {currentTopic ? "שינוי נושא" : "+ תיעוד שיעור"}
-              </button>
-            )}
-          </div>
-        )}
+    <div ref={footerRef} data-testid="attendance-footer" className="fixed inset-x-0 bottom-0 z-40 border-t border-white/14 bg-[#002B45]/95 px-4 pt-2.5 pb-[calc(0.75rem+env(safe-area-inset-bottom))] backdrop-blur">
+      <div className="mx-auto flex max-w-4xl flex-col gap-2">
+        {meetingLabel && <p className="text-sm font-bold">{meetingLabel}</p>}
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-[11px] font-bold text-[#B8D8E6] text-center sm:text-right">
-          נוכחים {presentCount} · מאחרים {lateCount} · נעדרים {absentCount} · מוצדקים {excusedCount}
+          נותרו לסימון {remaining} · נוכחים {presentCount} · מאחרים {lateCount} · נעדרים {absentCount} · מוצדקים {excusedCount}
         </p>
         <div className="flex items-center gap-2 w-full sm:w-auto">
           {onShareWhatsApp && (
             <button
               type="button"
               onClick={onShareWhatsApp}
-              className="flex min-h-11 shrink-0 items-center justify-center gap-1.5 rounded-xl bg-[#25D366] px-3.5 text-xs font-extrabold text-white transition hover:bg-[#20BD5A]"
+              className="flex min-h-11 shrink-0 items-center justify-center gap-1.5 rounded-xl bg-[#25D366] px-3.5 text-xs font-extrabold text-[#002B45] transition hover:bg-[#20BD5A]"
               title="שיתוף סיכום נוכחות לווטסאפ"
             >
               <span>💬</span>
@@ -1190,8 +1132,10 @@ export function Modal({
   onClose: () => void;
   children: ReactNode;
 }) {
+  const dialogRef = useDialogFocus(onClose);
   return (
     <div
+      ref={dialogRef} tabIndex={-1}
       role="dialog"
       aria-modal="true"
       aria-label={title}

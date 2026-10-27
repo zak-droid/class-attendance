@@ -84,6 +84,7 @@ test('import an actual CSV file with first and family names', async ({ page }) =
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await page.getByRole('button', { name: 'היום', exact: true }).click();
   await page.locator('article').filter({ hasText: 'מתמטיקה בדיקה' }).getByRole('button', { name: 'התחלת נוכחות' }).click();
+  await page.getByRole('button',{name:'סימון כל מי שטרם סומן כנוכח',exact:true}).click();
   await expect(page.getByRole('button', { name: 'תמר ישראלי', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'תמר כהן', exact: true })).toBeVisible();
 });
@@ -99,19 +100,21 @@ test('unlabeled roster keeps names when later columns contain overlapping occupa
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await page.reload();
   await page.locator('article').filter({ hasText: 'מתמטיקה בדיקה' }).getByRole('button', { name: 'התחלת נוכחות' }).click();
+  await page.getByRole('button',{name:'סימון כל מי שטרם סומן כנוכח',exact:true}).click();
   await expect(page.getByRole('button', { name: 'תמר ישראלי', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'מנחת קבוצות ומטפלת', exact: true })).toHaveCount(0);
 });
 
 test('daily attendance, notes, finish and historical correction keep dates separate', async ({ page }) => {
   await page.locator('article').filter({ hasText: 'מתמטיקה בדיקה' }).getByRole('button', { name: 'התחלת נוכחות' }).click();
+  await page.getByRole('button',{name:'סימון כל מי שטרם סומן כנוכח',exact:true}).click();
   const status = page.getByLabel('סימון נוכחות עבור יעל כהן', { exact: true });
   await status.selectOption('Late');
   await expect(status).toHaveValue('Late');
   await page.getByRole('button', { name: 'הוספת הערה עבור יעל כהן', exact: true }).click();
   await page.getByLabel('הערה לתלמיד/ה').fill('הגיעה באיחור של עשר דקות');
   await page.getByRole('button', { name: 'שמירת הערה' }).click();
-  await expect(page.getByText('📝 הגיעה באיחור של עשר דקות')).toBeVisible();
+  await expect(page.getByText('הערה: הגיעה באיחור של עשר דקות')).toBeVisible();
   await page.getByRole('button', { name: 'סיום נוכחות', exact: true }).click();
   await page.getByRole('button', { name: 'היסטוריה', exact: true }).click();
   await page.getByLabel('בחירת תאריך נוכחות').fill('2026-10-25');
@@ -133,6 +136,7 @@ test('daily attendance, notes, finish and historical correction keep dates separ
 
 async function startMath(page: Page) {
   await page.locator('article').filter({hasText:'מתמטיקה בדיקה'}).getByRole('button',{name:'התחלת נוכחות',exact:true}).click();
+  await page.getByRole('button',{name:'סימון כל מי שטרם סומן כנוכח',exact:true}).click();
   await expect(page.getByLabel('סימון נוכחות עבור יעל כהן',{exact:true})).toBeVisible();
 }
 async function courseMenu(page: Page, item: RegExp) {
@@ -236,7 +240,7 @@ test('attendance note rejection keeps editor open for retry',async({page})=>{
   await expect(page.getByLabel('הערה לתלמיד/ה')).toHaveValue('בדיקת כשל בשמירה');
   await page.getByRole('button',{name:'שמירת הערה',exact:true}).click();
   await expect(page.getByLabel('הערה לתלמיד/ה')).toHaveCount(0);
-  await expect(page.getByText('📝 בדיקת כשל בשמירה')).toBeVisible();
+  await expect(page.getByText('הערה: בדיקת כשל בשמירה')).toBeVisible();
 });
 
 test('XLSX upload preserves full names across empty columns',async({page})=>{

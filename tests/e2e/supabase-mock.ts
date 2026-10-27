@@ -15,7 +15,7 @@ const tables: Record<string, any[]> = { courses, students, attendance_logs, app_
 const saved = sessionStorage.getItem('e2e-database');
 if (saved) for (const [name, rows] of Object.entries(JSON.parse(saved))) tables[name].splice(0, tables[name].length, ...(rows as any[]));
 const persist = () => sessionStorage.setItem('e2e-database', JSON.stringify(tables));
-const session = { access_token: "e2e", user: { id: "e2e-user", email: "rotman555@gmail.com" } };
+const session = { access_token: "e2e", user: { id: "e2e-user", email: sessionStorage.getItem('e2e-user-email') ?? "rotman555@gmail.com" } };
 function query(table: string) {
   let action = "select"; let payload: any; let opts: any = {};
   const filters: ((r: any) => boolean)[] = [];

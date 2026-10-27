@@ -146,12 +146,12 @@ test("teacher-first auth-gated flow, synced Today production copy, and schema st
   // Task A: Synced Today-screen Hebrew labels
   assert.doesNotMatch(page, /בחרו כיתה\. כל התלמידים יסומנו כנוכחים כברירת מחדל\./);
   assert.match(page, /בחרו כיתה כדי להתחיל נוכחות לתאריך זה\./);
-  assert.match(page, /כל התלמידים יסומנו כנוכחים כברירת מחדל\./);
+  assert.match(page, /פתיחת מפגש אינה מסמנת נוכחות\./);
   assert.match(page, /טרם דווחה/);
   assert.match(page, /הושלמה היום/);
   assert.match(page, /בתהליך/);
   assert.match(page, /אין מפגשים מתוכננים להיום/);
-  assert.match(page, /מעבר לעוד/);
+  assert.match(page, /בחירת כיתה ומפגש/);
 
   assert.match(components, /grid grid-cols-4/);
   assert.match(components, /bg-\[#002B45\]/);
@@ -168,8 +168,8 @@ test("teacher-first auth-gated flow, synced Today production copy, and schema st
   assert.match(page, /title="ניהול קורסים"/);
   assert.match(page, /title="ייבוא תלמידים"/);
   assert.match(page, /function AddStudentBottomSheet/);
-  assert.match(page, /log\.status !== "Present"/);
-  assert.match(page, /Boolean\(log\.notes\)/);
+  assert.match(page, /l\.status === 'Present' && !l\.notes/);
+  assert.match(page, /attendanceRoster\(activeSessionCourseId,today,'all',todayFilter === 'exceptions'\)/);
   assert.match(page, /data.completedSessions/);
   assert.match(page, /setSessionReadOnly/);
   assert.match(page, /setTab\("more"\)/);

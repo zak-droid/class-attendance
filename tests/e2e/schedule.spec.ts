@@ -30,10 +30,12 @@ test('manual dates, two-day event, holiday and daily attendance remain separate 
   await expect(page.getByText('אין מפגשים מתוכננים לתאריך זה',{exact:true})).toBeVisible();
   await page.getByLabel('בחירת תאריך מפגשים').fill('2026-12-03');
   await page.getByRole('button',{name:'התחלת נוכחות',exact:true}).click();
+  await page.getByRole('button',{name:'סימון כל מי שטרם סומן כנוכח',exact:true}).click();
   await page.getByLabel('סימון נוכחות עבור יעל כהן',{exact:true}).selectOption('Late');
   await page.getByRole('button',{name:'סיום נוכחות',exact:true}).click();
   await page.getByLabel('בחירת תאריך מפגשים').fill('2026-12-04');
   await page.getByRole('button',{name:'התחלת נוכחות',exact:true}).click();
+  await page.getByRole('button',{name:'סימון כל מי שטרם סומן כנוכח',exact:true}).click();
   await expect(page.getByLabel('סימון נוכחות עבור יעל כהן',{exact:true})).toHaveValue('Present');
   await page.getByRole('button',{name:'סיום נוכחות',exact:true}).click();
   await page.reload();
@@ -73,6 +75,7 @@ test('weekly creation, manual editing, cancellation, failed save and duplicate i
 
 test('moving an attended meeting keeps original attendance and flags the old date', async ({page}) => {
   await page.locator('article').filter({hasText:'מתמטיקה בדיקה'}).getByRole('button',{name:'התחלת נוכחות'}).click();
+  await page.getByRole('button',{name:'סימון כל מי שטרם סומן כנוכח',exact:true}).click();
   await page.getByRole('button',{name:'סיום נוכחות',exact:true}).click();
   await openSchedule(page);
   await page.getByLabel('תאריך מפגש 1',{exact:true}).fill('2026-10-29');
@@ -82,7 +85,7 @@ test('moving an attended meeting keeps original attendance and flags the old dat
   await expect(page.getByRole('button',{name:'בדיקת הדיווח — מתמטיקה בדיקה'})).toBeVisible();
   await page.getByRole('button',{name:'בדיקת הדיווח — מתמטיקה בדיקה'}).click();
   await expect(page.getByLabel('סימון נוכחות עבור יעל כהן',{exact:true})).toHaveValue('Present');
-  await expect(page.getByLabel('בחירת תאריך נוכחות')).toHaveValue('2026-10-26');
+  await expect(page.getByRole('heading',{name:/מתמטיקה בדיקה · יום שני, 26 באוקטובר 2026/})).toBeVisible();
 });
 
 test('course creation opens schedule setup and an unscheduled course never appears as a lesson', async ({page}) => {
